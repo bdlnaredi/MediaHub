@@ -43,7 +43,7 @@ services:
     container_name: mediahub
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "5080:8080"
     environment:
       - PUID=1000
       - PGID=1000
@@ -61,7 +61,7 @@ docker compose up -d
 
 ```
 docker run -d --name mediahub --restart unless-stopped \
-  -p 8080:8080 -e PUID=1000 -e PGID=1000 \
+  -p 5080:8080 -e PUID=1000 -e PGID=1000 \
   -v /path/to/mediahub-data:/data \
   ghcr.io/bdlnaredi/mediahub:latest
 ```
@@ -72,7 +72,7 @@ Copy `unraid/mediahub.xml` to `/boot/config/plugins/dockerMan/templates-user/` o
 
 ### First run
 
-Open `http://YOUR-SERVER-IP:8080`. The first screen creates the admin account (password of 8 or more characters). Then go to **Settings, then Apps** and add your apps. Pages appear in the menu as soon as the matching app is connected.
+Open `http://YOUR-SERVER-IP:5080`. The first screen creates the admin account (password of 8 or more characters). Then go to **Settings, then Apps** and add your apps. Pages appear in the menu as soon as the matching app is connected.
 
 If the port can be reached by anyone besides you, set `SETUP_TOKEN` first (see below) so nobody else can create the admin account.
 
