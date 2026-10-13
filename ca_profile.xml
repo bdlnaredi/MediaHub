@@ -9,20 +9,12 @@
   <Repository>https://github.com/bdlnaredi/mediahub</Repository>
   <Registry></Registry>
   <Network>bridge</Network>
-  <MyIP/>
-  <MyMAC/>
   <Shell>bash</Shell>
   <Privileged>false</Privileged>
   <Category>MediaServer:Video Downloaders:</Category>
   <WebUI>http://[IP]:[PORT:5080]/</WebUI>
-  <ExtraParams/>
-  <PostArgs/>
-  <CPUset/>
-  <DateInstalled/>
-  <TailscaleStateDir/>
-  
   <!-- Optional support links (Remove the comments to use) -->
   <!-- <Forum>https://forums.unraid.net/topic/YOUR_SUPPORT_TOPIC</Forum> -->
   <!-- <Discord>https://discord.gg/YOUR_INVITE_CODE</Discord> -->
 </CommunityApplications>
-</Container>
+
