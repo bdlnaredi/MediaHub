@@ -1,0 +1,1209 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MediaHub</title>
+<link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#0e131d"><link rel="icon" href="/icon.svg"><link rel="apple-touch-icon" href="/icon-192.png">
+<style>
+:root{--bg:#14152a;--s1:#1b1d36;--s2:#242746;--line:#30345a;--text:#ecebf6;--mute:#9a9dba;--accent:#ffb938;--onacc:#1d1400;--ok:#3fd8c4;--bad:#ff6b81;--warn:#ffb938;--panel:var(--s1);--link:color-mix(in srgb,var(--accent) 70%,var(--text));--r1:18px;--r2:12px;color-scheme:dark}
+:root[data-theme=light]{--bg:#f5f4fb;--s1:#fff;--s2:#edebf7;--line:#dcd9ec;--text:#1a1830;--mute:#615f80;--ok:#0e8f80;--bad:#d03352;--warn:#b36b00;color-scheme:light}
+@media (prefers-color-scheme:light){:root:not([data-theme=dark]){--bg:#f5f4fb;--s1:#fff;--s2:#edebf7;--line:#dcd9ec;--text:#1a1830;--mute:#615f80;--ok:#0e8f80;--bad:#d03352;--warn:#b36b00;color-scheme:light}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,"Segoe UI Variable Text","Segoe UI",Roboto,sans-serif;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-weight:680;letter-spacing:-.025em}h2{margin-top:0}h3{font-size:16px}
+.sec{font-size:18px;margin:34px 0 12px}
+.mute{color:var(--mute);font-size:13.5px}
+a{color:var(--link);text-decoration:none}a:hover{text-decoration:underline}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.shell{display:grid;grid-template-columns:var(--rail,232px) minmax(0,1fr);min-height:100vh}
+html[data-rail=min]{--rail:70px}
+.side{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;padding:14px 10px;background:var(--s1);border-right:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:10px;font-weight:720;font-size:17px;letter-spacing:-.02em;padding:2px 6px 16px}
+.brand .t{flex:1}
+.logo{width:30px;height:30px;border-radius:9px;background:var(--accent);color:var(--onacc);display:grid;place-items:center;flex:none}
+.nav{display:flex;flex-direction:column;gap:2px;flex:1;overflow:auto}
+.nv{display:flex;align-items:center;gap:12px;width:100%;padding:9px 12px;border:0;border-radius:10px;background:none;color:var(--mute);font-weight:520;text-align:left}
+.nv:hover:not(:disabled){background:var(--s2);color:var(--text)}
+.nv.on,.nv.on:hover:not(:disabled){background:color-mix(in srgb,var(--accent) 15%,transparent);color:var(--text)}.nv.on .ic{color:var(--accent)}
+.mob{display:none}
+.ic{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+button .ic{width:17px;height:17px}
+.who{display:flex;align-items:center;gap:8px;padding:12px 4px 0;border-top:1px solid var(--line);margin-top:8px}
+.who .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.av{width:30px;height:30px;border-radius:50%;background:var(--s2);display:grid;place-items:center;font-weight:700;flex:none}
+html[data-rail=min] .nv span,html[data-rail=min] .brand .t,html[data-rail=min] .who .nm{display:none}
+html[data-rail=min] .nv{justify-content:center;padding:10px}
+html[data-rail=min] .brand{flex-direction:column;gap:8px;padding:2px 0 14px}
+html[data-rail=min] .who{flex-direction:column}
+html[data-rail=min] #rl .ic{transform:rotate(180deg)}
+main{width:100%;max-width:1120px;margin:0 auto;padding:30px 32px 60px}
+.ph{margin:0 0 22px}.ph:empty{display:none}
+.ph h1{margin:0;font-size:28px;letter-spacing:-.035em}.ph p{margin:3px 0 0}
+button,input,select,textarea{font:inherit;color:inherit;background:var(--s2);border:1px solid var(--line);border-radius:10px;padding:9px 14px}
+textarea{resize:vertical}
+input::placeholder,textarea::placeholder{color:var(--mute)}
+input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+button{display:inline-flex;align-items:center;gap:7px;cursor:pointer;font-weight:560;transition:background .15s,border-color .15s}
+button:hover:not(:disabled){background:color-mix(in srgb,var(--s2) 78%,var(--text))}
+button:active:not(:disabled){transform:translateY(1px)}
+button:disabled{opacity:.5;cursor:default}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--onacc);font-weight:700}
+button.primary:hover:not(:disabled){background:color-mix(in srgb,var(--accent) 88%,#fff)}
+button.danger{color:var(--bad)}
+button.tog{background:color-mix(in srgb,var(--accent) 18%,transparent);border-color:var(--accent);color:var(--link)}
+.ghost{background:none;border:0;padding:6px;color:var(--mute)}
+.ghost:hover:not(:disabled){background:var(--s2);color:var(--text)}
+button.icon{padding:0;width:34px;height:34px;justify-content:center;border-radius:9px}
+button.icon .ic{width:18px;height:18px}
+.panel,.card{background:var(--s1);border:1px solid var(--line)}
+.panel{border-radius:var(--r1);padding:18px}
+.card{border-radius:var(--r2);padding:10px}.card h3{margin:9px 0 2px;font-size:15px;line-height:1.3}
+.box{margin:0 -10px;padding:14px 10px;border-bottom:1px solid var(--line)}
+.panel .box:last-child{border-bottom:0}
+.box[data-q]:hover,.box.hov:hover{background:var(--s1);border-radius:10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:16px}
+.card[data-c],.card[data-v],.box[data-q],.pc{cursor:pointer}
+.card[data-c]:hover,.card[data-v]:hover{border-color:var(--accent)}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.grow{flex:1;min-width:0}
+.err{color:var(--bad);min-height:1.4em}
+form{display:grid;gap:10px;margin-bottom:20px}
+label.chk{display:inline-flex;gap:8px;align-items:center;margin-right:12px}label.chk input,.chk input{width:auto}
+.hero{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:16px}
+.meter{margin-bottom:16px}.meter progress{margin-top:7px}
+.srow{display:grid;grid-template-columns:12px 1fr auto 110px auto;gap:14px;align-items:center;padding:13px 0;border-bottom:1px solid var(--line)}
+.srow:last-child{border-bottom:0}
+.strip{display:flex;gap:14px;overflow-x:auto;padding-bottom:10px}
+.pc{flex:none;width:138px;text-align:left;padding:0;background:none;border:0;color:inherit;display:block}
+.pc:hover:not(:disabled){background:none}.pc:hover .pw{outline:2px solid var(--accent)}
+.pw{position:relative;border-radius:10px;overflow:hidden;aspect-ratio:2/3;background:var(--s2);margin-bottom:8px}
+.pw img{width:100%;height:100%;object-fit:cover;display:block}
+.bd{position:absolute;left:8px;bottom:8px;background:rgba(10,12,24,.82);color:#fff;padding:2px 9px;border-radius:99px;font-size:12px}
+.pc b{display:block;font-size:14px;line-height:1.3}
+progress{-webkit-appearance:none;appearance:none;display:block;width:100%;height:6px;border:0;border-radius:99px;background:var(--s2);overflow:hidden}
+progress::-webkit-progress-bar{background:var(--s2);border-radius:99px}
+progress::-webkit-progress-value{background:var(--accent);border-radius:99px;transition:width .5s}
+progress::-moz-progress-bar{background:var(--accent);border-radius:99px}
+progress.done::-webkit-progress-value{background:var(--ok)}progress.done::-moz-progress-bar{background:var(--ok)}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--mute);margin-right:6px;vertical-align:middle}
+.dot.ok{background:var(--ok)}.dot.bad{background:var(--bad)}.srow .dot{margin:0}
+.pill{display:inline-block;padding:2px 10px;border-radius:99px;background:var(--s2);font-size:12.5px;font-weight:560;color:var(--mute);white-space:nowrap}
+.pill.ok{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}
+.pill.bad{background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad)}
+.pill.warn{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
+.pill.acc{background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--link)}
+.pill a{color:inherit;margin-left:5px}
+.chip{display:inline-block;padding:0 8px;border-radius:6px;background:var(--s2);color:var(--text);font-size:12.5px}
+.seg{display:inline-flex;flex-wrap:wrap;gap:2px;background:var(--s2);border-radius:12px;padding:3px}
+.seg button{border:0;background:none;border-radius:9px;padding:6px 13px;color:var(--mute)}
+.seg button:hover:not(:disabled){background:none;color:var(--text)}
+.seg button.on,.seg button.on:hover:not(:disabled){background:var(--s1);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.28)}
+.seg i{font-style:normal;margin-left:4px;color:var(--mute);font-weight:500}
+.tr{display:flex;gap:12px;align-items:flex-start;box-shadow:inset 3px 0 0 transparent}
+.tr[data-g=downloading]{box-shadow:inset 3px 0 0 var(--accent)}.tr[data-g=seeding]{box-shadow:inset 3px 0 0 var(--ok)}.tr[data-g=errors]{box-shadow:inset 3px 0 0 var(--bad)}
+.tr>input{margin-top:5px;width:auto}
+.tr .top{flex-wrap:nowrap;align-items:flex-start;gap:12px}
+.tr .nm{flex:1;min-width:0;cursor:pointer;word-break:break-word;font-weight:620}
+.tr .bar{display:flex;align-items:center;gap:10px;margin:9px 0 7px}.tr .bar progress{flex:1}.tr .bar span{font-size:12.5px;color:var(--mute);min-width:42px;text-align:right}
+.tr .meta{display:flex;flex-wrap:wrap;gap:4px 16px;color:var(--mute);font-size:13px}
+.tr .acts{display:flex;gap:4px;flex:none}
+.art .ud{width:8px;height:8px;border-radius:50%;background:var(--accent);flex:none}
+.art.rd .ud{background:transparent}.art.rd b{font-weight:500;color:var(--mute)}
+.empty{text-align:center;padding:48px 12px;color:var(--mute)}.empty b{display:block;color:var(--text);font-size:16px;margin:10px 0 2px}
+.empty .eic{width:46px;height:46px;border-radius:14px;background:var(--s2);display:inline-grid;place-items:center}
+.sk{height:14px;border-radius:7px;background:linear-gradient(90deg,var(--s2),color-mix(in srgb,var(--s2) 70%,var(--text)),var(--s2));background-size:200% 100%;animation:sh 1.3s linear infinite}
+@keyframes sh{to{background-position:-200% 0}}
+.sw{width:30px;height:30px;padding:0;border-radius:50%;border:2px solid transparent}
+.sw.on{outline:2px solid var(--text);outline-offset:2px}
+.login{max-width:380px;margin:12vh auto;padding:30px;background:var(--s1);border:1px solid var(--line);border-radius:var(--r1)}
+.ov{position:fixed;inset:0;background:rgba(6,7,16,.62);backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;padding:16px;z-index:9}
+.dlg{background:var(--s1);border:1px solid var(--line);border-radius:20px;max-width:780px;max-height:90vh;overflow:auto;padding:22px;display:flex;gap:18px;flex-wrap:wrap;animation:up .18s ease-out}
+@keyframes up{from{transform:translateY(14px);opacity:0}}
+#toasts{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:8px;z-index:20;width:min(380px,calc(100vw - 36px))}
+.toast{background:var(--s2);border:1px solid var(--line);border-left:4px solid var(--mute);border-radius:12px;padding:11px 14px;box-shadow:0 10px 30px rgba(0,0,0,.35);animation:up .18s ease-out}
+.toast.ok{border-left-color:var(--ok)}.toast.bad{border-left-color:var(--bad)}
+.qs{display:flex;align-items:center;gap:10px;width:100%;margin:0 0 10px;padding:9px 12px;border-radius:10px;background:var(--s2);border:1px solid var(--line);color:var(--mute);font-weight:500}
+.qs span{flex:1;text-align:left}.qs kbd{font:inherit;font-size:12px;padding:1px 6px;border-radius:6px;border:1px solid var(--line)}
+html[data-rail=min] .qs span,html[data-rail=min] .qs kbd{display:none}html[data-rail=min] .qs{justify-content:center}
+input[type=checkbox]{accent-color:var(--accent);width:18px;height:18px;padding:0;border:0;background:none;flex:none}
+.dot.warn{background:var(--warn)}
+.pick{display:inline-flex;align-items:center;gap:8px;margin-top:10px}.pick select{padding:6px 10px}
+.qi{padding:10px 12px;border-radius:10px;display:flex;gap:10px;align-items:center;cursor:pointer}.qi.on{background:var(--s2)}.qg{margin:12px 4px 4px;color:var(--mute);font-size:12.5px}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.cal>div{background:var(--s1);min-height:96px;padding:6px;min-width:0}.cal .hd{min-height:0;text-align:center;color:var(--mute);font-size:12.5px;padding:8px}.cal .om{opacity:.45}
+.cal .dn{font-size:12.5px;color:var(--mute)}.cal .td .dn{color:var(--accent);font-weight:700}
+.cal .ev{display:block;width:100%;text-align:left;padding:2px 6px;margin-top:3px;border-radius:6px;background:color-mix(in srgb,var(--accent) 16%,transparent);font-size:12px;line-height:1.35;border:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.nc [data-pa],.nc [data-rs]{display:none!important}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.fgrid label{display:grid;gap:4px;font-size:12.5px;color:var(--mute)}.fgrid select,.fgrid input{width:100%}
+.tgl{display:inline-flex;align-items:center;gap:8px;cursor:pointer}
+.tgl input[type=checkbox]{appearance:none;-webkit-appearance:none;width:38px;height:22px;border-radius:99px;background:var(--s2);border:1px solid var(--line);position:relative;cursor:pointer;transition:background .15s,border-color .15s;flex:none}
+.tgl input[type=checkbox]::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--mute);transition:left .15s,background .15s}
+.tgl input[type=checkbox]:checked{background:color-mix(in srgb,var(--accent) 28%,transparent);border-color:var(--accent)}
+.tgl input[type=checkbox]:checked::after{left:18px;background:var(--accent)}
+.tgl input[type=checkbox]:disabled{opacity:.5;cursor:default}
+.chev{display:inline-grid;transform:rotate(180deg);transition:transform .15s}.chev.o{transform:rotate(-90deg)}
+.sel-bar{display:none;margin:10px 0;position:sticky;top:8px;z-index:3;background:var(--s1);border:1px solid var(--line);border-radius:14px;padding:10px 12px}
+@media(max-width:860px){.cal>div{min-height:62px;padding:3px}.cal .ev{font-size:10.5px;padding:1px 3px}}
+@media(max-width:860px){
+ .shell{display:block}
+ .side{position:sticky;top:0;z-index:5;height:auto;padding:10px 10px 6px;border-right:0;border-bottom:1px solid var(--line)}
+ .brand{padding:0 6px 8px}.brand #rl{display:none}.nav{flex-direction:row;overflow-x:auto;gap:4px;flex:none}
+ .nv{width:auto;white-space:nowrap;padding:8px 12px}.nv.on,.nv.on:hover:not(:disabled){box-shadow:inset 0 -3px 0 var(--accent);border-radius:10px 10px 0 0}
+ .who{display:none}.mob{display:flex}main{padding:20px 14px 48px}
+ .hero{grid-template-columns:1fr}.srow{grid-template-columns:12px 1fr auto auto}.srow .mute:nth-of-type(1){display:none}
+ .ov{align-items:flex-end;padding:0}.dlg{width:100%!important;max-width:none;border-radius:20px 20px 0 0;max-height:92vh}
+ #toasts{right:12px;left:12px;width:auto;bottom:12px}
+}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style></head><body>
+<div id="app"></div><div id="toasts" aria-live="polite"></div>
+<script>
+const $=s=>document.querySelector(s);
+const UI=(()=>{try{return JSON.parse(localStorage.getItem('mh-ui'))||{}}catch{return{}}})();
+const ACC={Saffron:'#ffb938',Coral:'#ff7a66',Sky:'#5ab4ff',Violet:'#a78bfa',Rose:'#ff6fae',Mint:'#4ade9a'};
+function applyUI(){const r=document.documentElement;if(UI.theme)r.dataset.theme=UI.theme;else delete r.dataset.theme;if(UI.rail)r.dataset.rail='min';else delete r.dataset.rail;r.style.setProperty('--accent',UI.accent||ACC.Saffron)}
+const saveUI=()=>{try{localStorage.setItem('mh-ui',JSON.stringify(UI))}catch{}applyUI()};
+applyUI();
+function toast(m,k){const el=document.createElement('div');el.className='toast '+(k||'');el.setAttribute('role',k==='bad'?'alert':'status');el.textContent=m;$('#toasts').append(el);setTimeout(()=>el.remove(),k==='bad'?7000:3500)}
+const skel=(n=4)=>Array.from({length:n},()=>'<div class="box"><div class="sk" style="width:62%"></div><div class="sk" style="width:36%;margin-top:9px"></div></div>').join('');
+const fp=s=>String(s||'').replace(/\\/g,' / ');
+const empty=(t,hint)=>`<div class="empty"><span class="eic">${ic('find')}</span><b>${t}</b><div>${hint||''}</div></div>`;
+function appearHtml(){
+  return `<h3>Theme</h3><div class="seg" id="th">${[['','Match my device'],['light','Light'],['dark','Dark']].map(([k,n])=>`<button data-th="${k}" class="${(UI.theme||'')===k?'on':''}">${n}</button>`).join('')}</div>
+    <h3>Accent color</h3><div class="row" id="ac">${Object.entries(ACC).map(([n,c])=>`<button class="sw ${(UI.accent||ACC.Saffron)===c?'on':''}" data-ac="${c}" style="background:${c}" aria-label="${n}" title="${n}"></button>`).join('')}</div>
+    <h3>Menu</h3><label class="chk"><input type="checkbox" id="rm" ${UI.rail?'checked':''}>Use the compact menu (icons only)</label>`;
+}
+function bindAppear(o){
+  o.querySelector('#th').onclick=e=>{const b=e.target.closest('[data-th]');if(!b)return;UI.theme=b.dataset.th;saveUI();o.querySelectorAll('#th button').forEach(z=>z.classList.toggle('on',z===b))};
+  o.querySelector('#ac').onclick=e=>{const b=e.target.closest('[data-ac]');if(!b)return;UI.accent=b.dataset.ac;saveUI();o.querySelectorAll('#ac button').forEach(z=>z.classList.toggle('on',z===b))};
+  o.querySelector('#rm').onchange=e=>{UI.rail=e.target.checked;saveUI()};
+}
+function appearance(){
+  const o=modal(`<div class="row"><h2 style="margin:0;flex:1">Appearance</h2><button data-x>Close</button></div>${appearHtml()}`);
+  o.querySelector('[data-x]').onclick=o.close;bindAppear(o);
+}
+function trace(series,h,label){
+  const W=300,max=Math.max(1,...series.flatMap(s=>s.v))*1.15;
+  const x=(v,i)=>(W-(v.length-1-i)*W/(HIST-1)).toFixed(1),y=n=>(h-4-Math.min(n,max)/max*(h-10)).toFixed(1);
+  const line=v=>v.map((n,i)=>`${i?'L':'M'}${x(v,i)},${y(n)}`).join('');
+  const grid=[.25,.5,.75].map(f=>`<line x1="0" x2="${W}" y1="${(h*f).toFixed(1)}" y2="${(h*f).toFixed(1)}" style="stroke:var(--line)" stroke-width="1" vector-effect="non-scaling-stroke" stroke-dasharray="3 5"/>`).join('');
+  return `<svg viewBox="0 0 ${W} ${h}" width="100%" height="${h}" preserveAspectRatio="none" role="img" aria-label="${label}"><defs><linearGradient id="tg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" style="stop-color:var(--accent);stop-opacity:.32"/><stop offset="1" style="stop-color:var(--accent);stop-opacity:0"/></linearGradient></defs>${grid}`+
+    series.map((s,i)=>s.v.length<2?'':(i===0?`<path d="${line(s.v)}L${W},${h}L${x(s.v,0)},${h}Z" fill="url(#tg)"/>`:'')+`<path d="${line(s.v)}" fill="none" style="stroke:${s.c}" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`).join('')+'</svg>';
+}
+const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const TYPES={sonarr:'Sonarr',radarr:'Radarr',prowlarr:'Prowlarr',jackett:'Jackett',qbittorrent:'qBittorrent',seerr:'Seerr',unraid:'Unraid',plex:'Plex',tautulli:'Tautulli',sabnzbd:'SABnzbd',bazarr:'Bazarr',lidarr:'Lidarr',readarr:'Readarr'};
+let me=null,tab='dash',services=[],users=[];
+async function api(url,method='GET',body){
+  const r=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(d.error||'Something went wrong');
+  return d;
+}
+async function start(){
+  const s=await api('/api/me');
+  if(!s.user)return authView(s.setup,s.setupCode);
+  me=s.user;await load();render();
+}
+async function load(){
+  services=await api('/api/services');
+  users=me.role==='admin'?await api('/api/users'):[];
+}
+function authView(setup,needCode){
+  $('#app').innerHTML=`<form class="login box" id="f">
+    <span class="logo" style="width:38px;height:38px;margin-bottom:6px">${LOGO}</span><h2>${setup?'Create the admin account':'Sign in to MediaHub'}</h2>
+    ${setup&&needCode?'<input name="token" placeholder="Setup code (SETUP_TOKEN from your container settings)" autocomplete="off" required>':''}
+    <input name="name" placeholder="Name" autocomplete="username" required>
+    <input name="password" type="password" placeholder="Password (8+ characters)" autocomplete="${setup?'new-password':'current-password'}" required>
+    <button class="primary">${setup?'Create account':'Sign in'}</button><div class="err" id="e"></div></form>`;
+  $('#f').onsubmit=async e=>{e.preventDefault();
+    try{await api(setup?'/api/setup':'/api/login','POST',Object.fromEntries(new FormData(e.target)));start();}
+    catch(x){$('#e').textContent=x.message}};
+}
+const ICONS={
+ dash:'<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>',
+ find:'<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+ dl:'<path d="M12 3v12m0 0-4-4m4 4 4-4M4 20h16"/>',
+ up:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+ idx:'<path d="M4 6h16M4 12h16M4 18h10"/>',
+ ur:'<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>',
+ svc:'<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>',
+ usr:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.5-5 6.5-5s5.7 1.5 6.5 5M16 4.5a3.5 3.5 0 0 1 0 7M18 15c2 .6 3.3 2.2 3.8 5"/>',
+ pw:'<circle cx="8" cy="15" r="4"/><path d="m11 12 8-8m-3 3 3 3"/>',
+ out:'<path d="M9 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h4M16 8l4 4-4 4M20 12H9"/>',
+ rq:'<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
+ lib:'<rect x="4" y="4" width="5" height="16" rx="1"/><rect x="10.5" y="4" width="5" height="16" rx="1"/><path d="m17.5 5.5 3 .8-3.8 13.7-3-.8z"/>',
+ al:'<path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9M10 20a2 2 0 0 0 4 0"/>',
+ rss:'<path d="M5 5a14 14 0 0 1 14 14M5 11a8 8 0 0 1 8 8"/><circle cx="6" cy="18" r="1.4"/>',
+ pause:'<path d="M8 5v14M16 5v14"/>',play:'<path d="M7 5l12 7-12 7z"/>',
+ info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
+ refresh:'<path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/>',
+ check:'<path d="m5 12 5 5 9-10"/>',checks:'<path d="m2.5 12.5 5 5 8-10M11 16.5l1 1 9-10"/>',
+ pal:'<circle cx="12" cy="12" r="9"/><circle cx="8.5" cy="10" r="1"/><circle cx="12" cy="7.5" r="1"/><circle cx="15.5" cy="10" r="1"/><path d="M12 21c0-2 1-2.5 2.5-2.5S17 18 17 16"/>',
+ chev:'<path d="m15 6-6 6 6 6"/>',
+ wt:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>',stats:'<path d="M5 20V10M12 20V4M19 20v-7"/>',
+ set:'<circle cx="12" cy="12" r="3"/><path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/>',
+ hist:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',trash:'<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>'};
+const ic=k=>`<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICONS[k]}</svg>`;
+const LOGO='<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>';
+const PAGES={dash:['',''],find:['Search','Find a show or movie and add it to Sonarr or Radarr.'],rq:['Requests','Ask for something new, or approve what others asked for.'],lib:['Library','Everything in Sonarr and Radarr, and what is still missing.'],
+ wt:['Wanted','Episodes and movies you are still missing, or that could be a better quality.'],dl:['Downloads','What qBittorrent is fetching right now.'],rss:['RSS','Feeds and auto-download rules from qBittorrent.'],up:['Upcoming','Releases coming soon, and what is downloading.'],
+ idx:['Indexers','Search all your Jackett indexers.'],ur:['Unraid','Server health, disks and containers.'],stats:['Watch stats','Who watches what on Plex.'],set:['Settings','Apps, profiles, alerts, backups and how MediaHub looks.']};
+const TABS=[['dash','Dashboard'],['find','Search'],['rq','Requests'],['lib','Library'],['wt','Wanted'],['dl','Downloads'],['rss','RSS'],['up','Upcoming'],['idx','Indexers'],['ur','Unraid'],['stats','Stats'],['set','Settings']];
+const TYPE_TABS={find:['sonarr','radarr'],rq:['seerr'],lib:['sonarr','radarr'],wt:['sonarr','radarr'],dl:['qbittorrent'],rss:['qbittorrent'],up:['sonarr','radarr'],idx:['jackett'],ur:['unraid'],stats:['tautulli']};
+const PICK={dl:'qbittorrent',rss:'qbittorrent',idx:'jackett',ur:'unraid',rq:'seerr',stats:'tautulli'};
+const visibleTabs=()=>TABS.filter(([k])=>!TYPE_TABS[k]||TYPE_TABS[k].some(t=>ofType(t).length));
+let stSub='acct';
+function goto(k){if(String(k).includes(':')){const [t,s]=k.split(':');tab=t==='st'?'set':t;stSub=s}else tab=k;render()}
+function render(){
+  const tabs=visibleTabs();if(!tabs.some(t=>t[0]===tab))tab='dash';
+  const pg=PAGES[tab]||['',''];
+  $('#app').innerHTML=`<div class="shell"><nav class="side" aria-label="Main"><div class="brand"><span class="logo">${LOGO}</span><span class="t">MediaHub</span><button class="ghost" id="rl" aria-label="Shrink or expand the menu" title="Shrink or expand the menu">${ic('chev')}</button></div>
+    <button class="qs" id="qs" aria-label="Quick search">${ic('find')}<span>Quick search</span><kbd>Ctrl K</kbd></button>
+    <div class="nav">${tabs.map(([k,n])=>`<button class="nv ${tab===k?'on':''}" data-t="${k}" title="${n}"${tab===k?' aria-current="page"':''}>${ic(k)}<span>${n}</span></button>`).join('')}<button class="nv mob" id="ap2">${ic('pal')}<span>Appearance</span></button><button class="nv mob" id="out2">${ic('out')}<span>Sign out</span></button></div>
+    <div class="who"><span class="av">${esc((me.name[0]||'?').toUpperCase())}</span><span class="nm">${esc(me.name)}</span><button class="ghost" id="ap" aria-label="Appearance" title="Appearance">${ic('pal')}</button><button id="out" class="ghost" aria-label="Sign out" title="Sign out">${ic('out')}</button></div></nav>
+    <main><div class="ph">${pg[0]?`<h1>${pg[0]}</h1><p class="mute">${pg[1]}</p>`:''}</div><div id="m"></div></main></div>`;
+  document.querySelectorAll('.nv[data-t]').forEach(b=>b.onclick=()=>{tab=b.dataset.t;render()});
+  const so=async()=>{await api('/api/logout','POST');me=null;start()};$('#out').onclick=so;$('#out2').onclick=so;
+  $('#ap').onclick=appearance;$('#ap2').onclick=appearance;$('#rl').onclick=()=>{UI.rail=!UI.rail;saveUI()};$('#qs').onclick=quick;
+  const pt=PICK[tab];
+  if(pt&&ofType(pt).length>1){const cur=first(pt);document.querySelector('.ph').insertAdjacentHTML('beforeend',`<label class="pick mute">App <select id="pk2" aria-label="Which app">${ofType(pt).map(s=>`<option value="${s.id}" ${s.id===cur.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select></label>`);
+    $('#pk2').onchange=e=>{UI['pick_'+pt]=e.target.value;saveUI();render()}}
+  [].concat(timer||[]).forEach(clearInterval);
+  const on=document.querySelector('.nv.on');if(on&&on.scrollIntoView)on.scrollIntoView({inline:'center',block:'nearest'});
+  ({dash:dashView,find:findView,rq:rqView,lib:libView,wt:wtView,dl:dlView,rss:rssView,up:upView,idx:idxView,ur:urView,stats:statsView,set:setView})[tab]();
+}
+let qsLib=null;
+function quick(){
+  if(document.querySelector('#qi'))return;
+  const o=modal(`<input id="qi" type="search" placeholder="Search pages, downloads, requests, library…" aria-label="Quick search" style="width:100%"><div id="qr" style="margin-top:8px;max-height:56vh;overflow:auto"></div>`);
+  const qi=o.querySelector('#qi');qi.focus();
+  let items=visibleTabs().map(([k,n])=>({g:'Pages',t:n,a:()=>goto(k)})),idx=0,shown=[];
+  const draw=()=>{const q=qi.value.trim().toLowerCase();shown=[];let html='';
+    for(const g of ['Pages','Downloads','Requests','Library']){const l=items.filter(x=>x.g===g&&(g==='Pages'?(!q||x.t.toLowerCase().includes(q)):(q&&(x.t.toLowerCase().includes(q)||(x.s||'').toLowerCase().includes(q))))).slice(0,6);
+      if(l.length){html+=`<div class="qg">${g}</div>`;l.forEach(x=>{html+=`<div class="qi ${shown.length===idx?'on':''}" data-i="${shown.length}"><span class="grow" style="word-break:break-word">${esc(x.t)}</span><span class="mute">${esc(x.s||'')}</span></div>`;shown.push(x)})}}
+    if(idx>=shown.length)idx=Math.max(0,shown.length-1);
+    o.querySelector('#qr').innerHTML=html||'<p class="mute" style="padding:10px">Nothing found.</p>'};
+  const run=i=>{const x=shown[i];if(x){o.close();x.a()}};
+  qi.oninput=()=>{idx=0;draw()};
+  qi.onkeydown=e=>{if(e.key==='ArrowDown'){idx=Math.min(idx+1,shown.length-1);draw();e.preventDefault()}else if(e.key==='ArrowUp'){idx=Math.max(0,idx-1);draw();e.preventDefault()}else if(e.key==='Enter')run(idx)};
+  o.querySelector('#qr').onclick=e=>{const r=e.target.closest('[data-i]');if(r)run(+r.dataset.i)};
+  const add=l=>{items=items.concat(l);draw()};
+  const qb=first('qbittorrent');if(qb)api(`/api/qb/${qb.id}/list`).then(d=>add(d.torrents.map(x=>({g:'Downloads',t:x.name,s:x.category,a:()=>{dlQ=x.name;tab='dl';render()}})))).catch(()=>{});
+  if(ofType('seerr').length)api('/api/requests').then(l=>add(l.map(x=>({g:'Requests',t:x.title,s:x.user,a:()=>goto('rq')})))).catch(()=>{});
+  const libs=services.filter(s=>['sonarr','radarr'].includes(s.type));
+  if(libs.length){if(qsLib&&Date.now()-qsLib.t<300000)add(qsLib.items);
+    else Promise.all(libs.map(s=>api('/api/library?sid='+s.id).then(l=>l.map(x=>({g:'Library',t:x.title,s:String(x.year||''),
+      a:()=>openLibItem(s,x,{})}))).catch(()=>[]))).then(a=>{const it=a.flat();qsLib={t:Date.now(),items:it};add(it)})}
+  draw();
+}
+document.addEventListener('keydown',e=>{if(!me)return;const t=(e.target&&e.target.tagName)||'';
+  if((e.key==='k'&&(e.ctrlKey||e.metaKey))||(e.key==='/'&&!/^(INPUT|TEXTAREA|SELECT)$/.test(t)&&!document.querySelector('.ov'))){e.preventDefault();quick()}});
+const DSEC=[['attn','Needs attention'],['hero','Speed and server'],['plex','Plex activity'],['sab','Usenet'],['apps','Apps'],['up','Coming up and downloading']];
+const dashLayout=()=>{const d=me.dash||{},o=(d.order||[]).filter(k=>DSEC.some(s=>s[0]===k));return{order:[...o,...DSEC.map(s=>s[0]).filter(k=>!o.includes(k))],hidden:d.hidden||[]}};
+function dashCustomize(){
+  const L=dashLayout();let order=[...L.order];const hidden=new Set(L.hidden);
+  const o=modal(`<div class="row"><h2 style="margin:0;flex:1">Customize your dashboard</h2><button data-x>Close</button></div><p class="mute">Choose what you see and in which order. This is saved for your profile.</p><div id="dl3"></div>
+    <div class="row" style="margin-top:12px"><button class="primary" id="ds">Save</button><button id="dr">Reset</button></div>`);
+  const draw=()=>{o.querySelector('#dl3').innerHTML=order.map((k,i)=>`<div class="box row"><label class="chk grow"><input type="checkbox" data-v="${k}" ${hidden.has(k)?'':'checked'}>${DSEC.find(s=>s[0]===k)[1]}</label>
+    <button class="icon" data-u="${i}" ${i?'':'disabled'} aria-label="Move up" title="Move up">↑</button><button class="icon" data-d="${i}" ${i<order.length-1?'':'disabled'} aria-label="Move down" title="Move down">↓</button></div>`).join('')};
+  draw();o.querySelector('[data-x]').onclick=o.close;
+  o.querySelector('#dl3').onclick=e=>{const u=e.target.closest('[data-u]'),d=e.target.closest('[data-d]'),v=e.target.closest('[data-v]');
+    if(u){const i=+u.dataset.u;[order[i-1],order[i]]=[order[i],order[i-1]];draw()}if(d){const i=+d.dataset.d;[order[i+1],order[i]]=[order[i],order[i+1]];draw()}if(v){v.checked?hidden.delete(v.dataset.v):hidden.add(v.dataset.v)}};
+  o.querySelector('#dr').onclick=()=>{order=DSEC.map(s=>s[0]);hidden.clear();draw()};
+  o.querySelector('#ds').onclick=async()=>{try{await api('/api/me/dash','PUT',{order,hidden:[...hidden]});me.dash={order,hidden:[...hidden]};o.close();toast('Saved','ok');render()}catch(x){toast(x.message,'bad')}};
+}
+function dashView(){
+  const hr=new Date().getHours(),g=hr<12?'Good morning':hr<18?'Good afternoon':'Good evening';
+  const q=first('qbittorrent'),u=first('unraid'),pl=first('plex'),sb=first('sabnzbd'),arrOn=services.some(s=>s.type==='sonarr'||s.type==='radarr');
+  dlH.length=ulH.length=cpuH.length=0;
+  const fd=s=>new Date(s).toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'});
+  const L=dashLayout(),set=(i,v)=>{const e=$(i);if(e)e.textContent=v};
+  const S={
+    attn:services.length?'<div id="attn"></div>':'',
+    hero:q||u?`<div class="hero" style="margin-bottom:8px">${q?`<div class="panel"><div class="row" style="gap:28px;align-items:flex-end">
+      <div><div class="mute">Downloading</div><b id="s1" style="font-size:34px;letter-spacing:-.02em;color:var(--accent)">–</b></div>
+      <div><div class="mute">Uploading</div><b id="s2" style="font-size:22px;color:var(--ok)">–</b></div><span class="mute" id="s3" style="margin-left:auto"></span><span class="pill" id="vp">VPN</span></div>
+      <div id="gr" style="margin-top:12px"></div></div>`:''}
+      ${u?`<div class="panel"><div style="font-weight:650;margin-bottom:14px">Server</div>
+      <div class="meter"><div class="row"><span>CPU</span><b id="s4" style="margin-left:auto">–</b></div><progress id="p4" max="100" value="0"></progress></div>
+      <div class="meter"><div class="row"><span>Memory</span><b id="s5" style="margin-left:auto">–</b></div><progress id="p5" max="100" value="0"></progress></div></div>`:''}</div>`:'',
+    plex:pl?'<div id="plx"></div>':'',sab:sb?'<div id="sab"></div>':'',
+    apps:services.length?`<h2 class="sec">Apps</h2><div class="panel" style="padding:4px 18px">${services.map(s=>`<div class="srow"><span class="dot" id="d${s.id}"></span><b>${esc(s.name)}</b>
+      <span class="mute">${esc(TYPES[s.type]||s.type)}</span><span class="mute" id="t${s.id}">Checking</span><a href="${esc(s.url)}" target="_blank" rel="noopener" aria-label="Open ${esc(s.name)}">Open</a></div>`).join('')}</div>`:'',
+    up:arrOn?`<h2 class="sec">Coming up</h2><div class="strip" id="up"><span class="mute">Loading</span></div><h2 class="sec">Downloading now</h2><div id="dq"></div>`:''};
+  $('#m').innerHTML=`<div class="row" style="align-items:flex-start;margin-bottom:22px"><div class="grow"><h1 style="margin:0;font-size:30px">${g}, ${esc(me.name)}</h1>
+    <p class="mute" style="margin:4px 0 0">${new Date().toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'})}</p></div><button id="cz">${ic('set')}Customize</button></div>
+    ${services.length?'':`<div class="panel"><b>Nothing connected yet</b><p class="mute">${me.role==='admin'?'Connect Sonarr, Radarr, qBittorrent or any other app to see it here.':'Ask the admin which apps you can use.'}</p>${me.role==='admin'?'<button class="primary" id="go">Connect an app</button>':''}</div>`}
+    ${L.order.filter(k=>!L.hidden.includes(k)).map(k=>S[k]).join('')}`;
+  $('#cz').onclick=dashCustomize;
+  const go=$('#go');if(go)go.onclick=()=>goto('st:apps');
+  const checks=()=>services.forEach(async s=>{let ok=false;try{ok=(await api('/api/status/'+s.id)).ok}catch{}
+    const d=$('#d'+s.id);if(!d)return;d.className='dot '+(ok?'ok':'bad');$('#t'+s.id).textContent=ok?'Online':'Not reachable'});
+  const attn=async()=>{try{const l=await api('/api/attention'),el=$('#attn');if(!el||tab!=='dash')return;
+    el.innerHTML=l.length?`<div class="panel" style="margin-bottom:16px"><div style="font-weight:650;margin-bottom:6px">Needs attention</div>${l.map((i,n)=>`<div class="row" style="padding:7px 0"><span class="dot ${i.level==='bad'?'bad':'warn'}" style="margin:0"></span><span class="grow">${esc(i.text)}</span><button data-g="${n}">View</button></div>`).join('')}</div>`
+      :`<div class="panel row" style="margin-bottom:16px;padding:12px 18px"><span class="dot ok" style="margin:0"></span><span>Everything looks fine</span></div>`;
+    el.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>goto(l[b.dataset.g].tab))}catch{}};
+  const sabLoad=async()=>{if(!sb)return;try{const d=await api(`/api/sab/${sb.id}/queue`),el=$('#sab');if(!el||tab!=='dash')return;
+    el.innerHTML=`<h2 class="sec">Usenet</h2><div class="panel"><div class="row" style="gap:28px"><div><div class="mute">SABnzbd</div><b style="font-size:24px;color:var(--accent)">${fmt(d.speed)}/s</b></div><div><div class="mute">In queue</div><b style="font-size:22px">${d.slots}</b></div>
+      <span class="mute">${esc(d.timeleft||'')}${d.paused?' (paused)':''}</span><span class="grow"></span>${can('control')?`<button data-sp="${d.paused?'resume':'pause'}">${ic(d.paused?'play':'pause')}${d.paused?'Resume':'Pause'}</button>`:''}</div>
+      ${d.jobs.map(j=>`<div class="box"><b>${esc(j.name)}</b><div class="mute">${esc(j.size)}, ${esc(j.left||'')}</div><progress value="${j.pct}" max="100" style="margin-top:6px"></progress></div>`).join('')}</div>`;
+    const b=el.querySelector('[data-sp]');if(b)b.onclick=async()=>{try{await api(`/api/sab/${sb.id}/act`,'POST',{op:b.dataset.sp});sabLoad()}catch(x){toast(x.message,'bad')}}}catch{}};
+  let b1=0,b2=0;
+  const stat=async()=>{
+    if(q&&!b1){b1=1;try{const d=await api(`/api/qb/${q.id}/list`);if(tab!=='dash')return;hp(dlH,d.dl);hp(ulH,d.ul);
+      const act=d.torrents.filter(x=>/^(downloading|forcedDL|metaDL|forcedMetaDL)$/.test(x.state)).length;
+      set('#s1',fmt(d.dl)+'/s');set('#s2',fmt(d.ul)+'/s');set('#s3',`${act} active of ${d.torrents.length} torrents`);
+      const gr=$('#gr');if(gr)gr.innerHTML=trace([{v:dlH,c:'var(--accent)'},{v:ulH,c:'var(--ok)'}],96,'Download and upload speed over the last two minutes')}
+      catch{}finally{b1=0}}
+    if(u&&!b2){b2=1;try{const d=await api(`/api/unraid/${u.id}?fast=1`);if(tab!=='dash')return;
+      for(const [k,v] of [[4,d.cpu],[5,d.mem]]){set('#s'+k,v==null?'n/a':v.toFixed(0)+'%');const pr=$('#p'+k);if(pr)pr.value=v||0}}
+      catch{}finally{b2=0}}
+  };
+  if(arrOn)api('/api/upcoming').then(d=>{if(tab!=='dash'||!$('#up'))return;
+    $('#up').innerHTML=d.calendar.slice(0,14).map((x,i)=>`<button class="pc" data-c="${i}"><div class="pw">${x.poster?`<img src="${esc(x.poster)}" alt="" loading="lazy">`:''}<span class="bd">${fd(x.date)}</span></div><b>${esc(x.title)}</b><div class="mute">${esc(x.sub)}</div></button>`).join('')||'<span class="mute">Nothing scheduled in the next 14 days.</span>';
+    document.querySelectorAll('.pc[data-c]').forEach(c=>c.onclick=()=>showDetail(d.calendar[c.dataset.c]));
+    $('#dq').innerHTML=d.queue.slice(0,5).map((x,i)=>`<div class="box" data-q="${i}" tabindex="0" role="button"><b>${esc(x.title)}</b>
+      <div class="mute">${esc(x.sub)}${x.timeleft?' &nbsp;'+esc(x.timeleft)+' left':''}</div><progress value="${x.progress}" max="1" style="margin-top:8px"></progress></div>`).join('')||'<p class="mute">Nothing is downloading right now.</p>';
+    document.querySelectorAll('[data-q]').forEach(c=>{const f=()=>{const x=d.queue[c.dataset.q];
+      showDetail({title:x.title,sub:x.sub,poster:x.poster,overview:x.overview,about:x.about,meta:[x.status,x.timeleft?x.timeleft+' left':'',x.meta].filter(Boolean).join(', ')})};
+      c.onclick=f;c.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();f()}}});
+  }).catch(()=>{});
+  const slow=()=>{if(q)vpnPill(q,'#vp');if(pl)loadPlex(pl)};
+  stat();checks();slow();attn();sabLoad();
+  timer=[setInterval(stat,3000),setInterval(checks,30000),setInterval(slow,30000),setInterval(attn,60000),setInterval(sabLoad,5000)];
+}
+const ST_SECTIONS=[['acct','Account',false],['look','Appearance',false],['apps','Apps',true],['users','Users',true],['alerts','Alerts',true],['rules','Download rules',true],['backup','Backup',true],['audit','Activity',true]];
+function setView(){
+  const admin=me.role==='admin',secs=ST_SECTIONS.filter(s=>admin||!s[2]);
+  if(!secs.some(s=>s[0]===stSub))stSub='acct';
+  document.querySelector('.ph').insertAdjacentHTML('beforeend',`<div class="seg" id="sn" style="margin-top:14px">${secs.map(([k,n])=>`<button data-k="${k}" class="${k===stSub?'on':''}">${n}</button>`).join('')}</div>`);
+  $('#sn').onclick=e=>{const b=e.target.closest('[data-k]');if(!b)return;stSub=b.dataset.k;render()};
+  ({acct:stAcct,look:stLook,apps:svcView,users:usrView,alerts:alView,rules:stRules,backup:stBackup,audit:stAudit})[stSub]();
+}
+function stLook(){$('#m').innerHTML=`<div class="panel" style="max-width:560px">${appearHtml()}</div>`;bindAppear($('#m'))}
+async function stAcct(){
+  $('#m').innerHTML=`<div class="panel" style="max-width:560px"><h3 style="margin-top:0">Password</h3><form id="pf" style="max-width:360px;margin:0">
+      <input name="old" type="password" placeholder="Current password" autocomplete="current-password" required><input name="new" type="password" placeholder="New password (8+ characters)" autocomplete="new-password" required>
+      <input name="again" type="password" placeholder="New password again" autocomplete="new-password" required><div class="row"><button class="primary">Change password</button></div><div class="err" id="pe"></div></form></div>
+    <div class="panel" style="max-width:560px;margin-top:16px"><h3 style="margin-top:0">Phone messages for you</h3>
+      <p class="mute">MediaHub can message you when a request of yours is approved or ready to watch. Use an ntfy topic address (like https://ntfy.sh/my-topic) or a Discord webhook address.</p>
+      <form id="nf2" style="margin:0"><input name="url" value="${esc(me.notify||'')}" placeholder="https://ntfy.sh/my-topic"><div class="row"><button class="primary">Save</button><button type="button" id="nt">Send a test message</button></div></form></div>
+    <div class="panel" style="max-width:560px;margin-top:16px"><div class="row"><h3 style="margin:0;flex:1">Signed-in devices</h3><button id="so2">Sign out all other devices</button></div>
+      ${me.role==='admin'?'<label class="chk" style="margin-top:10px"><input type="checkbox" id="sall">Show everyone\'s devices</label>':''}<div id="dv" style="margin-top:8px">${skel(2)}</div></div>`;
+  $('#pf').onsubmit=async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target)),m=$('#pe');m.textContent='';
+    if(f.new!==f.again){m.textContent='The new passwords do not match';return}
+    try{await api('/api/password','POST',{old:f.old,new:f.new});e.target.reset();toast('Password changed','ok')}catch(x){m.textContent=x.message}};
+  $('#nf2').onsubmit=async e=>{e.preventDefault();try{await api('/api/me/notify','PUT',{url:e.target.url.value.trim()});me.notify=e.target.url.value.trim();toast('Saved','ok')}catch(x){toast(x.message,'bad')}};
+  $('#nt').onclick=async()=>{try{await api('/api/me/notify/test','POST');toast('Test message sent','ok')}catch(x){toast(x.message,'bad')}};
+  const loadD=async()=>{try{const all=$('#sall')&&$('#sall').checked,l=await api('/api/sessions'+(all?'?all=1':''));if(tab!=='set'||stSub!=='acct')return;
+    $('#dv').innerHTML=l.map(s=>`<div class="box row"><div class="grow"><b>${esc(s.device)}</b> ${s.current?'<span class="pill ok">This device</span>':''}<div class="mute">${all?esc(s.user)+', ':''}${esc(s.ip||'')}, active ${ago(s.seen)}</div></div>${s.current?'':`<button data-r="${s.id}">Sign out</button>`}</div>`).join('')||'<p class="mute">No devices.</p>'}catch(x){$('#dv').textContent=x.message}};
+  $('#dv').onclick=async e=>{const b=e.target.closest('[data-r]');if(!b)return;try{await api('/api/sessions/revoke','POST',{id:b.dataset.r});toast('Signed out','ok');loadD()}catch(x){toast(x.message,'bad')}};
+  $('#so2').onclick=async()=>{try{await api('/api/sessions/revoke','POST',{others:true});toast('Signed out all other devices','ok');loadD()}catch(x){toast(x.message,'bad')}};
+  if($('#sall'))$('#sall').onchange=loadD;
+  loadD();
+  api('/api/health').then(d=>{if(tab==='set'&&stSub==='acct')$('#m').insertAdjacentHTML('beforeend',`<p class="mute" style="margin-top:20px">MediaHub version ${esc(d.version)}</p>`)}).catch(()=>{});
+}
+const APPS={sonarr:{port:8989,key:'In Sonarr: Settings, then General, then API Key.'},radarr:{port:7878,key:'In Radarr: Settings, then General, then API Key.'},prowlarr:{port:9696,key:'In Prowlarr: Settings, then General, then API Key.'},
+ jackett:{port:9117,key:'The API key is at the top right of the Jackett page.'},qbittorrent:{port:8080,user:true,key:'Use the same username and password as the qBittorrent web page.'},
+ seerr:{port:5055,key:'In Seerr: Settings, then General, then API Key.'},unraid:{port:80,key:'In Unraid: Settings, then Management Access, then API Keys. Allow viewing the system and controlling Docker.'},
+ plex:{port:32400,key:'Needs your Plex token. In Plex Web open any item, choose Get Info, then View XML. The token is at the end of the address.'},tautulli:{port:8181,key:'In Tautulli: Settings, then Web Interface, then API Key.'},
+ sabnzbd:{port:8080,key:'In SABnzbd: Config, then General, then API Key.'},bazarr:{port:6767,key:'In Bazarr: Settings, then General, then API Key.'},lidarr:{port:8686,key:'In Lidarr: Settings, then General, then API Key.'},readarr:{port:8787,key:'In Readarr: Settings, then General, then API Key.'}};
+function appDialog(existing,done){
+  const e0=existing||{type:'sonarr'};
+  const o=modal(`<h2 style="margin-top:0">${existing?'Edit app':'Add an app'}</h2><form id="af3">
+    ${existing?`<input type="hidden" name="type" value="${e0.type}"><div class="mute">${TYPES[e0.type]}</div>`:`<select name="type" aria-label="App">${Object.entries(TYPES).map(([k,n])=>`<option value="${k}">${n}</option>`).join('')}</select>`}
+    <input name="name" placeholder="Name shown in MediaHub" value="${esc(e0.name||'')}" required><input name="url" placeholder="Address, for example http://192.168.1.10:8989" value="${esc(e0.url||'')}" required>
+    <div id="fk" style="display:grid;gap:10px"></div><div class="mute" id="fh"></div>
+    <div class="row"><button type="button" id="tb2">Test connection</button><span id="tr" class="pill" hidden></span></div><div class="err" id="ae2"></div>
+    <div class="row"><button class="primary">${existing?'Save changes':'Add app'}</button><button type="button" data-x>Cancel</button></div></form>`);
+  const f=o.querySelector('#af3').elements;
+  const sync=()=>{const t=f.type.value,a=APPS[t]||{};
+    o.querySelector('#fk').innerHTML=a.user?`<input name="user" placeholder="Username" value="${esc(e0.user||'')}" autocomplete="off"><input name="pass" type="password" placeholder="${existing?'Password (leave empty to keep)':'Password'}" autocomplete="new-password">`
+      :`<input name="apiKey" type="password" placeholder="${existing?'API key or token (leave empty to keep)':'API key or token'}" autocomplete="off">`;
+    o.querySelector('#fh').textContent=a.key||'';
+    if(!existing){f.url.placeholder='Address, for example http://192.168.1.10:'+(a.port||80);if(!f.name.value||f.name.value===f.name.dataset.t){f.name.value=TYPES[t];f.name.dataset.t=TYPES[t]}}};
+  const body=()=>({type:f.type.value,name:f.name.value.trim(),url:f.url.value.trim(),apiKey:f.apiKey?f.apiKey.value:'',user:f.user?f.user.value:'',pass:f.pass?f.pass.value:''});
+  if(!existing)f.type.onchange=sync;sync();
+  o.querySelector('[data-x]').onclick=o.close;
+  o.querySelector('#tb2').onclick=async()=>{const t=o.querySelector('#tr'),b=o.querySelector('#tb2');b.disabled=true;t.hidden=false;t.className='pill';t.textContent='Testing…';o.querySelector('#ae2').textContent='';
+    try{const r=await api('/api/services/test','POST',{id:existing&&existing.id,...body()});t.className='pill '+(r.ok?'ok':'bad');t.textContent=r.message}catch(x){t.className='pill bad';t.textContent=x.message}b.disabled=false};
+  o.querySelector('#af3').onsubmit=async e=>{e.preventDefault();const bd=body();
+    try{if(existing){delete bd.type;await api('/api/services/'+existing.id,'PUT',bd)}else await api('/api/services','POST',bd);
+      await load();o.close();toast(existing?'Saved':'App added','ok');done()}catch(x){o.querySelector('#ae2').textContent=x.message}};
+}
+function svcView(){
+  $('#m').innerHTML=`<div class="row" style="margin-bottom:14px"><span class="mute grow">The apps MediaHub talks to. Most pages only appear once the matching app is added.</span><button class="primary" id="aa">${ic('rq')}Add an app</button></div><div class="panel" style="padding:4px 18px" id="al3"></div>`;
+  const draw=()=>{$('#al3').innerHTML=services.map(s=>`<div class="srow" style="grid-template-columns:12px 1fr auto auto"><span class="dot" id="d${s.id}"></span><div style="min-width:0"><b>${esc(s.name)}</b> <span class="mute">${esc(TYPES[s.type]||s.type)}</span><div class="mute" style="word-break:break-all">${esc(s.url)}</div></div>
+      <span class="mute" id="t${s.id}">Checking</span><span class="row"><button data-e="${s.id}">Edit</button><button class="danger" data-x="${s.id}">Remove</button></span></div>`).join('')||empty('No apps yet','Add Sonarr, Radarr, qBittorrent or any other app to get started.');
+    services.forEach(async s=>{let ok=false;try{ok=(await api('/api/status/'+s.id)).ok}catch{}const d=$('#d'+s.id);if(!d)return;d.className='dot '+(ok?'ok':'bad');$('#t'+s.id).textContent=ok?'Online':'Not reachable'})};
+  draw();
+  $('#aa').onclick=()=>appDialog(null,render);
+  $('#al3').onclick=async e=>{const ed=e.target.closest('[data-e]'),rm=e.target.closest('[data-x]');
+    if(ed)appDialog(services.find(s=>s.id===ed.dataset.e),render);
+    if(rm&&confirm('Remove this app from MediaHub? The app itself is not touched.')){try{await api('/api/services/'+rm.dataset.x,'DELETE');await load();toast('Removed','ok');render()}catch(x){toast(x.message,'bad')}}};
+}
+const PRESET={std:{add:true,control:true,remove:true,request:true},view:{add:false,control:false,remove:false,request:false}};
+const PERMS=[['add','Add downloads and things to the library'],['control','Pause, resume and organize downloads'],['remove','Remove downloads'],['request','Make requests']];
+const presetOf=u=>{if(!u.perms)return 'std';const v=PERMS.map(([k])=>u.perms[k]!==false);return v.every(Boolean)?'std':v.every(x=>!x)?'view':'custom'};
+
+async function stRules(){
+  const s=first('qbittorrent');if(!s){$('#m').innerHTML=`<div class="panel">Connect qBittorrent first.</div>`;return}
+  $('#m').innerHTML=skel(3);
+  let sch,rules,meta;
+  try{[sch,rules,meta]=await Promise.all([api(`/api/qb/${s.id}/schedule`),api('/api/seedrules'),api(`/api/qb/${s.id}/meta`)])}catch(x){$('#m').innerHTML=`<div class="err">${esc(x.message)}</div>`;return}
+  if(tab!=='set'||stSub!=='rules')return;
+  rules=rules.filter(r=>r.sid===s.id);
+  const catOpts=sel=>`<option value="*" ${sel==='*'?'selected':''}>All torrents</option><option value="" ${sel===''?'selected':''}>No category</option>${meta.categories.map(c=>`<option ${c.name===sel?'selected':''}>${esc(c.name)}</option>`).join('')}`;
+  const ruleRow=r=>`<div class="box row" data-rr><select data-c aria-label="Category">${catOpts(r.category)}</select><label class="mute">Stop at ratio <input data-r type="number" min="0" step="0.1" value="${r.ratio||''}" placeholder="none" style="width:90px"></label>
+    <label class="mute">or after <input data-m type="number" min="0" value="${r.minutes||''}" placeholder="none" style="width:90px"> minutes</label><button class="icon danger" data-d aria-label="Remove rule" title="Remove rule">${ic('trash')}</button></div>`;
+  $('#m').innerHTML=`<div class="panel" style="max-width:760px"><h3 style="margin-top:0">Speed schedule</h3><p class="mute">Use the alternative speed limits automatically at set hours. Set the limits themselves in Downloads, under Speed limit settings.</p>
+    <form id="sf" style="margin:0"><label class="chk"><input type="checkbox" name="on" ${sch.on?'checked':''}>Turn the alternative limits on by schedule</label>
+    <div class="row"><label class="mute">From <input type="time" name="from" value="${sch.from}"></label><label class="mute">To <input type="time" name="to" value="${sch.to}"></label>
+    <label class="mute">On <select name="days"><option value="0">Every day</option><option value="1">Weekdays</option><option value="2">Weekends</option></select></label></div>
+    <label class="mute">When a seeding limit is reached <select name="action"><option value="0">Pause the torrent</option><option value="1">Remove the torrent</option></select></label>
+    <div class="row"><button class="primary">Save schedule</button></div></form></div>
+    <div class="panel" style="max-width:760px;margin-top:16px"><h3 style="margin-top:0">Seeding rules</h3><p class="mute">Limit how long finished torrents seed, per category. The first matching rule wins, and specific categories are checked before "All torrents". What happens at the limit is set above.</p>
+    <div id="rl3">${rules.map(ruleRow).join('')}</div><div class="row" style="margin-top:12px"><button id="ar3">${ic('rq')}Add a rule</button><button class="primary" id="sr3">Save rules</button></div></div>`;
+  const sf=$('#sf').elements;sf.days.value=String(Math.min(2,sch.days||0));sf.action.value=String(sch.action||0);
+  $('#sf').onsubmit=async e=>{e.preventDefault();try{await api(`/api/qb/${s.id}/schedule`,'POST',{on:sf.on.checked,from:sf.from.value,to:sf.to.value,days:+sf.days.value,action:+sf.action.value});toast('Schedule saved','ok')}catch(x){toast(x.message,'bad')}};
+  $('#ar3').onclick=()=>$('#rl3').insertAdjacentHTML('beforeend',ruleRow({category:'*',ratio:'',minutes:''}));
+  $('#rl3').onclick=e=>{const d=e.target.closest('[data-d]');if(d)d.closest('[data-rr]').remove()};
+  $('#sr3').onclick=async()=>{const list=[...document.querySelectorAll('[data-rr]')].map(r=>({sid:s.id,category:r.querySelector('[data-c]').value,ratio:r.querySelector('[data-r]').value,minutes:r.querySelector('[data-m]').value}));
+    try{await api('/api/seedrules','PUT',{rules:list});toast('Rules saved. They apply within a minute.','ok')}catch(x){toast(x.message,'bad')}};
+}
+function stBackup(){
+  $('#m').innerHTML=`<div class="panel" style="max-width:560px"><h3 style="margin-top:0">Back up</h3><p class="mute">Saves your apps, profiles, requests, alert settings and history to a file, locked with a passphrase. Keep the passphrase safe. Without it the file cannot be opened.</p>
+    <form id="bf" style="margin:0"><input name="pass" type="password" placeholder="Passphrase (8+ characters)" autocomplete="new-password" required><div class="row"><button class="primary">${ic('dl')}Download backup</button></div><div class="err" id="be"></div></form></div>
+    <div class="panel" style="max-width:560px;margin-top:16px"><h3 style="margin-top:0">Restore</h3><p class="mute">Replaces everything in MediaHub with what is in the backup, and signs everyone out. Use it to move to a new server or recover.</p>
+    <form id="rf2" style="margin:0"><input type="file" name="file" accept=".json,application/json" required><input name="pass" type="password" placeholder="Passphrase of that backup" autocomplete="off" required><div class="row"><button class="danger">Restore from backup</button></div><div class="err" id="re2"></div></form></div>`;
+  $('#bf').onsubmit=async e=>{e.preventDefault();$('#be').textContent='';
+    try{const d=await api('/api/backup','POST',{passphrase:e.target.pass.value});const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(d)],{type:'application/json'}));
+      a.download='mediahub-backup-'+new Date().toISOString().slice(0,10)+'.json';document.body.append(a);a.click();a.remove();toast('Backup downloaded','ok');e.target.reset()}catch(x){$('#be').textContent=x.message}};
+  $('#rf2').onsubmit=async e=>{e.preventDefault();$('#re2').textContent='';
+    if(!confirm('Replace everything in MediaHub with this backup? Everyone will be signed out.'))return;
+    try{const txt=await e.target.file.files[0].text();let b;try{b=JSON.parse(txt)}catch{throw new Error('That file is not a MediaHub backup')}
+      await api('/api/restore','POST',{passphrase:e.target.pass.value,backup:b});toast('Restored. Please sign in again.','ok');me=null;setTimeout(start,600)}catch(x){$('#re2').textContent=x.message}};
+}
+async function stAudit(){
+  $('#m').innerHTML=skel(5);
+  try{const l=await api('/api/audit');if(tab!=='set'||stSub!=='audit')return;
+    $('#m').innerHTML=l.length?`<div class="panel" style="padding:4px 18px">${l.map(e=>`<div class="srow" style="grid-template-columns:150px 110px 1fr"><span class="mute">${esc(fdt(e.at))}</span><b>${esc(e.user)}</b><span>${esc(e.action)}${e.detail?` <span class="mute">${esc(e.detail)}</span>`:''}</span></div>`).join('')}</div>`:empty('Nothing yet','Sign-ins and changes will show up here.')}
+  catch(x){$('#m').innerHTML=`<div class="err">${esc(x.message)}</div>`}
+}
+async function usrView(){
+  try{users=await api('/api/users')}catch(x){$('#m').innerHTML=`<div class="err">${esc(x.message)}</div>`;return}
+  if(tab!=='set'||stSub!=='users')return;
+  $('#m').innerHTML=`<div class="panel" style="margin-bottom:16px"><h3 style="margin-top:0">Add a profile</h3><form id="uf" style="margin:0;max-width:420px"><input name="name" placeholder="Name" required><input name="password" type="password" placeholder="Password (8+ characters)" required>
+      <select name="role" aria-label="Role"><option value="user">User</option><option value="admin">Admin</option></select><div class="row"><button class="primary">${ic('rq')}Add profile</button></div><div class="err" id="ue"></div></form></div>
+    ${users.map(u=>`<div class="panel" style="margin-bottom:14px" data-u="${u.id}"><div class="row"><b style="font-size:16px">${esc(u.name)}</b><span class="pill ${u.role==='admin'?'acc':''}">${u.role==='admin'?'Admin':'User'}</span>${u.id===me.id?'<span class="pill">You</span>':''}<span class="grow"></span>
+      <button data-rp>Reset password</button>${u.id!==me.id?'<button class="danger" data-del>Delete</button>':''}</div>
+      <div class="row" style="margin-top:12px"><label class="mute">Role <select data-role><option value="user" ${u.role==='user'?'selected':''}>User</option><option value="admin" ${u.role==='admin'?'selected':''}>Admin</option></select></label>
+      <label class="mute" style="margin-left:12px">Phone messages <input data-nt value="${esc(u.notify||'')}" placeholder="https://ntfy.sh/…" style="min-width:230px"></label><button data-ns>Save</button></div>
+      ${u.role==='user'?`<div class="mute" style="margin-top:14px">Apps this profile can open</div><div>${services.map(s=>`<label class="chk" style="margin:6px 14px 0 0"><input type="checkbox" data-ac="${s.id}" ${u.access.includes(s.id)?'checked':''}>${esc(s.name)}</label>`).join('')||'<span class="mute">Add apps first.</span>'}</div>
+      <div class="row" style="margin-top:14px"><span class="mute">What this profile can do</span><select data-pre aria-label="Preset"><option value="std" ${presetOf(u)==='std'?'selected':''}>Standard</option><option value="view" ${presetOf(u)==='view'?'selected':''}>View only</option><option value="custom" ${presetOf(u)==='custom'?'selected':''}>Custom</option></select></div>
+      <div>${PERMS.map(([k,n])=>`<label class="chk" style="margin:6px 14px 0 0"><input type="checkbox" data-pm="${k}" ${!u.perms||u.perms[k]!==false?'checked':''}>${n}</label>`).join('')}</div>`:'<p class="mute" style="margin:12px 0 0">Admins can open every app and do everything.</p>'}</div>`).join('')}`;
+  $('#uf').onsubmit=async e=>{e.preventDefault();$('#ue').textContent='';try{await api('/api/users','POST',Object.fromEntries(new FormData(e.target)));toast('Profile added','ok');usrView()}catch(x){$('#ue').textContent=x.message}};
+  const put=async(id,b)=>{try{await api('/api/users/'+id,'PUT',b);toast('Saved','ok');return true}catch(x){toast(x.message,'bad');return false}};
+  $('#m').onchange=async e=>{const card=e.target.closest('[data-u]');if(!card)return;const id=card.dataset.u,t=e.target;
+    if(t.matches('[data-ac]')){const access=[...card.querySelectorAll('[data-ac]:checked')].map(c=>c.dataset.ac);try{await api(`/api/users/${id}/access`,'PUT',{access});toast('Saved','ok')}catch(x){toast(x.message,'bad')}}
+    else if(t.matches('[data-role]')){if(await put(id,{role:t.value}))usrView();else usrView()}
+    else if(t.matches('[data-pre]')){if(t.value!=='custom'){card.querySelectorAll('[data-pm]').forEach(c=>c.checked=!!PRESET[t.value][c.dataset.pm]);await put(id,{perms:PRESET[t.value]})}}
+    else if(t.matches('[data-pm]')){const pm=Object.fromEntries([...card.querySelectorAll('[data-pm]')].map(c=>[c.dataset.pm,c.checked]));await put(id,{perms:pm});
+      const v=Object.values(pm);card.querySelector('[data-pre]').value=v.every(Boolean)?'std':v.every(x=>!x)?'view':'custom'}};
+  $('#m').onclick=async e=>{const card=e.target.closest('[data-u]');if(!card)return;const id=card.dataset.u;
+    if(e.target.closest('[data-ns]'))await put(id,{notify:card.querySelector('[data-nt]').value.trim()});
+    if(e.target.closest('[data-rp]')){const pw=prompt('New password for this profile (8+ characters):');if(!pw)return;try{await api(`/api/users/${id}/password`,'POST',{password:pw});toast('Password changed. They will need to sign in again.','ok')}catch(x){toast(x.message,'bad')}}
+    if(e.target.closest('[data-del]')&&confirm('Delete this profile?')){try{await api('/api/users/'+id,'DELETE');toast('Deleted','ok');usrView()}catch(x){toast(x.message,'bad')}}};
+}
+let sel='',found=null;
+function findView(){
+  const opts=services.filter(s=>['sonarr','radarr'].includes(s.type));
+  if(!opts.length){$('#m').innerHTML='<div class="box">Add a Sonarr or Radarr service first.</div>';return}
+  if(!opts.some(s=>s.id===sel))sel=opts[0].id;
+  $('#m').innerHTML=`<form id="f" class="row" style="display:flex"><select id="sv">${opts.map(s=>`<option value="${s.id}" ${s.id===sel?'selected':''}>${esc(s.name)} (${TYPES[s.type]})</option>`).join('')}</select>
+    <input name="term" placeholder="Search by name" style="flex:1;min-width:160px" required><button class="primary">Search</button></form>
+    <div class="err" id="e"></div><div id="r"></div>`;
+  $('#sv').onchange=e=>{sel=e.target.value};
+  $('#f').onsubmit=async e=>{e.preventDefault();$('#e').textContent='';$('#r').innerHTML='<p class="mute">Searching…</p>';
+    try{found=await api(`/api/search?sid=${sel}&term=${encodeURIComponent(e.target.term.value)}`);showFound()}
+    catch(x){$('#r').innerHTML='';$('#e').textContent=x.message}};
+}
+function showFound(){
+  const d=found;
+  $('#r').innerHTML=`<div class="row" style="margin-bottom:12px"><select id="qp">${d.profiles.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select>
+    <select id="rf">${d.folders.map(f=>`<option>${esc(f.path)}</option>`).join('')}</select></div>
+    <div class="grid">${d.results.map((x,i)=>`<div class="card" data-v="${i}">${x.poster?`<img src="${esc(x.poster)}" alt="" style="width:100%;border-radius:6px;aspect-ratio:2/3;object-fit:cover">`:''}
+    <h3>${esc(x.title)} <span class="mute">${x.year||''}</span></h3><div class="mute">${esc((x.overview||'').slice(0,110))}${(x.overview||'').length>110?'…':''}</div>
+    <p><button data-dv="${i}">Details</button> ${x.added?'<span class="mute">Already in your library</span>':(can('add')?`<button data-a="${i}">Add</button>`:'<span class="mute">Adding is off for your profile</span>')}</p></div>`).join('')||'<p class="mute">Nothing found.</p>'}</div>`;
+  const show=i=>{const x=d.results[i];showDetail({title:x.title,sub:String(x.year||''),poster:x.poster,overview:x.overview})};
+  document.querySelectorAll('[data-v]').forEach(c=>c.onclick=e=>{if(!e.target.closest('button'))show(c.dataset.v)});
+  document.querySelectorAll('[data-dv]').forEach(b=>b.onclick=()=>show(b.dataset.dv));
+  document.querySelectorAll('[data-a]').forEach(b=>b.onclick=async()=>{
+    b.disabled=true;b.textContent='Adding…';$('#e').textContent='';
+    try{await api('/api/add','POST',{sid:sel,item:d.results[b.dataset.a].raw,rootFolderPath:$('#rf').value,qualityProfileId:$('#qp').value});
+      b.replaceWith(Object.assign(document.createElement('span'),{className:'mute',textContent:'Added, now searching for downloads'}))}
+    catch(x){b.disabled=false;b.textContent='Add';$('#e').textContent=x.message}});
+}
+let timer;
+const fmt=b=>b>=1e9?(b/1e9).toFixed(1)+' GB':b>=1e6?(b/1e6).toFixed(0)+' MB':((b||0)/1e3|0)+' KB';
+const can=k=>me.role==='admin'||!me.perms||me.perms[k]!==false;
+const ofType=t=>services.filter(s=>s.type===t);
+const first=t=>{const l=ofType(t);return l.find(s=>s.id===UI['pick_'+t])||l[0]};
+const ago=t=>{const s=(Date.now()-t)/1000;return !t?'a while ago':s<90?'just now':s<5400?Math.round(s/60)+' min ago':s<129600?Math.round(s/3600)+' h ago':Math.round(s/86400)+' days ago'};
+const noSvc=n=>{$('#m').innerHTML=`<div class="panel">Connect ${n} first (Settings, then Apps), or ask the admin for access.</div>`};
+let dlSort='added';
+const rank=s=>/^(downloading|forcedDL|metaDL|forcedMetaDL)$/.test(s)?0:s==='stalledDL'?1:/^queued/.test(s)?2:/^(uploading|stalledUP|forcedUP)$/.test(s)?3:/^(paused|stopped)/.test(s)?4:5;
+const HIST=60,dlH=[],ulH=[],cpuH=[],memH=[];
+const hp=(a,v)=>{a.push(+v||0);if(a.length>HIST)a.shift()};
+const col=v=>v>90?'var(--bad)':v>75?'var(--accent)':'var(--ok)';
+function spark(series,h,label,fixedMax){
+  const W=300,max=fixedMax||Math.max(1,...series.flatMap(s=>s.v));
+  const x=(v,i)=>(W-(v.length-1-i)*W/(HIST-1)).toFixed(1),y=n=>(h-2-Math.min(n,max)/max*(h-6)).toFixed(1);
+  const line=v=>v.map((n,i)=>`${i?'L':'M'}${x(v,i)},${y(n)}`).join('');
+  return `<svg viewBox="0 0 ${W} ${h}" width="100%" height="${h}" preserveAspectRatio="none" role="img" aria-label="${label}">`+
+    series.map(s=>s.v.length<2?'':`<path d="${line(s.v)}L${W},${h}L${x(s.v,0)},${h}Z" style="fill:${s.c};opacity:.15"/><path d="${line(s.v)}" fill="none" style="stroke:${s.c}" stroke-width="2" vector-effect="non-scaling-stroke"/>`).join('')+'</svg>';
+}
+function ring(pct,label){
+  const r=42,c=2*Math.PI*r,v=Math.max(0,Math.min(100,+pct||0));
+  return `<svg viewBox="0 0 100 100" width="120" height="120" role="img" aria-label="${label} ${v.toFixed(0)} percent">
+    <circle cx="50" cy="50" r="${r}" fill="none" style="stroke:var(--line)" stroke-width="10"/>
+    <circle cx="50" cy="50" r="${r}" fill="none" style="stroke:${col(v)}" stroke-width="10" stroke-linecap="round" stroke-dasharray="${(c*v/100).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 50 50)"/>
+    <text x="50" y="57" text-anchor="middle" style="fill:var(--text);font-size:22px;font-weight:600">${v.toFixed(0)}%</text></svg>`;
+}
+let dlF='all',dlCat='',dlQ='',dlSel=new Set();
+const stOf=s=>/^(error|missingFiles)$/.test(s)?'errors':/^(pausedDL|pausedUP|stoppedDL|stoppedUP)$/.test(s)?'paused':/^(uploading|forcedUP|stalledUP|queuedUP|checkingUP)$/.test(s)?'seeding':'downloading';
+const NICE={downloading:'Downloading',forcedDL:'Forced download',metaDL:'Fetching info',forcedMetaDL:'Fetching info',stalledDL:'Stalled',stalledUP:'Seeding',uploading:'Seeding',forcedUP:'Forced seeding',pausedDL:'Paused',pausedUP:'Paused',stoppedDL:'Stopped',stoppedUP:'Stopped',queuedDL:'Queued',queuedUP:'Queued',checkingDL:'Checking',checkingUP:'Checking',error:'Error',missingFiles:'Missing files',moving:'Moving'};
+const fmtEta=e=>e>=8640000||e<0?'∞':e>=86400?Math.floor(e/86400)+'d '+Math.floor(e%86400/3600)+'h':e>=3600?Math.floor(e/3600)+'h '+Math.floor(e%3600/60)+'m':e>=60?Math.floor(e/60)+'m':e+'s';
+const fdt=s=>{const d=new Date(s);return isNaN(d)?(s||''):d.toLocaleString()};
+function modal(html){
+  const o=document.createElement('div');o.className='ov';
+  o.innerHTML=`<div class="dlg" role="dialog" aria-modal="true" style="display:block;width:min(760px,100%)">${html}</div>`;
+  const k=e=>{if(e.key==='Escape')o.close()};
+  o.close=()=>{o.remove();document.removeEventListener('keydown',k)};
+  document.addEventListener('keydown',k);o.addEventListener('click',e=>{if(e.target===o)o.close()});document.body.append(o);return o;
+}
+function dlView(){
+  const s=first('qbittorrent');if(!s)return noSvc('qBittorrent');
+  const admin=me.role==='admin',act=b=>api(`/api/qb/${s.id}/act`,'POST',b);
+  dlH.length=ulH.length=0;dlSel.clear();
+  $('#m').innerHTML=`<div class="panel"><div class="row" style="gap:30px;align-items:flex-end"><div><div class="mute">Download</div><b id="dv" style="font-size:28px;letter-spacing:-.03em;color:var(--accent)">–</b></div>
+    <div><div class="mute">Upload</div><b id="uv" style="font-size:22px;color:var(--ok)">–</b></div><span class="mute" id="pk" style="margin-left:auto"></span><span class="mute" id="fr"></span><span class="pill" id="vp">VPN</span></div>
+    <div id="gr" style="margin-top:10px"></div><div class="row mute" style="justify-content:space-between"><span>2 minutes ago</span><span>now</span></div></div>
+    <div class="row" style="margin:14px 0"><button id="alt">Speed limits</button><button id="pa">${ic('pause')}Pause all</button><button id="ra">${ic('play')}Resume all</button><button id="hs">${ic('hist')}History</button>
+    ${admin?`<button id="lm">Speed limit settings</button><button id="cm">Categories and tags</button>`:''}</div>
+    <div class="row" style="margin-bottom:12px"><input id="sq" type="search" placeholder="Search torrents" aria-label="Search torrents" style="flex:1;min-width:150px">
+    <select id="sc" aria-label="Category"></select><select id="so" aria-label="Sort"><option value="added">Newest added</option><option value="size">Largest size</option><option value="status">Status (active first)</option></select>
+    ${can('add')?`<button class="primary" id="ad">${ic('rq')}Add downloads</button>`:''}</div>
+    <div class="row" style="margin-bottom:8px;justify-content:space-between"><div class="seg" id="fl">${[['all','All'],['downloading','Downloading'],['seeding','Seeding'],['paused','Paused'],['active','Active'],['errors','Errors']].map(([k,n])=>`<button data-f="${k}" data-n="${n}">${n}<i></i></button>`).join('')}</div><label class="chk" style="margin:0"><input type="checkbox" id="sa" aria-label="Select all shown torrents"><span>Select all</span></label></div>
+    <div class="row" id="bk" style="display:none;margin:10px 0;position:sticky;top:8px;z-index:3;background:var(--s1);border:1px solid var(--line);border-radius:14px;padding:10px 12px"></div>
+    <div class="err" id="e"></div><div id="l">${skel(4)}</div>`;
+  $('#so').value=dlSort;$('#sq').value=dlQ;vpnPill(s,'#vp');
+  if(!can('control'))$('#l').classList.add('nc');
+  let t=[],vis=[],key=null,busy=0,csig=null,bbSig='',match={},meta={categories:[],tags:[],free:null};
+  const mt=x=>`<span>${fmt(x.size)}</span>${x.dlspeed>0?`<span style="color:var(--accent)">↓ ${fmt(x.dlspeed)}/s</span>`:''}${x.upspeed>0?`<span style="color:var(--ok)">↑ ${fmt(x.upspeed)}/s</span>`:''}${x.progress<1&&x.eta<8640000?`<span>${fmtEta(x.eta)} left</span>`:''}${match[x.hash]?`<span class="chip">${esc(match[x.hash])}</span>`:''}<span>ratio ${(+x.ratio).toFixed(2)}</span><span>${x.seeds} seeds, ${x.peers} peers</span>${x.category?`<span class="chip">${esc(x.category)}</span>`:''}<span>added ${new Date(x.added*1000).toLocaleDateString()}</span>`;
+  const pillCls=x=>{const g=stOf(x.state);return 'pill '+(g==='errors'?'bad':x.state==='stalledDL'?'warn':g==='seeding'?'ok':g==='downloading'?'acc':'')};
+  const run=async(a,hashes,extra)=>{$('#e').textContent='';try{await act({action:a,hashes,...extra});await draw()}catch(x){toast(x.message,'bad')}};
+  const syncMaster=()=>{const m=$('#sa');if(!m)return;const n=vis.filter(x=>dlSel.has(x.hash)).length;m.checked=vis.length>0&&n===vis.length;m.indeterminate=n>0&&n<vis.length};
+  const bulkBar=()=>{syncMaster();const n=dlSel.size,b=$('#bk');b.style.display=n?'flex':'none';if(!n){bbSig='';return}
+    const sig=n+'|'+meta.categories.map(c=>c.name).join(',');if(sig===bbSig)return;bbSig=sig;
+    b.innerHTML=`<b>${n} selected</b><button data-b="pause">${ic('pause')}Pause</button><button data-b="resume">${ic('play')}Resume</button><button data-b="force">Force start</button><button data-b="recheck">Recheck</button>
+      <select id="bc" aria-label="Set category"><option value="">Set category…</option><option value="__none">No category</option>${meta.categories.map(c=>`<option>${esc(c.name)}</option>`).join('')}</select>
+      <button class="danger" data-b="delete">Remove</button><button class="ghost" data-b="clear">Clear</button>`;
+    if(!can('control'))b.querySelectorAll('[data-b=pause],[data-b=resume],[data-b=force],[data-b=recheck],#bc').forEach(z=>z.remove());
+    if(!can('remove'))b.querySelector('[data-b=delete]').remove()};
+  const upd=(el,x)=>{el.dataset.g=stOf(x.state);el.querySelector('[data-t]').innerHTML=mt(x);const st=el.querySelector('[data-st]');st.textContent=NICE[x.state]||x.state;st.className=pillCls(x);
+    const pr=el.querySelector('progress');pr.value=x.progress;pr.classList.toggle('done',x.progress>=1);el.querySelector('[data-pc]').textContent=(x.progress*100).toFixed(x.progress>=1?0:1)+'%';
+    const pz=stOf(x.state)==='paused',pa=el.querySelector('[data-pa]'),rs=el.querySelector('[data-rs]');if(pa)pa.hidden=pz;if(rs)rs.hidden=!pz};
+  const paint=()=>{
+    const cnt={all:t.length,downloading:0,seeding:0,paused:0,active:0,errors:0};
+    t.forEach(x=>{cnt[stOf(x.state)]++;if(x.dlspeed>0||x.upspeed>0)cnt.active++});
+    document.querySelectorAll('#fl [data-f]').forEach(b=>{b.querySelector('i').textContent=cnt[b.dataset.f];b.classList.toggle('on',b.dataset.f===dlF)});
+    const qv=dlQ.toLowerCase();
+    vis=t.filter(x=>(dlF==='all'||(dlF==='active'?(x.dlspeed>0||x.upspeed>0):stOf(x.state)===dlF))&&(!dlCat||(dlCat==='__none'?!x.category:x.category===dlCat))&&(!qv||x.name.toLowerCase().includes(qv)));
+    const k={added:(a,b)=>b.added-a.added,size:(a,b)=>b.size-a.size,status:(a,b)=>rank(a.state)-rank(b.state)||b.added-a.added}[dlSort];
+    vis.sort(k);syncMaster();
+    const nk=vis.map(x=>x.hash).join();
+    if(nk===key){if(vis.length)[...$('#l').children].forEach((el,i)=>vis[i]&&upd(el,vis[i]));return}
+    key=nk;
+    $('#l').innerHTML=vis.map(x=>`<div class="box tr" data-g="${stOf(x.state)}"><input type="checkbox" data-s="${x.hash}" aria-label="Select ${esc(x.name)}" ${dlSel.has(x.hash)?'checked':''}>
+      <div class="grow"><div class="row top"><b class="nm" data-o="${x.hash}" tabindex="0" role="button">${esc(x.name)}</b><span data-st class="${pillCls(x)}">${esc(NICE[x.state]||x.state)}</span></div>
+      <div class="bar"><progress value="${x.progress}" max="1" class="${x.progress>=1?'done':''}"></progress><span data-pc>${(x.progress*100).toFixed(x.progress>=1?0:1)}%</span></div><div class="meta" data-t>${mt(x)}</div></div>
+      <div class="acts"><button class="icon" data-pa="${x.hash}" aria-label="Pause" title="Pause" ${stOf(x.state)==='paused'?'hidden':''}>${ic('pause')}</button><button class="icon" data-rs="${x.hash}" aria-label="Resume" title="Resume" ${stOf(x.state)==='paused'?'':'hidden'}>${ic('play')}</button>
+      <button class="icon" data-o="${x.hash}" aria-label="Details" title="Details">${ic('info')}</button></div></div>`).join('')||empty('Nothing here','No torrents match the current filter or search.');
+  };
+  const draw=async()=>{if(busy)return;busy=1;
+    try{const d=await api(`/api/qb/${s.id}/list`);if(tab!=='dl')return;
+      t=d.torrents;const have=new Set(t.map(x=>x.hash));[...dlSel].forEach(h=>{if(!have.has(h))dlSel.delete(h)});bulkBar();
+      hp(dlH,d.dl);hp(ulH,d.ul);$('#dv').textContent=fmt(d.dl)+'/s';$('#uv').textContent=fmt(d.ul)+'/s';
+      const al=$('#alt');al.textContent='Speed limits: '+(d.alt?'On':'Off');al.setAttribute('aria-pressed',d.alt);al.classList.toggle('tog',!!d.alt);
+      $('#gr').innerHTML=trace([{v:dlH,c:'var(--accent)'},{v:ulH,c:'var(--ok)'}],96,'Download and upload speed over the last two minutes');
+      $('#pk').textContent='peak '+fmt(Math.max(...dlH,...ulH))+'/s';paint()}
+    catch(x){if(tab==='dl')$('#e').textContent=x.message}finally{busy=0}};
+  const loadMeta=async()=>{api(`/api/qb/${s.id}/match`).then(m=>{match=m}).catch(()=>{});try{meta=await api(`/api/qb/${s.id}/meta`);if(tab!=='dl')return;
+    const cs=meta.categories.map(c=>c.name).join('|');if(cs!==csig){csig=cs;$('#sc').innerHTML='<option value="">All categories</option><option value="__none">No category</option>'+meta.categories.map(c=>`<option>${esc(c.name)}</option>`).join('');$('#sc').value=dlCat}
+    $('#fr').textContent=meta.free!=null?'Free space '+fmt(meta.free):'';bulkBar()}catch{}};
+  $('#l').onclick=e=>{const el=e.target.closest('[data-pa],[data-rs],[data-o]');if(!el)return;
+    if(el.dataset.o!==undefined)return openTorrent(s,t.find(x=>x.hash===el.dataset.o),meta,draw);
+    run(el.dataset.pa?'pause':'resume',[el.dataset.pa||el.dataset.rs])};
+  $('#l').onchange=e=>{const c=e.target.closest('[data-s]');if(!c)return;c.checked?dlSel.add(c.dataset.s):dlSel.delete(c.dataset.s);bulkBar()};
+  $('#l').onkeydown=e=>{if(e.key==='Enter'&&e.target.dataset.o!==undefined)e.target.click()};
+  $('#bk').onclick=async e=>{const b=e.target.closest('[data-b]');if(!b)return;const a=b.dataset.b,hs=[...dlSel];
+    if(a==='clear'){dlSel.clear();key=null;paint();bulkBar();return}
+    if(a==='delete'){if(!confirm(`Remove ${hs.length} torrent${hs.length>1?'s':''} from qBittorrent?`))return;
+      const files=confirm('Also delete the downloaded files?\n\nOK = delete the files, Cancel = keep the files');
+      await run('delete',hs,{files});dlSel.clear();key=null;paint();bulkBar();toast('Removed','ok');return}
+    await run(a,hs)};
+  $('#bk').onchange=async e=>{if(e.target.id!=='bc'||!e.target.value)return;await run('category',[...dlSel],{value:e.target.value==='__none'?'':e.target.value});e.target.value='';toast('Category updated','ok')};
+  $('#fl').onclick=e=>{const b=e.target.closest('[data-f]');if(!b)return;dlF=b.dataset.f;key=null;paint()};
+  $('#sq').oninput=e=>{dlQ=e.target.value;key=null;paint()};
+  $('#sc').onchange=e=>{dlCat=e.target.value;key=null;paint()};
+  $('#so').onchange=e=>{dlSort=e.target.value;key=null;paint()};
+  $('#sa').onchange=e=>{if(e.target.checked)vis.forEach(x=>dlSel.add(x.hash));else vis.forEach(x=>dlSel.delete(x.hash));key=null;paint();bulkBar()};
+  $('#alt').onclick=async()=>{try{await api(`/api/qb/${s.id}/alt`,'POST');await draw()}catch(x){toast(x.message,'bad')}};
+  $('#pa').onclick=()=>run('pause','all');$('#ra').onclick=()=>run('resume','all');
+  if($('#ad'))$('#ad').onclick=()=>addDialog(s,meta,()=>{toast('Added to downloads','ok');draw()});
+  $('#hs').onclick=()=>histDialog(s);
+  if(!can('control'))['#alt','#pa','#ra'].forEach(i=>{$(i).disabled=true});
+  if(admin){$('#lm').onclick=()=>limDialog(s);$('#cm').onclick=()=>catDialog(s,()=>meta,loadMeta)}
+  draw();loadMeta();timer=[setInterval(draw,2000),setInterval(loadMeta,30000)];
+}
+function addDialog(s,meta,done){
+  const admin=me.role==='admin';
+  const o=modal(`<h2 style="margin-top:0">Add downloads</h2><form id="af"><textarea name="links" rows="4" placeholder="Magnet links, one per line"></textarea>
+    <label class="mute">Or choose .torrent files <input type="file" name="files" accept=".torrent,application/x-bittorrent" multiple></label>
+    <select name="category" aria-label="Category"><option value="">No category</option>${meta.categories.map(c=>`<option>${esc(c.name)}</option>`).join('')}</select>
+    ${admin?'<input name="savepath" placeholder="Save folder (optional)">':''}
+    <label class="chk"><input type="checkbox" name="paused">Start paused</label><div class="err" id="ae"></div>
+    <div class="row"><button class="primary">Add</button><button type="button" data-x>Cancel</button></div></form>`);
+  o.querySelector('[data-x]').onclick=o.close;
+  o.querySelector('#af').onsubmit=async e=>{e.preventDefault();const f=e.target.elements,er=o.querySelector('#ae');er.textContent='';
+    const opt={sid:s.id,category:f.category.value,paused:f.paused.checked};if(admin&&f.savepath.value.trim())opt.savepath=f.savepath.value.trim();
+    const links=f.links.value.trim(),files=[...f.files.files];
+    if(!links&&!files.length){er.textContent='Paste a link or choose a file';return}
+    try{
+      if(links)await api('/api/torrent/add','POST',{...opt,url:links});
+      if(files.length){const rd=x=>new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok({name:x.name,data:String(r.result).split(',')[1]});r.onerror=no;r.readAsDataURL(x)});
+        await api('/api/torrent/upload','POST',{...opt,files:await Promise.all(files.map(rd))})}
+      o.close();done()}catch(x){er.textContent=x.message}};
+}
+async function openTorrent(s,x,meta,after){
+  if(!x)return;
+  const admin=me.role==='admin',act=b=>api(`/api/qb/${s.id}/act`,'POST',{hashes:[x.hash],...b});
+  const o=modal(`<div class="row"><h2 style="margin:0;flex:1;min-width:0;word-break:break-word">${esc(x.name)}</h2><button data-x>Close</button></div>
+    <div class="seg" id="tb" style="margin:12px 0"><button class="on" data-k="g">General</button><button data-k="f">Files</button><button data-k="t">Trackers</button><button data-k="p">Peers</button></div>
+    <div id="tc"><p class="mute">Loading…</p></div>
+    <div class="row" style="margin-top:14px">${!can('control')?'':[['force','Force start'],['recheck','Recheck'],['reannounce','Reannounce'],['top','Queue top'],['up','Queue up'],['down','Queue down'],['bottom','Queue bottom'],['rename','Rename']].map(([k,n])=>`<button data-a="${k}">${n}</button>`).join('')}${admin?'<button data-a="location">Move</button>':''}${can('remove')?'<button data-a="delete">Remove</button>':''}</div>
+    <div class="err" id="te"></div>`);
+  const $o=q=>o.querySelector(q),err=m=>{$o('#te').textContent=m||''};
+  const tags=()=>x.tags?x.tags.split(',').map(g=>g.trim()).filter(Boolean):[];
+  let info=null,cur='g';
+  const views={
+    g:()=>{const p=info.props;return `<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr))">${[['Save folder',p.path],['Size',fmt(p.size)],['Added',p.added>0?fdt(p.added*1000):'–'],['Completed',p.done>0?fdt(p.done*1000):'–'],['Ratio',(+p.ratio).toFixed(2)],['Downloaded',fmt(p.down)],['Uploaded',fmt(p.up)],['Connections',p.conns]].map(([k,v])=>`<div><div class="mute">${k}</div><div style="word-break:break-word">${esc(v)}</div></div>`).join('')}</div>
+      <div class="row" style="margin-top:14px"><label class="mute">Category <select id="tcat"><option value="">No category</option>${meta.categories.map(c=>`<option ${c.name===x.category?'selected':''}>${esc(c.name)}</option>`).join('')}</select></label></div>
+      <div class="row" style="margin-top:10px"><span class="mute">Tags</span>${tags().map(g=>`<span class="pill">${esc(g)}<a href="#" data-rt="${esc(g)}" aria-label="Remove tag ${esc(g)}">×</a></span>`).join('')}<input id="tnew" placeholder="Add a tag" style="width:130px"><button data-at>Add</button></div>${p.comment?`<p class="mute">${esc(p.comment)}</p>`:''}`},
+    f:()=>`<div class="row" style="margin-bottom:6px"><label class="chk"><input type="checkbox" id="fa" ${info.files.every(f=>f.prio>0)?'checked':''} ${can('control')?'':'disabled'}>Select all files</label><span class="mute">Untick a file to skip downloading it.</span></div>`+info.files.map(f=>`<div class="box row"><input type="checkbox" data-fc="${f.i}" ${f.prio>0?'checked':''} ${can('control')?'':'disabled'} aria-label="Download ${esc(f.name)}"><div class="grow"><div style="word-break:break-all">${esc(f.name)}</div><div class="mute">${fmt(f.size)}, ${(f.progress*100).toFixed(0)}%</div></div></div>`).join('')||'<p class="mute">No files.</p>',
+    t:()=>info.trackers.map(r=>`<div class="box"><div style="word-break:break-all">${esc(r.url)}</div><div class="mute">${['Disabled','Not contacted','Working','Updating','Not working'][r.status]||''}, ${r.seeds<0?'?':r.seeds} seeds, ${r.peers<0?'?':r.peers} peers${r.msg?', '+esc(r.msg):''}</div></div>`).join('')||'<p class="mute">No trackers.</p>',
+    p:()=>info.peers.map(r=>`<div class="box row"><b>${esc(r.ip)}</b><span class="mute" style="flex:1">${esc(r.client||'')}</span><span class="mute">${(r.progress*100).toFixed(0)}%, ↓ ${fmt(r.dl)}/s, ↑ ${fmt(r.up)}/s</span></div>`).join('')||'<p class="mute">No connected peers.</p>'};
+  const show=()=>{if(!info)return;$o('#tc').innerHTML=views[cur]();
+    const c=$o('#tcat');if(c)c.onchange=async()=>{try{await act({action:'category',value:c.value});x.category=c.value;err();after()}catch(ex){err(ex.message)}}};
+  const load=async()=>{try{info=await api(`/api/qb/${s.id}/info?hash=${x.hash}`);show()}catch(ex){$o('#tc').innerHTML='';err(ex.message)}};
+  $o('[data-x]').onclick=o.close;
+  $o('#tb').onclick=e=>{const b=e.target.closest('[data-k]');if(!b)return;cur=b.dataset.k;o.querySelectorAll('#tb [data-k]').forEach(z=>z.classList.toggle('on',z===b));if(cur==='p')load();else show()};
+  o.addEventListener('click',async e=>{
+    const rt=e.target.closest('[data-rt]');if(rt){e.preventDefault();try{await act({action:'rmtag',value:rt.dataset.rt});x.tags=tags().filter(g=>g!==rt.dataset.rt).join(', ');show();after()}catch(ex){err(ex.message)}return}
+    if(e.target.closest('[data-at]')){const v=$o('#tnew').value.trim();if(!v)return;try{await act({action:'addtag',value:v});x.tags=[...tags(),v].join(', ');show();after()}catch(ex){err(ex.message)}return}
+    const b=e.target.closest('[data-a]');if(!b)return;const a=b.dataset.a;let v;
+    if(a==='rename'){v=prompt('New name',x.name);if(!v)return}
+    if(a==='location'){v=prompt('Move to this folder (path on the server):',x.path);if(!v)return}
+    if(a==='delete'){if(!confirm('Remove this torrent from qBittorrent?'))return;
+      const files=confirm('Also delete the downloaded files?\n\nOK = delete the files, Cancel = keep the files');
+      try{await act({action:'delete',files});o.close();after()}catch(ex){err(ex.message)}return}
+    try{await act({action:a,value:v});err();if(a==='rename'){x.name=v}after();if(a==='rename'||a==='location')o.close()}catch(ex){err(ex.message)}});
+  o.addEventListener('change',async e=>{const c=e.target.closest('[data-fc],#fa');if(!c||!info)return;
+    const ids=c.id==='fa'?info.files.map(f=>f.i):[+c.dataset.fc],pr=c.checked?1:0;
+    try{await api(`/api/qb/${s.id}/files`,'POST',{hash:x.hash,ids,priority:pr});info.files.forEach(f=>{if(ids.includes(f.i))f.prio=pr});if(c.id==='fa')show();err()}catch(ex){c.checked=!c.checked;err(ex.message)}});
+  load();
+}
+async function histDialog(s){
+  let d;try{d=await api('/api/history')}catch(x){toast(x.message,'bad');return}
+  const tot=(t,x)=>`<div><div class="mute">${t}</div><b style="font-size:20px">${x.count}</b> <span class="mute">${fmt(x.bytes)}</span></div>`;
+  const o=modal(`<div class="row"><h2 style="margin:0;flex:1">Download history</h2><button data-x>Close</button></div><div class="row" style="gap:28px;margin:14px 0">${tot('Last 24 hours',d.day)}${tot('Last 7 days',d.week)}${tot('Last 30 days',d.month)}</div>
+    ${d.items.map(x=>`<div class="box row"><div class="grow" style="min-width:0"><b style="word-break:break-word;font-weight:560">${esc(x.name)}</b><div class="mute">${esc(fdt(x.at))}${x.cat?', '+esc(x.cat):''}</div></div><span class="mute">${fmt(x.size)}</span></div>`).join('')||empty('No finished downloads yet','Finished downloads show up here after MediaHub sees them.')}`);
+  o.querySelector('[data-x]').onclick=o.close;
+}
+async function limDialog(s){
+  let p;try{p=await api(`/api/qb/${s.id}/prefs`)}catch(x){toast(x.message,'bad');return}
+  const o=modal(`<h2 style="margin-top:0">Speed limit settings</h2><p class="mute">Limits in KB/s. Use 0 for no limit. The alternative limits apply when "Speed limits" is On.</p>
+    <form id="lf" style="max-width:360px">${[['dl','Download limit',p.dl],['up','Upload limit',p.up],['altDl','Alternative download limit',p.altDl],['altUp','Alternative upload limit',p.altUp]].map(([k,n,v])=>`<label class="mute">${n}<input type="number" min="0" name="${k}" value="${v}"></label>`).join('')}
+    <div class="err" id="le"></div><div class="row"><button class="primary">Save</button><button type="button" data-x>Cancel</button></div></form>`);
+  o.querySelector('[data-x]').onclick=o.close;
+  o.querySelector('#lf').onsubmit=async e=>{e.preventDefault();try{await api(`/api/qb/${s.id}/prefs`,'POST',Object.fromEntries(new FormData(e.target)));o.close()}catch(x){o.querySelector('#le').textContent=x.message}};
+}
+function catDialog(s,getMeta,reload){
+  const o=modal('<div id="cb"></div>');
+  const post=(k,b)=>api(`/api/qb/${s.id}/${k}`,'POST',b);
+  const draw=()=>{const m=getMeta();
+    o.querySelector('#cb').innerHTML=`<div class="row"><h2 style="margin:0;flex:1">Categories and tags</h2><button data-x>Close</button></div>
+      <h3>Categories</h3>${m.categories.map(c=>`<div class="box row"><b>${esc(c.name)}</b><span class="mute" style="flex:1;word-break:break-all">${esc(c.path||'default folder')}</span><button data-rc="${esc(c.name)}">Remove</button></div>`).join('')||'<p class="mute">None yet.</p>'}
+      <form id="cf" class="row" style="display:flex"><input name="name" placeholder="Category name" required><input name="path" placeholder="Save folder (optional)" style="flex:1;min-width:160px"><button class="primary">Add category</button></form>
+      <h3>Tags</h3><div class="row">${m.tags.map(g=>`<span class="pill">${esc(g)}<a href="#" data-rg="${esc(g)}" aria-label="Delete tag ${esc(g)}">×</a></span>`).join('')||'<span class="mute">None yet.</span>'}</div>
+      <form id="tf" class="row" style="display:flex;margin-top:10px"><input name="name" placeholder="New tag" required><button class="primary">Add tag</button></form><div class="err" id="ce"></div>`;
+    o.querySelector('[data-x]').onclick=o.close;
+  };
+  const go=async(k,b)=>{try{await post(k,b);await reload();draw()}catch(x){o.querySelector('#ce').textContent=x.message}};
+  o.addEventListener('click',e=>{const r=e.target.closest('[data-rc]'),g=e.target.closest('[data-rg]');
+    if(r&&confirm('Remove this category? Torrents keep their files.'))go('cat',{op:'remove',name:r.dataset.rc});
+    if(g){e.preventDefault();go('tag',{op:'remove',name:g.dataset.rg})}});
+  o.addEventListener('submit',e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));
+    if(e.target.id==='cf')go('cat',{op:'create',...f});else go('tag',{op:'create',...f})});
+  draw();
+}
+function rssView(){
+  const s=first('qbittorrent');if(!s)return noSvc('qBittorrent');
+  const admin=me.role==='admin',base=`/api/rss/${s.id}`;
+  let sub='art',feed='',meta={categories:[]};
+  $('#m').innerHTML=`<div class="seg" id="sg"><button data-k="art" class="on">Articles</button><button data-k="fd">Feeds</button><button data-k="ru">Rules</button></div><div class="err" id="e" style="margin-top:8px"></div><div id="rc" style="margin-top:12px"></div>`;
+  api(`/api/qb/${s.id}/meta`).then(m=>{meta=m}).catch(()=>{});
+  const live=k=>tab==='rss'&&sub===k;
+  let selR=new Set();
+  async function art(){
+    $('#rc').innerHTML=skel(6);selR.clear();
+    try{const [fs,list]=await Promise.all([api(`${base}/feeds`),api(`${base}/articles${feed?'?feed='+encodeURIComponent(feed):''}`)]);if(!live('art'))return;
+      $('#rc').innerHTML=`<div class="row" style="margin-bottom:12px"><select id="af2" aria-label="Feed"><option value="">All feeds</option>${fs.map(f=>`<option value="${esc(f.path)}" ${f.path===feed?'selected':''}>${esc(fp(f.path))}${f.unread?' ('+f.unread+' new)':''}</option>`).join('')}</select>
+        <input id="aq" type="search" placeholder="Filter articles" aria-label="Filter articles" style="flex:1;min-width:140px"><select id="ac" aria-label="Download into category"><option value="">No category</option>${meta.categories.map(c=>`<option>${esc(c.name)}</option>`).join('')}</select></div>
+        <div class="row" style="margin-bottom:4px"><label class="chk"><input type="checkbox" id="ma" aria-label="Select all shown articles">Select all</label><label class="chk"><input type="checkbox" id="uo">Unread only</label><span class="mute" id="uc"></span><span style="flex:1"></span>
+        <button id="mr">${ic('checks')}Mark all as read</button><button id="ar">${ic('refresh')}Refresh feeds</button></div>
+        <div class="sel-bar" id="rb"></div><div id="al"></div>`;
+      let rows=[];const kf=a=>a.feed+'|'+a.id;
+      const bar=()=>{const n=selR.size,b=$('#rb');b.style.display=n?'flex':'none';
+        const sh=rows.filter(a=>selR.has(kf(a))).length,m=$('#ma');m.checked=rows.length>0&&sh===rows.length;m.indeterminate=sh>0&&sh<rows.length;
+        if(!n)return;b.innerHTML=`<b>${n} selected</b>${can('add')?`<button class="primary" data-bd>${ic('dl')}Download selected</button>`:''}<button data-bk>${ic('check')}Mark selected as read</button><button class="ghost" data-bc>Clear</button>`};
+      const draw=()=>{const q=$('#aq').value.toLowerCase(),uo=$('#uo').checked;
+        rows=list.filter(a=>a.title.toLowerCase().includes(q)&&(!uo||!a.read)).slice(0,150);const un=list.filter(a=>!a.read).length;
+        $('#uc').textContent=un?`${un} unread`:'All read';$('#mr').disabled=!un;
+        $('#al').innerHTML=rows.map((a,i)=>`<div class="box row art ${a.read?'rd':''}"><input type="checkbox" data-ck="${i}" aria-label="Select ${esc(a.title)}" ${selR.has(kf(a))?'checked':''}><span class="ud" title="${a.read?'Read':'Unread'}"></span><div class="grow"><b style="word-break:break-word">${esc(a.title)}</b><div class="mute">${esc(fp(a.feed))}${a.date?', '+esc(fdt(a.date)):''}</div></div>
+          ${a.read?'':`<button data-k="${i}">${ic('check')}Mark read</button>`}${can('add')?`<button data-d="${i}">${ic('dl')}Download</button>`:''}</div>`).join('')||empty(uo?'No unread articles':'No articles',uo?'You have read everything in this view.':'Refresh the feeds to look for new items.');
+        bar()};
+      $('#al').onchange=e=>{const c=e.target.closest('[data-ck]');if(!c)return;const a=rows[c.dataset.ck];c.checked?selR.add(kf(a)):selR.delete(kf(a));bar()};
+      $('#ma').onchange=e=>{rows.forEach(a=>e.target.checked?selR.add(kf(a)):selR.delete(kf(a)));draw()};
+      $('#al').onclick=async e=>{const rk=e.target.closest('[data-k]'),b=e.target.closest('[data-d]');
+        if(rk){const a=rows[rk.dataset.k];rk.disabled=true;try{await api(`${base}/read`,'POST',{path:a.feed,id:a.id});a.read=true;draw()}catch(x){rk.disabled=false;toast(x.message,'bad')}return}
+        if(b){const a=rows[b.dataset.d];b.disabled=true;
+          try{await api('/api/rss/download','POST',{sid:s.id,feed:a.feed,id:a.id,category:$('#ac').value});a.read=true;toast('Added to downloads','ok');draw()}
+          catch(x){b.disabled=false;toast(x.message,'bad')}}};
+      $('#rb').onclick=async e=>{const b=e.target.closest('[data-bd],[data-bk],[data-bc]');if(!b)return;
+        if(b.dataset.bc!==undefined){selR.clear();draw();return}
+        const chosen=list.filter(a=>selR.has(kf(a)));b.disabled=true;let ok=0,bad=0,last='';
+        for(const a of chosen){try{
+          if(b.dataset.bd!==undefined)await api('/api/rss/download','POST',{sid:s.id,feed:a.feed,id:a.id,category:$('#ac').value});
+          else await api(`${base}/read`,'POST',{path:a.feed,id:a.id});
+          a.read=true;ok++}catch(x){bad++;last=x.message}}
+        selR.clear();draw();
+        if(ok)toast(b.dataset.bd!==undefined?`Added ${ok} to downloads`:`Marked ${ok} as read`,'ok');if(bad)toast(`${bad} failed: ${last}`,'bad')};
+      draw();$('#aq').oninput=draw;$('#uo').onchange=draw;$('#af2').onchange=e=>{feed=e.target.value;art()};
+      $('#mr').onclick=async()=>{const b=$('#mr');b.disabled=true;
+        try{const paths=feed?[feed]:fs.filter(f=>f.unread>0).map(f=>f.path);await Promise.all(paths.map(pth=>api(`${base}/read`,'POST',{path:pth})));
+          list.forEach(a=>{if(!feed||a.feed===feed)a.read=true});toast('Marked as read','ok');art()}catch(x){b.disabled=false;toast(x.message,'bad')}};
+      $('#ar').onclick=async()=>{const b=$('#ar');b.disabled=true;try{await Promise.all(fs.map(f=>api(`${base}/refresh`,'POST',{path:f.path})));toast('Refreshing feeds','ok')}catch(x){toast(x.message,'bad')}setTimeout(()=>live('art')&&art(),1500)};
+    }catch(x){$('#rc').innerHTML='';$('#e').textContent=x.message}
+  }
+  async function fd(){
+    $('#rc').innerHTML=skel(3);
+    try{const fs=await api(`${base}/feeds`);if(!live('fd'))return;
+      $('#rc').innerHTML=`${admin?`<form id="nf" style="display:flex;gap:8px;flex-wrap:wrap"><input name="url" placeholder="Feed address (https://…)" style="flex:1;min-width:200px" required><input name="path" placeholder="Name (optional)" style="width:180px"><button class="primary">${ic('rq')}Add feed</button></form>`:''}
+        ${fs.map(f=>`<div class="box row"><span class="dot ${f.error?'bad':'ok'}" title="${f.error?'This feed has an error':'Feed is working'}"></span><div class="grow"><b>${esc(fp(f.path))}</b><div class="mute" style="word-break:break-all">${esc(f.url||'')}</div></div>
+          <span class="pill ${f.unread?'acc':''}">${f.unread} unread of ${f.total}</span>${f.unread?`<button data-mr="${esc(f.path)}">${ic('checks')}Mark all as read</button>`:''}<button class="icon" data-r="${esc(f.path)}" aria-label="Refresh this feed" title="Refresh this feed">${ic('refresh')}</button>${admin?`<button class="danger" data-x="${esc(f.path)}">Remove</button>`:''}</div>`).join('')||empty('No feeds yet',admin?'Add a feed address above to start collecting articles.':'Ask the admin to add a feed in qBittorrent.')}`;
+      const nf=$('#nf');if(nf)nf.onsubmit=async e=>{e.preventDefault();$('#e').textContent='';try{await api(`${base}/feed`,'POST',{op:'add',...Object.fromEntries(new FormData(e.target))});toast('Feed added','ok');fd()}catch(x){toast(x.message,'bad')}};
+      $('#rc').onclick=async e=>{const r=e.target.closest('[data-r]'),x=e.target.closest('[data-x]'),m=e.target.closest('[data-mr]');
+        try{if(m){m.disabled=true;await api(`${base}/read`,'POST',{path:m.dataset.mr});toast('Marked as read','ok');fd()}
+          if(r){r.disabled=true;await api(`${base}/refresh`,'POST',{path:r.dataset.r});toast('Refreshing feed','ok');setTimeout(()=>live('fd')&&fd(),1200)}
+          if(x&&confirm('Remove this feed from qBittorrent?')){await api(`${base}/feed`,'POST',{op:'remove',path:x.dataset.x});toast('Feed removed','ok');fd()}}catch(ex){toast(ex.message,'bad')}};
+    }catch(x){$('#rc').innerHTML='';$('#e').textContent=x.message}
+  }
+  async function ru(){
+    try{const d=await api(`${base}/rules`);if(!live('ru'))return;
+      const sum=r=>[r.mustContain&&'contains "'+r.mustContain+'"',r.mustNotContain&&'not "'+r.mustNotContain+'"',r.episodeFilter&&'episodes '+r.episodeFilter,r.assignedCategory&&'category '+r.assignedCategory,(r.affectedFeeds||[]).length+' feed'+((r.affectedFeeds||[]).length===1?'':'s')].filter(Boolean).join(', ');
+      $('#rc').innerHTML=`${admin?'<p><button class="primary" id="nr">New rule</button></p>':''}${d.rules.map((r,i)=>`<div class="box row"><div style="flex:1;min-width:0"><b>${esc(r.name)}</b> <span class="pill ${r.enabled?'ok':''}">${r.enabled?'On':'Off'}</span><div class="mute" style="word-break:break-word">${esc(sum(r))}</div></div>
+        <button data-m="${i}">Matches</button>${admin?`<button data-t="${i}">${r.enabled?'Turn off':'Turn on'}</button><button data-e="${i}">Edit</button><button data-x="${i}">Delete</button>`:''}</div>`).join('')||'<p class="mute">No rules yet.</p>'}`;
+      const nr=$('#nr');if(nr)nr.onclick=()=>ruleEditor(s,d,null,ru,meta);
+      $('#rc').onclick=async e=>{const b=e.target.closest('[data-m],[data-t],[data-e],[data-x]');if(!b)return;$('#e').textContent='';
+        const k=Object.keys(b.dataset)[0],r=d.rules[b.dataset[k]];
+        try{if(k==='m'){const m=await api(`${base}/matches?name=${encodeURIComponent(r.name)}`),o=modal(`<div class="row"><h2 style="margin:0;flex:1">${esc(r.name)}: matching articles</h2><button data-x>Close</button></div>${matchHtml(m)}`);o.querySelector('[data-x]').onclick=o.close}
+          if(k==='t'){await api(`${base}/rule`,'POST',{op:'set',name:r.name,rule:{...r,enabled:!r.enabled}});ru()}
+          if(k==='e')ruleEditor(s,d,r,ru,meta);
+          if(k==='x'&&confirm('Delete the rule "'+r.name+'"?')){await api(`${base}/rule`,'POST',{op:'remove',name:r.name});ru()}}catch(ex){$('#e').textContent=ex.message}};
+    }catch(x){$('#rc').innerHTML='';$('#e').textContent=x.message}
+  }
+  const views={art,fd,ru};
+  $('#sg').onclick=e=>{const b=e.target.closest('[data-k]');if(!b)return;sub=b.dataset.k;$('#e').textContent='';document.querySelectorAll('#sg [data-k]').forEach(z=>z.classList.toggle('on',z===b));views[sub]()};
+  art();
+}
+const matchHtml=m=>{const ks=Object.keys(m||{});return ks.length?ks.map(k=>`<h3>${esc(k)}</h3>${m[k].map(t=>`<div class="box">${esc(t)}</div>`).join('')}`).join(''):'<p class="mute">No articles match right now.</p>'};
+function ruleEditor(s,d,rule,done,meta){
+  const r=rule||{enabled:true,affectedFeeds:[]},base=`/api/rss/${s.id}`;
+  const o=modal(`<h2 style="margin-top:0">${rule?'Edit rule':'New rule'}</h2><form id="rf"><input name="name" placeholder="Rule name" value="${esc(r.name||'')}" ${rule?'readonly':''} required>
+    <input name="mustContain" placeholder="Must contain (words, or a pattern if regular expressions are on)" value="${esc(r.mustContain||'')}"><input name="mustNotContain" placeholder="Must not contain" value="${esc(r.mustNotContain||'')}">
+    <input name="episodeFilter" placeholder="Episode filter, for example 1x01-;" value="${esc(r.episodeFilter||'')}">
+    <label class="chk"><input type="checkbox" name="useRegex" ${r.useRegex?'checked':''}>Use regular expressions</label>
+    <select name="assignedCategory" aria-label="Category"><option value="">No category</option>${meta.categories.map(c=>`<option ${c.name===r.assignedCategory?'selected':''}>${esc(c.name)}</option>`).join('')}</select>
+    <input name="savePath" placeholder="Save folder (optional)" value="${esc(r.savePath||'')}">
+    <label class="chk"><input type="checkbox" name="addPaused" ${r.addPaused===true?'checked':''}>Add downloads paused</label>
+    <label class="chk"><input type="checkbox" name="enabled" ${r.enabled?'checked':''}>Rule is on</label>
+    <div class="mute">Feeds this rule watches</div><div>${d.feeds.map(f=>`<label class="chk" style="display:flex;margin:4px 0"><input type="checkbox" name="fd" value="${esc(f.url)}" ${(r.affectedFeeds||[]).includes(f.url)?'checked':''}>${esc(fp(f.path))}</label>`).join('')||'<span class="mute">Add a feed first.</span>'}</div>
+    <div id="pv"></div><div class="err" id="re"></div><div class="row"><button type="button" id="pb">Preview matches</button><button class="primary">Save rule</button><button type="button" data-x>Cancel</button></div></form>`);
+  const build=()=>{const f=o.querySelector('#rf').elements;return {...r,enabled:f.enabled.checked,mustContain:f.mustContain.value,mustNotContain:f.mustNotContain.value,useRegex:f.useRegex.checked,episodeFilter:f.episodeFilter.value,
+    assignedCategory:f.assignedCategory.value,savePath:f.savePath.value,addPaused:f.addPaused.checked?true:null,affectedFeeds:[...o.querySelectorAll('[name=fd]:checked')].map(c=>c.value)}};
+  const er=m=>{o.querySelector('#re').textContent=m||''};
+  o.querySelector('[data-x]').onclick=o.close;
+  o.querySelector('#pb').onclick=async()=>{er();const b=build();if(!b.affectedFeeds.length){er('Tick at least one feed to preview');return}
+    o.querySelector('#pv').innerHTML='<p class="mute">Checking…</p>';
+    try{o.querySelector('#pv').innerHTML='<h3>Would match</h3>'+matchHtml(await api(`${base}/rule`,'POST',{op:'preview',rule:b}))}catch(x){o.querySelector('#pv').innerHTML='';er(x.message)}};
+  o.querySelector('#rf').onsubmit=async e=>{e.preventDefault();er();const b=build(),name=e.target.elements.name.value.trim();
+    if(!b.affectedFeeds.length){er('Tick at least one feed for this rule to watch');return}
+    if(!rule&&d.rules.some(x=>x.name===name)){er('A rule with that name already exists');return}
+    try{await api(`${base}/rule`,'POST',{op:'set',name,rule:b});o.close();done()}catch(x){er(x.message)}};
+}
+let wtKind='missing',wtSel='';
+async function wtView(){
+  const opts=services.filter(s=>['sonarr','radarr'].includes(s.type));if(!opts.length)return noSvc('Sonarr or Radarr');
+  if(!opts.some(s=>s.id===wtSel))wtSel=opts[0].id;
+  $('#m').innerHTML=`<div class="row" style="margin-bottom:14px"><select id="ws" aria-label="App">${opts.map(s=>`<option value="${s.id}" ${s.id===wtSel?'selected':''}>${esc(s.name)}</option>`).join('')}</select>
+    <div class="seg" id="wk"><button data-k="missing" class="${wtKind==='missing'?'on':''}">Missing</button><button data-k="cutoff" class="${wtKind==='cutoff'?'on':''}">Below quality target</button></div><span class="mute" id="wn"></span></div>
+    <div class="err" id="e"></div><div id="wl">${skel(5)}</div><p><button id="wm" hidden>Show more</button></p>`;
+  let page=1,items=[],total=0;
+  const draw=()=>{$('#wn').textContent=`${total} ${total===1?'item':'items'}`;
+    $('#wl').innerHTML=items.map((x,i)=>`<div class="box row hov" data-i="${i}">${x.poster?`<img src="${esc(x.poster)}" alt="" loading="lazy" style="width:42px;border-radius:6px;aspect-ratio:2/3;object-fit:cover">`:''}
+      <div class="grow" style="cursor:pointer" data-d="${i}"><b>${esc(x.title)}</b><div class="mute">${esc(x.sub)}${x.date?', '+esc(new Date(x.date).toLocaleDateString()):''}</div></div>${can('add')?`<button data-s="${i}">${ic('find')}Search</button>`:''}</div>`).join('')||empty(wtKind==='missing'?'Nothing missing':'Nothing to upgrade','Everything you are watching is where it should be.');
+    $('#wm').hidden=items.length>=total};
+  const load=async more=>{try{const d=await api(`/api/wanted?sid=${wtSel}&kind=${wtKind}&page=${page}`);if(tab!=='wt')return;total=d.total;items=more?items.concat(d.items):d.items;draw()}
+    catch(x){$('#wl').innerHTML='';$('#e').textContent=x.message}};
+  $('#ws').onchange=e=>{wtSel=e.target.value;wtView()};
+  $('#wk').onclick=e=>{const b=e.target.closest('[data-k]');if(!b)return;wtKind=b.dataset.k;wtView()};
+  $('#wm').onclick=()=>{page++;load(true)};
+  $('#wl').onclick=async e=>{const d=e.target.closest('[data-d]'),b=e.target.closest('[data-s]');
+    if(d){const x=items[d.dataset.d];showDetail({title:x.title,sub:x.sub,date:x.date,poster:x.poster,overview:x.overview,about:x.about,sid:wtSel,id:x.id})}
+    if(b){const x=items[b.dataset.s];b.disabled=true;try{await api('/api/auto','POST',{sid:wtSel,id:x.id});toast('Search started for '+x.title,'ok')}catch(er){toast(er.message,'bad')}b.disabled=false}};
+  load();
+}
+let stDays=30;
+async function statsView(){
+  const s=first('tautulli');if(!s)return noSvc('Tautulli');
+  $('#m').innerHTML=`<div class="row" style="margin-bottom:14px"><div class="seg" id="sd">${[7,30,90].map(n=>`<button data-k="${n}" class="${stDays===n?'on':''}">Last ${n} days</button>`).join('')}</div></div><div id="sb2">${skel(5)}</div>`;
+  $('#sd').onclick=e=>{const b=e.target.closest('[data-k]');if(!b)return;stDays=+b.dataset.k;statsView()};
+  try{const d=await api(`/api/tautulli/${s.id}/stats?days=${stDays}`);if(tab!=='stats')return;
+    const list=(t,l)=>`<div class="panel"><h3 style="margin-top:0">${t}</h3>${l.length?l.map(x=>{const mx=Math.max(...l.map(y=>y.plays||0),1);return `<div style="margin:10px 0"><div class="row"><span class="grow" style="word-break:break-word">${esc(x.title)}</span><b>${x.plays}</b></div><progress value="${x.plays||0}" max="${mx}" style="margin-top:4px"></progress></div>`}).join(''):'<p class="mute">Nothing yet.</p>'}</div>`;
+    $('#sb2').innerHTML=`<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr))">${list('Most watched movies',d.movies)}${list('Most watched shows',d.tv)}${list('Most active viewers',d.users)}</div>
+      <h2 class="sec">Recent plays</h2>${d.history.map(x=>`<div class="box row"><div class="grow" style="min-width:0"><b style="word-break:break-word;font-weight:560">${esc(x.title)}</b><div class="mute">${esc(x.user||'')}${x.player?' on '+esc(x.player):''}, ${esc(ago(x.at))}</div></div>${x.pct!=null?`<span class="pill ${x.pct>=90?'ok':''}">${Math.round(x.pct)}% watched</span>`:''}</div>`).join('')||'<p class="mute">No plays yet.</p>'}`}
+  catch(x){$('#sb2').innerHTML=`<div class="err">${esc(x.message)}</div>`}
+}
+const libMeta=(x,tv)=>[fmt(x.size)+' on disk',x.missing?(tv?x.missing+' episodes missing':'file missing'):'',x.profile,LSTAT[x.status],(x.genres||[]).join(', '),x.maker,x.rating?'rating '+x.rating.toFixed(1):''].filter(Boolean).join(', ');
+function openLibItem(s,x,cb){
+  cb=cb||{};
+  if(s.type==='sonarr')return seriesDialog(s,x,cb);
+  showDetail({title:x.title,sub:String(x.year||''),poster:x.poster,overview:x.overview,meta:libMeta(x,false),sid:s.id,id:x.id,scope:'',del:me.role==='admin',onremove:cb.onRemove,
+    mon:{sid:s.id,kind:'movie',id:x.id,monitored:x.monitored,onChange:v=>{x.monitored=v;if(cb.onChange)cb.onChange()}}});
+}
+async function seriesDialog(s,x,cb){
+  const admin=me.role==='admin',canAdd=can('add'),z2=n=>String(n).padStart(2,'0');
+  const o=modal(`<div class="row"><h2 style="margin:0;flex:1;word-break:break-word">${esc(x.title)}</h2><button data-x>Close</button></div><div id="sd" style="margin-top:12px">${skel(4)}</div>`);
+  o.querySelector('.dlg').style.maxWidth='920px';o.querySelector('[data-x]').onclick=o.close;
+  let d;try{d=await api(`/api/series/${s.id}/${x.id}`)}catch(e){o.querySelector('#sd').innerHTML=`<div class="err">${esc(e.message)}</div>`;return}
+  const nums=[...new Set([...d.seasons.map(q=>q.n),...d.episodes.map(q=>q.season)])].sort((a,b)=>(a===0)-(b===0)||b-a);
+  const open=new Set(nums.filter(n=>n>0).slice(0,1));
+  const seas=n=>d.seasons.find(q=>q.n===n)||{n,monitored:false};
+  const stat=n=>{const e=d.episodes.filter(q=>q.season===n);return{e,have:e.filter(q=>q.has).length,total:e.length,size:e.reduce((a,q)=>a+q.size,0)}};
+  const post=async b=>{try{await api('/api/monitor','POST',{sid:s.id,...b});return true}catch(e){toast(e.message,'bad');return false}};
+  const row=e=>`<div class="box row" style="padding:9px 0;margin:0"><span class="mute" style="min-width:34px">${e.num}</span><div class="grow" style="min-width:0"><span style="word-break:break-word">${esc(e.title||'To be announced')}</span> <span class="mute">${e.date?esc(new Date(e.date).toLocaleDateString()):''}</span></div>
+    ${e.has?`<span class="pill ok">${esc(e.quality||'Downloaded')}</span>`:e.aired?'<span class="pill bad">Missing</span>':'<span class="pill">Not aired</span>'}
+    <label class="tgl" title="Monitor this episode"><input type="checkbox" data-em="${e.id}" ${e.monitored?'checked':''} ${canAdd?'':'disabled'} aria-label="Monitor episode ${e.num}"></label>
+    ${canAdd?`<button class="icon" data-es="${e.id}" aria-label="Search for episode ${e.num}" title="Search for this episode">${ic('find')}</button>`:'<span style="width:34px"></span>'}</div>`;
+  const draw=()=>{
+    const tot=d.episodes.length,have=d.episodes.filter(q=>q.has).length;
+    o.querySelector('#sd').innerHTML=`<div class="row" style="align-items:flex-start;gap:16px">${x.poster?`<img src="${esc(x.poster)}" alt="" style="width:120px;border-radius:10px;aspect-ratio:2/3;object-fit:cover">`:''}
+      <div class="grow" style="min-width:240px"><div class="mute">${esc([x.year,LSTAT[x.status],x.maker,x.profile].filter(Boolean).join(', '))}</div><div class="mute">${have} of ${tot} episodes downloaded${x.size?', '+fmt(x.size):''}</div>
+      <p style="margin:8px 0">${esc(x.overview||'No description available.')}</p>
+      <div class="row" style="gap:12px"><label class="tgl"><input type="checkbox" data-mon ${d.monitored?'checked':''} ${canAdd?'':'disabled'}><span>Monitor this series</span></label>
+      ${canAdd?`<button data-sa="1">Monitor all seasons</button><button data-sa="0">Unmonitor all</button><button data-sx>${ic('find')}Search missing</button>`:''}${admin?'<button class="danger" data-rm>Remove</button>':''}</div></div></div>
+      <h3 style="margin:18px 0 8px">Seasons</h3>${nums.map(n=>{const st=stat(n),se=seas(n),isOpen=open.has(n);
+      return `<div class="panel" style="padding:0;margin-bottom:10px;overflow:hidden"><div class="row" data-sh="${n}" style="padding:12px 14px;cursor:pointer;gap:10px"><span class="chev ${isOpen?'o':''}">${ic('chev')}</span><b>${n===0?'Specials':'Season '+n}</b>
+        <span class="mute">${st.have}/${st.total} episodes${st.size?', '+fmt(st.size):''}</span><span class="grow"></span>
+        <label class="tgl" title="Monitor this season"><input type="checkbox" data-sm="${n}" ${se.monitored?'checked':''} ${canAdd?'':'disabled'} aria-label="Monitor season ${n}"></label>${canAdd?`<button data-ss="${n}">Search season</button>`:''}</div>
+        ${isOpen?`<div style="border-top:1px solid var(--line);padding:2px 14px">${st.e.map(row).join('')||'<p class="mute">No episodes listed.</p>'}</div>`:''}</div>`}).join('')||'<p class="mute">No seasons found.</p>'}`;
+  };
+  draw();
+  const root=o.querySelector('#sd');
+  root.addEventListener('change',async e=>{const t=e.target;
+    if(t.matches('[data-mon]')){const v=t.checked;t.disabled=true;if(await post({kind:'series',id:x.id,monitored:v})){d.monitored=v;x.monitored=v;if(cb.onChange)cb.onChange();toast(v?'Series is monitored':'Series is not monitored','ok')}else t.checked=!v;t.disabled=false}
+    else if(t.matches('[data-sm]')){const n=+t.dataset.sm,v=t.checked;t.disabled=true;
+      if(await post({kind:'season',id:x.id,season:n,monitored:v})){seas(n).monitored=v;d.episodes.forEach(q=>{if(q.season===n)q.monitored=v});toast(`${n===0?'Specials':'Season '+n} ${v?'monitored':'not monitored'}`,'ok');draw()}else{t.checked=!v;t.disabled=false}}
+    else if(t.matches('[data-em]')){const id=+t.dataset.em,v=t.checked;t.disabled=true;
+      if(await post({kind:'episodes',id:x.id,ids:[id],monitored:v})){const e2=d.episodes.find(q=>q.id===id);if(e2)e2.monitored=v;t.disabled=false}else{t.checked=!v;t.disabled=false}}});
+  root.addEventListener('click',async e=>{
+    const sh=e.target.closest('[data-sh]');
+    if(sh&&!e.target.closest('label,button')){const n=+sh.dataset.sh;open.has(n)?open.delete(n):open.add(n);draw();return}
+    const ss=e.target.closest('[data-ss]'),es=e.target.closest('[data-es]'),sa=e.target.closest('[data-sa]'),sx=e.target.closest('[data-sx]'),rm=e.target.closest('[data-rm]');
+    if(ss){ss.disabled=true;try{await api('/api/auto','POST',{sid:s.id,id:x.id,scope:'season',season:+ss.dataset.ss});toast('Searching season '+ss.dataset.ss,'ok')}catch(ex){toast(ex.message,'bad')}ss.disabled=false}
+    if(es){const ep=d.episodes.find(q=>q.id===+es.dataset.es);showDetail({title:x.title,sub:`S${z2(ep.season)}E${z2(ep.num)} ${ep.title}`,date:ep.date,poster:x.poster,sid:s.id,id:ep.id})}
+    if(sx){sx.disabled=true;try{await api('/api/auto','POST',{sid:s.id,id:x.id,scope:'series'});toast('Searching for missing episodes','ok')}catch(ex){toast(ex.message,'bad')}sx.disabled=false}
+    if(sa){const v=sa.dataset.sa==='1';sa.disabled=true;let ok=true;
+      for(const n of nums){if(!ok)break;ok=await post({kind:'season',id:x.id,season:n,monitored:v});if(ok){seas(n).monitored=v;d.episodes.forEach(q=>{if(q.season===n)q.monitored=v})}}
+      if(ok)toast(v?'All seasons monitored':'All seasons unmonitored','ok');draw()}
+    if(rm){if(!confirm('Remove "'+x.title+'" from your library?'))return;const files=confirm('Also delete the downloaded files from disk?\n\nOK = delete the files, Cancel = keep the files');
+      try{await api(`/api/library/${s.id}/${x.id}?files=${files?1:0}`,'DELETE');o.close();if(cb.onRemove)cb.onRemove()}catch(ex){toast(ex.message,'bad')}}});
+}
+function showDetail(x){
+  const o=document.createElement('div');o.className='ov';
+  o.innerHTML=`<div class="dlg" role="dialog" aria-modal="true" aria-label="${esc(x.title)}">${x.poster?`<img src="${esc(x.poster)}" alt="" style="width:160px;border-radius:8px;align-self:flex-start">`:''}
+    <div style="flex:1;min-width:220px"><h2 style="margin:0">${esc(x.title)}</h2>
+    <div class="mute">${esc(x.sub||'')}${x.date?' · '+new Date(x.date).toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'}):''}</div>
+    ${x.meta?`<div class="mute">${esc(x.meta)}</div>`:''}
+    <p>${esc(x.overview||'No description available yet.')}</p>${x.mon?`<label class="tgl" style="margin:4px 0 10px"><input type="checkbox" id="mon" ${x.mon.monitored?'checked':''} ${can('add')?'':'disabled'}><span>Monitored</span></label>`:''}${x.about?`<h3>About the series</h3><p class="mute">${esc(x.about)}</p>`:''}
+    <div class="row">${x.sid&&x.id&&can('add')?`<button id="au">${x.scope==='series'?'Search missing episodes':'Auto search'}</button>${x.scope==='series'?'':'<button id="in">Interactive search</button>'}`:''}${x.del?'<button id="rm">Remove</button>':''}<button class="primary" id="cl">Close</button></div>
+    <div class="mute" id="st" role="status" style="margin-top:8px"></div></div><div id="rl" style="flex-basis:100%"></div></div>`;
+  const k=e=>{if(e.key==='Escape')close()},close=()=>{o.remove();document.removeEventListener('keydown',k)};
+  document.addEventListener('keydown',k);o.onclick=e=>{if(e.target===o)close()};
+  document.body.append(o);const q=s=>o.querySelector(s),st=q('#st');q('#cl').onclick=close;q('#cl').focus();
+  if(q('#mon'))q('#mon').onchange=async e=>{const t=e.target,v=t.checked;t.disabled=true;
+    try{await api('/api/monitor','POST',{sid:x.mon.sid,kind:x.mon.kind,id:x.mon.id,monitored:v});x.mon.monitored=v;if(x.mon.onChange)x.mon.onChange(v);toast(v?'Now monitored':'No longer monitored','ok')}
+    catch(ex){t.checked=!v;st.textContent=ex.message}t.disabled=!can('add')};
+  if(q('#rm'))q('#rm').onclick=async()=>{if(!confirm('Remove "'+x.title+'" from your library?'))return;
+    const files=confirm('Also delete the downloaded files from disk?\n\nOK = delete the files, Cancel = keep the files');
+    try{await api(`/api/library/${x.sid}/${x.id}?files=${files?1:0}`,'DELETE');close();if(x.onremove)x.onremove()}catch(e){st.textContent=e.message}};
+  if(!q('#au'))return;
+  q('#au').onclick=async()=>{const b=q('#au');b.disabled=true;st.textContent='Starting search…';
+    try{await api('/api/auto','POST',{sid:x.sid,id:x.id,scope:x.scope});st.textContent='Search started. It will download the best match automatically if one is found.'}
+    catch(e){st.textContent=e.message}b.disabled=false};
+  if(q('#in'))q('#in').onclick=async()=>{const rl=q('#rl');st.textContent='';rl.innerHTML='<p class="mute">Searching your indexers, this can take up to a minute…</p>';
+    try{const r=await api(`/api/releases?sid=${x.sid}&id=${x.id}`);
+      rl.innerHTML=r.map((y,i)=>`<div class="box"><b>${esc(y.title)}</b><div class="mute">${esc(y.quality||'')} · ${fmt(y.size)} · ${y.seeders} seeders · ${esc(y.indexer||'')} · ${y.age}d old</div>
+        ${y.rejected?`<div style="color:var(--bad)">${esc(y.why||'Rejected')}</div>`:''}<button data-g="${i}" style="margin-top:6px">Grab</button></div>`).join('')||'<p class="mute">No releases found.</p>';
+      rl.querySelectorAll('[data-g]').forEach(b=>b.onclick=async()=>{b.disabled=true;b.textContent='Sending…';
+        try{const y=r[b.dataset.g];await api('/api/grab','POST',{sid:x.sid,guid:y.guid,indexerId:y.indexerId});b.textContent='Sent to downloader'}
+        catch(e){b.disabled=false;b.textContent='Grab';st.textContent=e.message}});
+    }catch(e){rl.innerHTML=`<div class="err">${esc(e.message)}</div>`}};
+}
+const STAGE={pending:['Waiting for approval',''],approved:['Approved','acc'],downloading:['Downloading','acc'],partial:['Partly available','ok'],available:['Available','ok'],declined:['Declined','bad']};
+let upMode='list',upMonth=null;
+async function upView(){
+  $('#m').innerHTML=`<div class="row" style="margin-bottom:14px"><div class="seg" id="um"><button data-k="list" class="${upMode==='list'?'on':''}">Next 14 days</button><button data-k="cal" class="${upMode==='cal'?'on':''}">Calendar</button></div></div><div id="uc2">${skel(6)}</div>`;
+  $('#um').onclick=e=>{const b=e.target.closest('[data-k]');if(!b||b.dataset.k===upMode)return;upMode=b.dataset.k;upView()};
+  return upMode==='cal'?calView():upList();
+}
+async function upList(){
+  try{const d=await api('/api/upcoming');if(tab!=='up'||upMode!=='list')return;
+    const fd=s=>new Date(s).toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'});
+    $('#uc2').innerHTML=`<h2 class="sec" style="margin-top:6px">Coming up</h2><div class="grid">${d.calendar.map((x,i)=>`<div class="card" data-c="${i}" tabindex="0" role="button">
+      ${x.poster?`<img src="${esc(x.poster)}" alt="" loading="lazy" style="width:100%;border-radius:6px;aspect-ratio:2/3;object-fit:cover">`:''}
+      <h3>${esc(x.title)}</h3><div class="mute">${esc(x.sub)}</div><div style="color:var(--accent)">${fd(x.date)}</div></div>`).join('')||'<p class="mute">Nothing scheduled.</p>'}</div>
+      <h2 class="sec">Downloading now</h2>${d.queue.map((x,i)=>`<div class="box" data-q="${i}" tabindex="0" role="button"><b>${esc(x.title)}</b>
+      <div class="mute">${esc(x.sub)}${x.timeleft?' &nbsp;'+esc(x.timeleft)+' left':''}</div><progress value="${x.progress}" max="1" style="margin-top:8px"></progress></div>`).join('')||'<p class="mute">Nothing in the queue.</p>'}
+      <div class="err">${esc(d.errors.join(' | '))}</div>`;
+    const bind=(sel,f)=>document.querySelectorAll(sel).forEach(c=>{const g=()=>f(c);c.onclick=g;c.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();g()}}});
+    bind('[data-c]',c=>showDetail(d.calendar[c.dataset.c]));
+    bind('[data-q]',c=>{const x=d.queue[c.dataset.q];showDetail({title:x.title,sub:x.sub,poster:x.poster,overview:x.overview,about:x.about,meta:[x.status,x.timeleft?x.timeleft+' left':'',x.meta].filter(Boolean).join(', ')})});
+  }catch(x){if(tab==='up')$('#uc2').innerHTML=`<div class="err">${esc(x.message)}</div>`}
+}
+async function calView(){
+  const now=new Date(),m=upMonth||(upMonth=new Date(now.getFullYear(),now.getMonth(),1));
+  const first1=new Date(m.getFullYear(),m.getMonth(),1),last1=new Date(m.getFullYear(),m.getMonth()+1,0);
+  const gs=new Date(first1);gs.setDate(1-((first1.getDay()+6)%7));const ge=new Date(last1);ge.setDate(last1.getDate()+(6-((last1.getDay()+6)%7)));
+  const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  try{const d=await api(`/api/upcoming?from=${iso(gs)}&to=${iso(ge)}`);if(tab!=='up'||upMode!=='cal')return;
+    const by={};d.calendar.forEach(x=>{(by[String(x.date).slice(0,10)]=by[String(x.date).slice(0,10)]||[]).push(x)});
+    const days=[];for(let c=new Date(gs);c<=ge;c.setDate(c.getDate()+1))days.push(new Date(c));
+    $('#uc2').innerHTML=`<div class="row" style="margin-bottom:12px"><button class="icon" data-mv="-1" aria-label="Previous month" title="Previous month">‹</button><b style="font-size:18px;min-width:160px;text-align:center">${m.toLocaleDateString(undefined,{month:'long',year:'numeric'})}</b><button class="icon" data-mv="1" aria-label="Next month" title="Next month">›</button><button data-mv="0">Today</button></div>
+      <div class="cal">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(n=>`<div class="hd">${n}</div>`).join('')}${days.map(c=>{const k=iso(c),ev=by[k]||[];
+        return `<div class="${c.getMonth()!==m.getMonth()?'om':''} ${k===iso(now)?'td':''}"><div class="dn">${c.getDate()}</div>${ev.slice(0,3).map(x=>`<button class="ev" data-e="${k}|${ev.indexOf(x)}" title="${esc(x.title+' '+x.sub)}">${esc(x.title)}</button>`).join('')}${ev.length>3?`<button class="ev" data-more="${k}">+${ev.length-3} more</button>`:''}</div>`}).join('')}</div>`;
+    const open=x=>showDetail(x);
+    $('#uc2').onclick=e=>{const mv=e.target.closest('[data-mv]'),ev=e.target.closest('[data-e]'),mo=e.target.closest('[data-more]');
+      if(mv){upMonth=+mv.dataset.mv?new Date(m.getFullYear(),m.getMonth()+ +mv.dataset.mv,1):new Date(now.getFullYear(),now.getMonth(),1);$('#uc2').innerHTML=skel(6);calView()}
+      if(ev){const [k,i]=ev.dataset.e.split('|');open(by[k][+i])}
+      if(mo){const o=modal(`<div class="row"><h2 style="margin:0;flex:1">${esc(new Date(mo.dataset.more+'T12:00:00').toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'}))}</h2><button data-x>Close</button></div>${by[mo.dataset.more].map((x,i)=>`<div class="box hov" data-i="${i}" style="cursor:pointer"><b>${esc(x.title)}</b><div class="mute">${esc(x.sub)}</div></div>`).join('')}`);
+        o.querySelector('[data-x]').onclick=o.close;o.addEventListener('click',e2=>{const r=e2.target.closest('[data-i]');if(r){o.close();open(by[mo.dataset.more][+r.dataset.i])}})}};
+  }catch(x){if(tab==='up')$('#uc2').innerHTML=`<div class="err">${esc(x.message)}</div>`}
+}
+function idxView(){
+  const s=first('jackett');if(!s)return noSvc('Jackett');
+  const qb=first('qbittorrent');
+  $('#m').innerHTML=`<form id="f" style="display:flex;gap:8px"><input name="term" placeholder="Search all indexers" style="flex:1" required><button class="primary">Search</button></form><div class="err" id="e"></div><div id="r"></div>`;
+  $('#f').onsubmit=async e=>{e.preventDefault();$('#e').textContent='';$('#r').innerHTML='<p class="mute">Searching, this can take a while…</p>';
+    try{const d=await api(`/api/jackett/${s.id}?term=${encodeURIComponent(e.target.term.value)}`);
+      $('#r').innerHTML=d.map((x,i)=>`<div class="box row"><div style="flex:1;min-width:0"><b>${esc(x.title)}</b><div class="mute">${esc(x.tracker)} · ${fmt(x.size)} · ${x.seeders} seeders</div></div>${qb?`<button data-j="${i}">Send to qBittorrent</button>`:''}</div>`).join('')||'<p class="mute">Nothing found.</p>';
+      document.querySelectorAll('[data-j]').forEach(b=>b.onclick=async()=>{b.disabled=true;b.textContent='Sending…';
+        try{await api('/api/torrent/add','POST',{sid:qb.id,jid:d[b.dataset.j].id});b.textContent='Added'}
+        catch(x){b.disabled=false;b.textContent='Send to qBittorrent';$('#e').textContent=x.message}})}
+    catch(x){$('#r').innerHTML='';$('#e').textContent=x.message}};
+}
+function urView(){
+  const s=first('unraid');if(!s)return noSvc('Unraid');
+  cpuH.length=memH.length=0;
+  $('#m').innerHTML=`<div class="grid">
+    <div class="box"><div class="mute">CPU</div><div id="rc" style="text-align:center"></div><div id="sc"></div></div>
+    <div class="box"><div class="mute">Memory</div><div id="rm" style="text-align:center"></div><div id="sm"></div></div>
+    <div class="box"><div class="mute">Array storage</div><div id="ra" style="text-align:center"></div><div class="mute" id="at" style="text-align:center"></div></div></div>
+    <p class="mute" id="hd"></p><div class="err" id="e"></div><div id="dk"></div><div id="cl"></div>`;
+  let busy=0,fb=0;
+  const live=async()=>{if(busy)return;busy=1;
+    try{const d=await api(`/api/unraid/${s.id}?fast=1`);if(tab!=='ur')return;
+      hp(cpuH,d.cpu);hp(memH,d.mem);
+      $('#rc').innerHTML=ring(d.cpu,'CPU');$('#rm').innerHTML=ring(d.mem,'Memory');
+      $('#sc').innerHTML=spark([{v:cpuH,c:'var(--accent)'}],50,'CPU over the last two minutes',100);
+      $('#sm').innerHTML=spark([{v:memH,c:'var(--ok)'}],50,'Memory over the last two minutes',100);
+      if(d.errors.length)$('#e').textContent=d.errors.join(' | ')}
+    catch(x){if(tab==='ur')$('#e').textContent=x.message}finally{busy=0}};
+  const full=async()=>{if(fb)return;fb=1;
+    try{const d=await api(`/api/unraid/${s.id}`);if(tab!=='ur')return;
+      const run=c=>/run|start/i.test(c.state);
+      $('#hd').textContent=`${d.host||''} · array ${d.arrayState||'unknown'} · ${d.containers.filter(run).length} of ${d.containers.length} containers running`;
+      $('#ra').innerHTML=ring(d.total?d.used/d.total*100:0,'Array used');
+      $('#at').textContent=d.total?`${fmt(d.used*1024)} of ${fmt(d.total*1024)} used`:'';
+      $('#e').textContent=d.errors.join(' | ');
+      const shr=d.shares&&d.shares.length?`<h2 class="sec">Shares</h2><div class="panel" style="padding:4px 18px">${d.shares.map(x=>`<div style="margin:12px 0"><div class="row"><b class="grow">${esc(x.name)}</b><span class="mute">${fmt(x.used*1024)} used of ${fmt(x.size*1024)}</span></div><progress value="${x.used}" max="${x.size||1}" style="margin-top:6px"></progress></div>`).join('')}</div>`:'';
+      const tc=v=>v==null?'':v>=55?'var(--bad)':v>=45?'#ffb547':'var(--ok)',pc=d.parity;
+      $('#dk').innerHTML=((d.disks&&d.disks.length)||pc?`<h2 class="sec">Disks</h2><div class="panel" style="padding:4px 18px">${pc?`<div class="srow" style="grid-template-columns:1fr auto auto"><span>Parity check</span><span class="mute">${esc(pc.running?'running '+Math.round(pc.progress||0)+'%':(pc.status||'idle'))}${pc.errors?', '+pc.errors+' errors':''}</span>${me.role==='admin'?(pc.running?'<button data-pq="cancel">Cancel check</button>':'<button data-pq="start">Start check</button>'):'<span></span>'}</div>`:''}${(d.disks||[]).map(k=>`<div class="srow" style="grid-template-columns:1fr auto auto"><span>${esc(k.name)} <span class="mute">${esc(k.role)}</span></span><span class="mute">${esc(k.status||'')}</span><b style="color:${tc(k.temp)}">${k.temp==null?'':k.temp+' °C'}</b></div>`).join('')}</div>`:'')+shr+(d.notes&&d.notes.length?`<p class="mute">Disk details are not available: ${esc(d.notes[0])}</p>`:'');
+      $('#cl').innerHTML=d.containers.map(c=>`<div class="box row"><span class="dot ${run(c)?'ok':'bad'}"></span><b>${esc(c.name)}</b><span class="mute">${esc(c.state)}</span>${d.updates&&d.updates[c.id]?'<span class="pill acc">Update available</span>':''}
+        ${me.role==='admin'?`<span class="row" style="margin-left:auto">${['start','stop','restart'].map(a=>`<button data-i="${esc(c.id)}" data-c="${a}">${a[0].toUpperCase()+a.slice(1)}</button>`).join('')}<button data-l="${esc(c.id)}" data-n="${esc(c.name)}">Logs</button></span>`:''}</div>`).join('');
+      document.querySelectorAll('[data-pq]').forEach(b=>b.onclick=async()=>{if(!confirm(b.dataset.pq==='start'?'Start a parity check now? It can slow the server for hours.':'Cancel the running parity check?'))return;
+        try{await api(`/api/unraid/${s.id}/parity`,'POST',{op:b.dataset.pq});toast('Done','ok');fb=0;full()}catch(x){toast(x.message,'bad')}});
+      document.querySelectorAll('[data-l]').forEach(b=>b.onclick=async()=>{
+        try{const r=await api(`/api/unraid/${s.id}/logs?id=${encodeURIComponent(b.dataset.l)}`);
+          const o=document.createElement('div');o.className='ov';
+          o.innerHTML=`<div class="dlg" style="display:block;width:100%"><h2>${esc(b.dataset.n)} logs</h2><pre style="white-space:pre-wrap;max-height:60vh;overflow:auto;font-size:12px">${esc(r.text||'No log lines returned.')}</pre><button class="primary" id="cl2">Close</button></div>`;
+          o.onclick=e=>{if(e.target===o||e.target.id==='cl2')o.remove()};document.body.append(o)}catch(x){toast(x.message,'bad')}});
+      document.querySelectorAll('[data-i]').forEach(b=>b.onclick=async()=>{b.disabled=true;
+        try{await api(`/api/unraid/${s.id}/docker`,'POST',{id:b.dataset.i,action:b.dataset.c})}catch(x){toast(x.message,'bad')}
+        fb=0;full()});
+    }catch(x){if(tab==='ur')$('#e').textContent=x.message}finally{fb=0}};
+  live();full();timer=[setInterval(live,2000),setInterval(full,15000)];
+}
+async function vpnPill(s,sel){
+  try{const d=await api('/api/vpn/'+s.id),el=$(sel);if(!el)return;
+    el.className='pill '+(d.vpn===true?'ok':d.vpn===false?'bad':'');
+    el.textContent=d.vpn===true?'VPN active '+d.ip:d.vpn===false?'Not using the VPN':'VPN status unknown'}catch{}
+}
+async function loadPlex(s){
+  try{const d=await api(`/api/plex/${s.id}/now`),el=$('#plx');if(!el||tab!=='dash')return;
+    const img=t=>t?`/api/plex/${s.id}/img?p=${encodeURIComponent(t)}`:'';
+    el.innerHTML=(d.sessions.length?`<h2 class="sec">Watching now</h2>${d.sessions.map(x=>`<div class="box row">${x.thumb?`<img src="${img(x.thumb)}" alt="" style="width:46px;border-radius:6px">`:''}
+      <div style="flex:1;min-width:0"><b>${esc(x.title)}</b> <span class="mute">${esc(x.sub)}</span><div class="mute">${esc(x.user||'Someone')} on ${esc(x.player||'a device')}, ${esc(x.state||'')}</div>
+      <progress value="${x.progress}" max="1" style="margin-top:6px"></progress></div>${me.role==='admin'&&x.sid?`<button data-end="${esc(x.sid)}">End stream</button>`:''}</div>`).join('')}`:'')
+      +(d.recent.length?`<h2 class="sec">Recently added to Plex</h2><div class="strip">${d.recent.map(x=>`<div class="pc" style="cursor:default"><div class="pw">${x.thumb?`<img src="${img(x.thumb)}" alt="" loading="lazy">`:''}</div><b>${esc(x.title)}</b><div class="mute">${esc(x.sub)}</div></div>`).join('')}</div>`:'');
+    el.querySelectorAll('[data-end]').forEach(b=>b.onclick=async()=>{const why=prompt('Message shown to the viewer:','Stopped by the server owner');if(why===null)return;
+      try{await api(`/api/plex/${s.id}/terminate`,'POST',{session:b.dataset.end,reason:why});toast('Stream ended','ok');loadPlex(s)}catch(x){toast(x.message,'bad')}});
+  }catch{}
+}
+function rqView(){
+  const sv=services.filter(s=>s.type==='seerr'),admin=me.role==='admin';
+  if(!sv.length)return noSvc('Seerr');
+  const sid=sv[0].id;let found=[];
+  $('#m').innerHTML=`<form id="f" style="display:flex;gap:8px"><input name="term" placeholder="Search a movie or show to request" style="flex:1" required><button class="primary">Search</button></form>
+    <div class="err" id="e"></div><div id="r"></div><h2 class="sec">${admin?'All requests':'Your requests'}</h2><div id="q"></div>`;
+  const loadQ=async()=>{try{const l=await api('/api/requests');if(tab!=='rq')return;
+    $('#q').innerHTML=l.map(x=>`<div class="box row">${x.poster?`<img src="${esc(x.poster)}" alt="" style="width:40px;border-radius:6px">`:''}
+      <div style="flex:1;min-width:0"><b>${esc(x.title)}</b> <span class="mute">${esc(x.year||'')}</span><div class="mute">Requested by ${esc(x.user)}</div></div>
+      ${admin&&x.status==='pending'?`<button class="primary" data-ap="${x.id}">Approve</button><button data-dc="${x.id}">Decline</button>`:`<span class="pill ${(STAGE[x.stage]||['',''])[1]}">${esc((STAGE[x.stage]||[x.stage])[0])}</span>`}</div>`).join('')||'<p class="mute">No requests yet.</p>';
+    document.querySelectorAll('[data-ap],[data-dc]').forEach(b=>b.onclick=async()=>{b.disabled=true;
+      try{await api(`/api/requests/${b.dataset.ap||b.dataset.dc}/${b.dataset.ap?'approve':'decline'}`,'POST')}catch(x){toast(x.message,'bad')}loadQ()});
+  }catch(x){$('#e').textContent=x.message}};
+  $('#f').onsubmit=async e=>{e.preventDefault();$('#e').textContent='';$('#r').innerHTML='<p class="mute">Searching…</p>';
+    try{found=await api(`/api/seerr/search?sid=${sid}&term=${encodeURIComponent(e.target.term.value)}`);
+      $('#r').innerHTML=`<div class="grid">${found.map((x,i)=>`<div class="card">${x.poster?`<img src="${esc(x.poster)}" alt="" loading="lazy" style="width:100%;border-radius:8px;aspect-ratio:2/3;object-fit:cover">`:''}
+        <h3>${esc(x.title)} <span class="mute">${esc(x.year)}</span></h3><div class="mute">${x.mediaType==='tv'?'TV show':'Movie'}</div>
+        <p>${x.status===5?'<span class="pill ok">Available</span>':x.status>=2?'<span class="pill">Already requested</span>':(can('request')?`<button data-r="${i}">Request</button>`:'<span class="mute">Requests are off for your profile</span>')}</p></div>`).join('')||'<p class="mute">Nothing found.</p>'}</div>`;
+      document.querySelectorAll('[data-r]').forEach(b=>b.onclick=async()=>{const x=found[b.dataset.r];b.disabled=true;b.textContent='Sending…';
+        try{const r=await api('/api/requests','POST',{sid,mediaType:x.mediaType,mediaId:x.id,title:x.title,year:x.year,poster:x.poster});
+          b.replaceWith(Object.assign(document.createElement('span'),{className:'pill ok',textContent:r.status==='approved'?'Requested':'Sent for approval'}));loadQ()}
+        catch(x){b.disabled=false;b.textContent='Request';$('#e').textContent=x.message}})}
+    catch(x){$('#r').innerHTML='';$('#e').textContent=x.message}};
+  loadQ();
+}
+let libSel='',libData=[],libShown=120;
+const LB={q:'',show:'all',status:'',profile:'',genre:'',maker:'',yf:'',yt:'',rmin:'',sort:'title',dir:1,view:'grid',open:false};
+const LSTAT={continuing:'Continuing',ended:'Ended',upcoming:'Upcoming',released:'Released',inCinemas:'In cinemas',announced:'Announced',tba:'To be announced',deleted:'Removed'};
+const LSORT={title:['Name',1],year:['Year',-1],added:['Date added',-1],size:['Size on disk',-1],missing:['Most missing',-1],rating:['Rating',-1],runtime:['Runtime',-1],next:['Next episode',1]};
+const SHOWS={all:'Everything',missing:'Missing files',complete:'Complete',mon:'Monitored',unmon:'Not monitored'};
+const sortTitle=t=>String(t).replace(/^(the|a|an)\s+/i,'');
+function libView(){
+  const opts=services.filter(s=>['sonarr','radarr'].includes(s.type));
+  if(!opts.length)return noSvc('Sonarr or Radarr');
+  if(!opts.some(s=>s.id===libSel))libSel=opts[0].id;
+  const admin=me.role==='admin',tv=()=>opts.find(s=>s.id===libSel).type==='sonarr';
+  if(LB.sort==='next'&&!tv()){LB.sort='title';LB.dir=1}
+  $('#m').innerHTML=`<div class="row" style="margin-bottom:10px"><select id="sv" aria-label="App">${opts.map(s=>`<option value="${s.id}" ${s.id===libSel?'selected':''}>${esc(s.name)}</option>`).join('')}</select>
+    <input id="lq" type="search" placeholder="Search title, genre or ${tv()?'network':'studio'}" aria-label="Search the library" value="${esc(LB.q)}" style="flex:1;min-width:150px">
+    <select id="sb" aria-label="Sort by">${Object.entries(LSORT).filter(([k])=>k!=='next'||tv()).map(([k,v])=>`<option value="${k}" ${k===LB.sort?'selected':''}>${v[0]}</option>`).join('')}</select>
+    <button class="icon" id="sd" title="Change sort direction"></button>
+    <button id="fb">${ic('set')}Filters <span class="pill acc" id="fc" hidden></span></button>
+    <div class="seg" id="vw"><button data-v="grid">Posters</button><button data-v="list">List</button></div></div>
+    <div class="panel" id="fp" style="margin-bottom:12px" ${LB.open?'':'hidden'}><div class="fgrid" id="fg"></div><div class="row" style="margin-top:12px"><button id="fr">Clear all filters</button></div></div>
+    <div class="row" id="ch" style="margin-bottom:6px"></div><div class="err" id="e"></div><div id="g">${skel(6)}</div>`;
+  const uniq=f=>{const m=new Map();libData.forEach(x=>[].concat(f(x)).filter(Boolean).forEach(v=>m.set(v,(m.get(v)||0)+1)));return [...m].sort((a,b)=>String(a[0]).localeCompare(String(b[0])))};
+  const sel=(id,label,list,cur,nice)=>`<label>${label}<select id="${id}"><option value="">Any</option>${list.map(([v,n])=>`<option value="${esc(v)}" ${v===cur?'selected':''}>${esc(nice?nice(v):v)} (${n})</option>`).join('')}</select></label>`;
+  const buildFilters=()=>{const t=tv();
+    $('#fg').innerHTML=`<label>Show<select id="f-show">${Object.entries(SHOWS).map(([k,n])=>`<option value="${k}" ${k===LB.show?'selected':''}>${n}</option>`).join('')}</select></label>
+      ${sel('f-status','Status',uniq(x=>x.status),LB.status,v=>LSTAT[v]||v)}${sel('f-profile','Quality profile',uniq(x=>x.profile),LB.profile)}${sel('f-genre','Genre',uniq(x=>x.genres),LB.genre)}${sel('f-maker',t?'Network':'Studio',uniq(x=>x.maker),LB.maker)}
+      <label>Year from<input id="f-yf" type="number" min="1900" max="2100" placeholder="Any" value="${esc(LB.yf)}"></label><label>Year to<input id="f-yt" type="number" min="1900" max="2100" placeholder="Any" value="${esc(LB.yt)}"></label>
+      <label>Minimum rating<input id="f-rmin" type="number" min="0" max="10" step="0.1" placeholder="Any" value="${esc(LB.rmin)}"></label>`};
+  const pass=(x,q)=>{
+    if(q&&!(x.title.toLowerCase().includes(q)||x.genres.some(g=>g.toLowerCase().includes(q))||(x.maker||'').toLowerCase().includes(q)))return false;
+    if(LB.show==='missing'&&!x.missing)return false;if(LB.show==='complete'&&x.missing)return false;if(LB.show==='mon'&&!x.monitored)return false;if(LB.show==='unmon'&&x.monitored)return false;
+    if(LB.status&&x.status!==LB.status)return false;if(LB.profile&&x.profile!==LB.profile)return false;if(LB.genre&&!x.genres.includes(LB.genre))return false;if(LB.maker&&x.maker!==LB.maker)return false;
+    if(LB.yf&&(x.year||0)<+LB.yf)return false;if(LB.yt&&(x.year||9999)>+LB.yt)return false;if(LB.rmin&&(x.rating||0)<+LB.rmin)return false;return true};
+  const chips=()=>[LB.show!=='all'&&['show',SHOWS[LB.show]],LB.status&&['status',LSTAT[LB.status]||LB.status],LB.profile&&['profile',LB.profile],LB.genre&&['genre',LB.genre],LB.maker&&['maker',LB.maker],
+    LB.yf&&['yf','From '+LB.yf],LB.yt&&['yt','Until '+LB.yt],LB.rmin&&['rmin','Rating '+LB.rmin+'+']].filter(Boolean);
+  const paint=()=>{
+    const t=tv(),q=LB.q.trim().toLowerCase(),l=libData.filter(x=>pass(x,q)),cs=chips();
+    const f={title:(a,b)=>sortTitle(a.title).localeCompare(sortTitle(b.title)),year:(a,b)=>(a.year||0)-(b.year||0),added:(a,b)=>(Date.parse(a.added)||0)-(Date.parse(b.added)||0),size:(a,b)=>a.size-b.size,missing:(a,b)=>a.missing-b.missing,rating:(a,b)=>a.rating-b.rating,runtime:(a,b)=>a.runtime-b.runtime}[LB.sort];
+    if(LB.sort==='next')l.sort((a,b)=>!a.next&&!b.next?0:!a.next?1:!b.next?-1:(Date.parse(a.next)-Date.parse(b.next))*LB.dir);
+    else l.sort((a,b)=>f(a,b)*LB.dir||sortTitle(a.title).localeCompare(sortTitle(b.title)));
+    $('#sd').textContent=LB.dir===1?'↑':'↓';$('#sd').setAttribute('aria-label',LB.dir===1?'Sorted ascending, switch to descending':'Sorted descending, switch to ascending');
+    const fc=$('#fc');fc.hidden=!cs.length;fc.textContent=cs.length;
+    document.querySelectorAll('#vw [data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===LB.view));
+    $('#ch').innerHTML=cs.map(([k,n])=>`<span class="pill acc">${esc(n)}<a href="#" data-x="${k}" aria-label="Remove filter ${esc(n)}">×</a></span>`).join('')+`<span class="mute">${l.length} ${l.length===1?'item':'items'}${l.length!==libData.length?' of '+libData.length:''}</span>`;
+    const sub=x=>[x.year||'',LSTAT[x.status]||'',x.missing?(t?x.missing+' missing':'missing'):''].filter(Boolean).join(', ');
+    $('#g').innerHTML=l.length?(LB.view==='grid'?`<div class="grid">${l.slice(0,libShown).map((x,i)=>`<div class="card" data-v="${i}">${x.poster?`<img src="${esc(x.poster)}" alt="" loading="lazy" style="width:100%;border-radius:8px;aspect-ratio:2/3;object-fit:cover">`:''}
+      <h3>${esc(x.title)}</h3><div class="mute">${esc(sub(x))}</div></div>`).join('')}</div>`
+      :l.slice(0,libShown).map((x,i)=>`<div class="box row hov" data-v="${i}" style="cursor:pointer">${x.poster?`<img src="${esc(x.poster)}" alt="" loading="lazy" style="width:38px;border-radius:6px;aspect-ratio:2/3;object-fit:cover">`:''}
+      <div class="grow" style="min-width:0"><b>${esc(x.title)}</b> <span class="mute">${x.year||''}</span><div class="mute" style="word-break:break-word">${esc([x.genres.slice(0,3).join(', '),x.maker].filter(Boolean).join(' · '))}</div></div>
+      ${x.status?`<span class="pill ${x.status==='continuing'||x.status==='released'?'ok':''}">${esc(LSTAT[x.status]||x.status)}</span>`:''}${x.profile?`<span class="chip">${esc(x.profile)}</span>`:''}
+      <span class="mute" style="min-width:64px;text-align:right">${fmt(x.size)}</span>${t?`<span class="mute" style="min-width:70px;text-align:right">${x.have}/${x.total} eps</span>`:`<span class="pill ${x.have?'ok':'bad'}">${x.have?'Downloaded':'Missing'}</span>`}</div>`).join(''))
+      +(l.length>libShown?'<p><button id="more">Show more</button></p>':''):empty('Nothing matches','Try removing a filter or searching for something else.');
+    document.querySelectorAll('#g [data-v]').forEach(c=>c.onclick=()=>{const x=l[c.dataset.v];
+      openLibItem(opts.find(s=>s.id===libSel),x,{onChange:paint,onRemove:load})});
+    const mo=$('#more');if(mo)mo.onclick=()=>{libShown+=120;paint()};
+  };
+  const readFilters=()=>{const v=i=>$(i)?$(i).value:'';LB.show=v('#f-show')||'all';LB.status=v('#f-status');LB.profile=v('#f-profile');LB.genre=v('#f-genre');LB.maker=v('#f-maker');LB.yf=v('#f-yf');LB.yt=v('#f-yt');LB.rmin=v('#f-rmin');libShown=120;paint()};
+  const load=async()=>{try{libData=await api('/api/library?sid='+libSel);if(tab!=='lib')return;libShown=120;buildFilters();paint()}catch(x){$('#e').textContent=x.message;$('#g').innerHTML=''}};
+  $('#fg').oninput=readFilters;$('#fg').onchange=readFilters;
+  $('#lq').oninput=e=>{LB.q=e.target.value;libShown=120;paint()};
+  $('#sb').onchange=e=>{LB.sort=e.target.value;LB.dir=LSORT[LB.sort][1];libShown=120;paint()};
+  $('#sd').onclick=()=>{LB.dir*=-1;paint()};
+  $('#fb').onclick=()=>{LB.open=!LB.open;$('#fp').hidden=!LB.open};
+  $('#vw').onclick=e=>{const b=e.target.closest('[data-v]');if(!b)return;LB.view=b.dataset.v;paint()};
+  $('#fr').onclick=()=>{Object.assign(LB,{show:'all',status:'',profile:'',genre:'',maker:'',yf:'',yt:'',rmin:''});buildFilters();paint()};
+  $('#ch').onclick=e=>{const a=e.target.closest('[data-x]');if(!a)return;e.preventDefault();const k=a.dataset.x;LB[k]=k==='show'?'all':'';buildFilters();paint()};
+  $('#sv').onchange=e=>{libSel=e.target.value;Object.assign(LB,{q:'',show:'all',status:'',profile:'',genre:'',maker:'',yf:'',yt:'',rmin:''});libView()};
+  load();
+}
+async function alView(){
+  let a={};try{a=await api('/api/alerts')}catch(x){$('#m').innerHTML=`<div class="err">${esc(x.message)}</div>`;return}
+  if(tab!=='set'||stSub!=='alerts')return;
+  $('#m').innerHTML=`<p class="mute">Needs internet access from the server.</p>
+    <form id="f" style="max-width:520px"><select name="type" aria-label="Service"><option value="ntfy">ntfy</option><option value="telegram">Telegram</option><option value="discord">Discord</option></select>
+    <input name="target" placeholder="ntfy topic address or Discord webhook address" value="${esc(a.target||'')}">
+    <input name="token" type="password" placeholder="${a.hasToken?'Telegram bot token (saved, leave empty to keep)':'Telegram bot token'}">
+    <input name="chat" placeholder="Telegram chat ID" value="${esc(a.chat||'')}">
+    <div>${[['finished','A download finishes'],['offline','An app goes offline or comes back'],['disk','The Unraid array is almost full'],['vpn','qBittorrent stops using the VPN'],['requests','Someone makes a request']].map(([k,n])=>`<label class="chk" style="display:flex;margin:6px 0"><input type="checkbox" name="${k}" ${a[k]?'checked':''}>${n}</label>`).join('')}</div>
+    <label class="mute">Array counts as full at (%) <input name="diskPct" type="number" min="50" max="99" value="${a.diskPct||90}" style="width:80px"></label>
+    <div class="row"><button class="primary">Save</button><button type="button" id="ts">Send a test message</button></div><div class="err" id="e"></div></form>`;
+  $('#f').elements.type.value=a.type||'ntfy';
+  const msg=(t,ok)=>{const m=$('#e');m.style.color=ok?'var(--ok)':'';m.textContent=t};
+  $('#f').onsubmit=async e=>{e.preventDefault();const f=e.target.elements,o={type:f.type.value,target:f.target.value,token:f.token.value,chat:f.chat.value,diskPct:f.diskPct.value};
+    ['finished','offline','disk','vpn','requests'].forEach(k=>o[k]=f[k].checked);
+    try{await api('/api/alerts','PUT',o);msg('Saved',true)}catch(x){msg(x.message)}};
+  $('#ts').onclick=async()=>{try{await api('/api/alerts/test','POST');msg('Test message sent',true)}catch(x){msg(x.message)}};
+}
+if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
+start();
+</script></body></html>

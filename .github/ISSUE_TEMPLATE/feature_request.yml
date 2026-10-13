@@ -1,0 +1,17 @@
+name: Feature request
+description: Suggest an idea
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: "What would you like to be able to do?"
+      description: "Describe the problem you want solved, not only the solution"
+    validations:
+      required: true
+  - type: input
+    id: app
+    attributes:
+      label: "Which app is this about?"
+      placeholder: "Sonarr, qBittorrent, Plex..."

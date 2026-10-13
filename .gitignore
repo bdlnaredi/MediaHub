@@ -1,0 +1,11 @@
+# Runtime data: never commit this. It holds your accounts and encrypted app keys.
+data/
+*.key
+db.json
+db.json.bak
+db.json.tmp
+sessions.json
+node_modules/
+.env
+.DS_Store
+Thumbs.db

@@ -1,0 +1,17 @@
+services:
+  mediahub:
+    image: ghcr.io/bdlnaredi/mediahub:latest
+    container_name: mediahub
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - PUID=1000            # user that owns ./data (on Unraid use 99)
+      - PGID=1000            # group that owns ./data (on Unraid use 100)
+      # - SETUP_TOKEN=pick-a-long-random-code   # asks for this code when creating the first admin
+      # - TRUST_PROXY=true                      # only if MediaHub sits behind a reverse proxy or tunnel you control
+      # - ALLOWED_ORIGINS=https://media.example.com   # extra addresses allowed to sign in, if a proxy changes the Host header
+    volumes:
+      - ./data:/data         # accounts, saved apps and the encryption key live here: back it up
+    security_opt:
+      - no-new-privileges:true

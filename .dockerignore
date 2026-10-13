@@ -1,0 +1,11 @@
+.git
+.github
+node_modules
+data
+docs
+test
+scripts
+unraid
+*.md
+.gitignore
+.dockerignore

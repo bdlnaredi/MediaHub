@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>mediahub</Name>
+  <Repository>ghcr.io/bdlnaredi/mediahub:latest</Repository>
+  <Registry>https://github.com/bdlnaredi/mediahub/pkgs/container/mediahub</Registry>
+  <Network>bridge</Network>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/bdlnaredi/mediahub/issues</Support>
+  <Project>https://github.com/bdlnaredi/mediahub</Project>
+  <Overview>A dashboard for your media server apps: Sonarr, Radarr, qBittorrent, Seerr, Plex, Unraid and more. Profiles with permissions, requests, RSS, alerts, backups and a library browser.</Overview>
+  <Category>MediaApp:Other Tools:</Category>
+  <WebUI>http://[IP]:[PORT:8080]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/bdlnaredi/mediahub/main/unraid/mediahub.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/bdlnaredi/mediahub/main/public/icon-192.png</Icon>
+  <ExtraParams>--security-opt=no-new-privileges:true</ExtraParams>
+  <Config Name="Web port" Target="8080" Default="8080" Mode="tcp" Description="Port for the MediaHub web page" Type="Port" Display="always" Required="true" Mask="false">8080</Config>
+  <Config Name="Data" Target="/data" Default="/mnt/user/appdata/mediahub" Mode="rw" Description="Accounts, saved apps and the encryption key. Back this folder up." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/mediahub</Config>
+  <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="User ID that owns the data folder (99 is nobody on Unraid)" Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
+  <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Group ID that owns the data folder (100 is users on Unraid)" Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
+  <Config Name="Setup code" Target="SETUP_TOKEN" Default="" Mode="" Description="Optional. If set, creating the first admin asks for this code." Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
+  <Config Name="Trust proxy" Target="TRUST_PROXY" Default="" Mode="" Description="Set to true only if MediaHub is behind a reverse proxy or tunnel you control." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+</Container>

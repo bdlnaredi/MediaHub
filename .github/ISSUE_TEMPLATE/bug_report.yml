@@ -1,0 +1,18 @@
+name: Bug report
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes: { label: MediaHub version, description: "Settings, then Account, at the bottom", placeholder: "0.9.0" }
+    validations: { required: true }
+  - type: input
+    id: apps
+    attributes: { label: Apps and versions involved, placeholder: "qBittorrent 5.0, Sonarr 4.0, Unraid 7.2" }
+  - type: textarea
+    id: what
+    attributes: { label: What happened, description: "What you did, what you expected, and what you saw instead" }
+    validations: { required: true }
+  - type: textarea
+    id: logs
+    attributes: { label: Container log, description: "Output of `docker logs mediahub`. Remove anything private.", render: shell }
