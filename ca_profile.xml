@@ -5,6 +5,10 @@
   </Profile>
   <!-- Icon>https://raw.githubusercontent.com/YOUR_GITHUB_USERNAME/YOUR_REPO_NAME/main/icon.svg</Icon>
   <WebPage>https://github.com/bdlnaredi/mediahub</WebPage>
+  <Name>mediahub</Name>
+  <Repository>https://github.com/bdlnaredi/mediahub</Repository>
+  <Registry></Registry>
+  <Network>bridge</Network>
   
   <!-- Optional support links (Remove the comments to use) -->
   <!-- <Forum>https://forums.unraid.net/topic/YOUR_SUPPORT_TOPIC</Forum> -->
