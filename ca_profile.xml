@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <CommunityApplications>
-  <Profile/>
+  <Profile>mediahub</Profile>
   <Icon>https://raw.githubusercontent.com/bdlnaredi/mediahub/main/icon.png</Icon>
   <WebPage>https://github.com/bdlnaredi/mediahub</WebPage>
   <Name/>
