@@ -7,7 +7,6 @@
   <WebPage>https://github.com/bdlnaredi/mediahub</WebPage>
   <Name>mediahub</Name>
   <Repository>https://github.com/bdlnaredi/mediahub</Repository>
-  <Registry></Registry>
   <Network>bridge</Network>
   <Shell>bash</Shell>
   <Privileged>false</Privileged>
