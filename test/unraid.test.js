@@ -5,6 +5,8 @@ const assert = require('node:assert/strict');
 const http = require('node:http');
 const { boot, client, setup, sleep } = require('./helpers');
 const fakes = require('../lib/demo');
+// Live usage uses the WebSocket built into Node.js 22 (the Docker image). On Node.js 20 MediaHub says so instead.
+const WS = typeof WebSocket === 'function';
 
 async function world(env = {}, key = 'k') {
   const fake = fakes.create(), srv = http.createServer((req, res) => fake.handle(req, res, req.url));
@@ -29,6 +31,12 @@ test('page data: containers with details, live usage over WebSocket, VMs and Unr
     assert.equal(d.vms.length, 2); assert.equal(d.notices.count.total, 2); assert.equal(d.notices.list[1].level, 'WARNING');
     assert.ok(d.updates[w.cid('radarr')] && d.updates[w.cid('qbittorrentvpn')]);
     assert.ok(d.watchdog && d.watchdog.on && d.watchdog.restart, 'watchdog is on and restarts by default');
+    if (!WS) {
+      const x = (await a.get(`/api/unraid/${id}?fast=1&usage=1`)).data;
+      assert.match(x.usageErr, /Node\.js 22/, 'without WebSocket support the page says what is needed');
+      assert.equal(x.states[w.cid('tautulli')].state, 'EXITED', 'and container states still update');
+      return;
+    }
     const live = await until(async () => { const x = (await a.get(`/api/unraid/${id}?fast=1&usage=1`)).data; return Object.keys(x.usage).length >= 6 && x; });
     assert.ok(live, 'live usage arrives');
     assert.ok(live.usageOn); assert.equal(live.usageErr, '');
@@ -105,7 +113,7 @@ test('an older Unraid API: basic controls still work, new parts explain what is 
     const d = (await a.get('/api/unraid/' + id)).data;
     assert.equal(d.containers.length, 7); assert.match(d.miss.extra, /too old/); assert.equal(d.errors.length, 0);
     const msg = await until(async () => (await a.get(`/api/unraid/${id}?fast=1&usage=1`)).data.usageErr);
-    assert.match(msg, /too old/);
+    assert.match(msg, WS ? /too old/ : /Node\.js 22/);
     await a.post(`/api/unraid/${id}/docker`, { action: 'update', ids: [w.cid('radarr')] });
     const job = await until(async () => { const j = (await a.get(`/api/unraid/${id}?fast=1&usage=1`)).data.job; return j && !j.running && j; });
     assert.match(job.error, /too old/);
@@ -113,7 +121,7 @@ test('an older Unraid API: basic controls still work, new parts explain what is 
   } finally { await w.stop(); }
 });
 
-test('a bad key on the live usage stream is explained', async () => {
+test('a bad key on the live usage stream is explained', { skip: !WS && 'needs Node.js 22 (WebSocket)' }, async () => {
   const w = await world({}, 'bad');
   try { assert.match(await w.until(async () => (await w.a.get(`/api/unraid/${w.id}?fast=1&usage=1`)).data.usageErr), /not allowed/); }
   finally { await w.stop(); }

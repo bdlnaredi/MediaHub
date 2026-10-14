@@ -147,7 +147,7 @@ Some features depend on fields that differ between app versions (for example Unr
 | qBittorrent | Web API v2 (4.1 and 5.x) | Author's server (qBittorrent behind a VPN). Slowing downloads during streams: test fakes. |
 | Jackett | Torznab API | Author's server. |
 | Seerr / Overseerr / Jellyseerr | v1 API | Author's server for search and requests. Season choice and problem reports: test fakes. |
-| Unraid 7.2 | GraphQL API | Author's server for status, disks and start/stop. Live container usage, container updates, VMs, notifications and the watchdog: test fakes. Live usage and updates need a newer Unraid API than 7.2 first shipped with. |
+| Unraid 7.2 | GraphQL API | Author's server for status, disks and start/stop. Live container usage, container updates, VMs, notifications and the watchdog: test fakes. Live usage and updates need a newer Unraid API than 7.2 first shipped with, and live usage needs Node.js 22 (included in the Docker image). |
 | Plex | Local server API with a token | Test fakes. |
 | Tautulli | v2 API | Test fakes. |
 | SABnzbd | JSON API (3.x and 4.x) | Test fakes. |

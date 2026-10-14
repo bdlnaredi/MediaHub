@@ -20,6 +20,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Notes
 - Live container usage and one-click updates need a newer Unraid API than the one Unraid 7.2 first shipped with. On an older API the rest of the page works and those parts show a short message saying an update to Unraid (or the Unraid Connect plugin) adds them.
+- Live container usage uses the WebSocket support built into Node.js 22, which the Docker image already has. If you run MediaHub outside Docker on Node.js 20, everything else works and the Unraid page says live usage needs Node.js 22.
 - For VMs and notifications the Unraid API key needs those permissions. Without them, that section explains what is missing.
 - The new parts follow Unraid's published GraphQL schema and were tested against built-in pretend apps, not yet against a real server. Please report anything that looks wrong, with your Unraid version.
 
