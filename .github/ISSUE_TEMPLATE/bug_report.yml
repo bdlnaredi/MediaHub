@@ -4,7 +4,7 @@ labels: [bug]
 body:
   - type: input
     id: version
-    attributes: { label: MediaHub version, description: "Settings, then Account, at the bottom", placeholder: "0.9.0" }
+    attributes: { label: MediaHub version, description: "Settings, then Account, at the bottom", placeholder: "0.10.0" }
     validations: { required: true }
   - type: input
     id: apps

@@ -14,8 +14,8 @@ A short checklist for keeping the project healthy and safe over time.
 
 1. Update `version` in `package.json` and add a section to `CHANGELOG.md`.
 2. Commit to `main` and wait for CI to pass.
-3. Tag and push: `git tag v0.9.1` then `git push origin v0.9.1`.
-4. The **Publish image** workflow builds for amd64 and arm64 and publishes `0.9.1`, `0.9` and `latest`.
+3. Tag and push: `git tag v0.10.1` then `git push origin v0.10.1`.
+4. The **Publish image** workflow builds for amd64 and arm64 and publishes `0.10.1`, `0.10` and `latest`.
 5. On GitHub, create a **Release** from the tag and paste the changelog notes. Mention anything that needs action from users.
 
 ## Keeping it secure
@@ -24,6 +24,8 @@ A short checklist for keeping the project healthy and safe over time.
 - When a security report arrives, reproduce it privately, fix it, add a test, release, and then publish the advisory.
 - Never add a runtime dependency without a good reason: the project stays small and auditable on purpose.
 - Review any change to sign-in, permissions, backups or storage with extra care, and keep tests for them.
+- Keep `public/lang/*.json` in step with the page: `npm test` fails when a translated text no longer exists.
+- Keep the compatibility table in the README honest: only say "Author's server" for what has really been tried on a real app.
 
 ## Data safety rules for changes
 

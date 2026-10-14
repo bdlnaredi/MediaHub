@@ -4,7 +4,7 @@ services:
     container_name: mediahub
     restart: unless-stopped
     ports:
-      - "5080:8080"
+      - "5080:5080"
     environment:
       - PUID=1000            # user that owns ./data (on Unraid use 99)
       - PGID=1000            # group that owns ./data (on Unraid use 100)

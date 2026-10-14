@@ -1,5 +1,4 @@
 # MediaHub
-![MediaHub logo](icon.png)
 
 [![CI](https://github.com/bdlnaredi/mediahub/actions/workflows/ci.yml/badge.svg)](https://github.com/bdlnaredi/mediahub/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -7,7 +6,7 @@
 
 One friendly web page for the apps on your home media server. See what is downloading, add shows and movies, approve requests from family, check on your server, and get a phone message when something needs you. It runs as a single small Docker container with **no dependencies** to install.
 
-> **Early release (0.9).** It is used daily, but it has been built against the documented APIs of the apps below, and some behavior can differ between app versions. Bug reports with the app version are very welcome.
+> **Early release (0.10).** It is used daily on the author's server, but it has been built against the documented APIs of the apps below, and some behavior can differ between app versions. See the [compatibility table](#compatibility) for what has been checked against a real app. Bug reports with the app version are very welcome.
 
 ![Dashboard](docs/screenshots/dashboard.png)
 
@@ -16,19 +15,42 @@ One friendly web page for the apps on your home media server. See what is downlo
 - **Dashboard:** live download speed and graph, server CPU and memory, which apps are online, what is coming up, what is downloading, who is watching on Plex, and a "needs attention" list. Each person can hide and reorder sections.
 - **Downloads (qBittorrent):** filters, search, select several, pause and resume, categories and tags, file selection, speed limits and schedule, history, seeding rules, and a chip showing which show or movie a download belongs to.
 - **RSS (qBittorrent):** read feeds, mark as read, download one or many articles, and manage auto-download rules with a preview.
-- **Sonarr and Radarr:** search and add, library browser with many filters and sorts, a show window with seasons and episodes where you can monitor or unmonitor any of them, a Wanted list, upcoming releases as a list or a month calendar, and automatic or interactive searches.
-- **Requests (Seerr):** family members ask for something, you approve it, and they get a message when it is ready.
-- **Profiles:** per-person app access and permissions (for example "view only"), signed-in devices, and an activity log.
-- **Alerts:** phone messages through ntfy, Telegram or Discord for finished downloads, apps going offline, a full array, the VPN dropping and new requests.
-- **Also:** Plex (who is watching, recently added), Tautulli stats, SABnzbd, Jackett search, Unraid (CPU, memory, array, disks, shares, containers), encrypted backup and restore, quick search (`Ctrl+K`), light and dark themes, and install-to-home-screen on a phone.
+- **Sonarr and Radarr:** search and add, a library browser with many filters and sorts, a show window with seasons and episodes where you can monitor or unmonitor any of them, a Wanted list, upcoming releases as a list or a month calendar, and automatic or interactive searches.
+- **Library bulk edit:** tick many shows or movies, then monitor or unmonitor them, change the quality profile, search, remove, or (for Sonarr) apply a preset such as *latest season only* or *future episodes only*.
+- **Requests (Seerr):** family members ask for something (and pick which seasons), you approve it, and they get a message when it is ready. Optional per-person limits, automatic approval for people you trust, and a **Report a problem** button that tells you and searches again.
+- **Music and books (Lidarr, Readarr):** your artists and authors, search and add, monitor, and search for what is missing.
+- **Subtitles (Bazarr):** what is missing subtitles, with a Search button per item or for everything shown.
+- **Usenet (SABnzbd):** the queue, history with retry, and adding an NZB file or address.
+- **Indexers:** Jackett search, and Prowlarr indexer health with a test button.
+- **Health:** one page with warnings from Sonarr, Radarr, Lidarr, Readarr and Prowlarr, stuck downloads, missing counts and disk space.
+- **Slow downloads while Plex streams:** qBittorrent's alternative speed limits switch on while someone is watching, and back when they stop.
+- **Profiles:** per-person app access and permissions (for example "view only"), two-step sign-in, signed-in devices, and an activity log.
+- **Alerts:** messages through ntfy, Telegram, Discord, Pushover, Gotify, a webhook or email, for finished downloads, apps going offline, a full array, the VPN dropping, new requests and problem reports, plus an optional weekly summary.
+- **Status pages:** a private read-only link for a wall tablet that shows only the sections you pick, without signing in.
+- **Backups:** an encrypted backup file, plus automatic daily copies inside the data folder.
+- **Also:** Plex (who is watching, recently added), Tautulli stats, Unraid (CPU, memory, array, disks, shares, containers), quick search (`Ctrl+K`), light and dark themes, five languages, and install-to-home-screen on a phone.
 
 | Downloads | Library |
 | --- | --- |
 | ![Downloads](docs/screenshots/downloads.png) | ![Library](docs/screenshots/library.png) |
+| **Bulk edit** | **Health** |
+| ![Bulk edit](docs/screenshots/library-select.png) | ![Health](docs/screenshots/health.png) |
+| **Requests** | **Music and books** |
+| ![Requests](docs/screenshots/requests.png) | ![Music and books](docs/screenshots/music-books.png) |
 | **RSS** | **Calendar** |
 | ![RSS](docs/screenshots/rss.png) | ![Calendar](docs/screenshots/calendar.png) |
 
-*Screenshots use demo data.*
+*Screenshots use the built-in demo data.*
+
+## Try the demo
+
+Want to look around first? The demo runs MediaHub against built-in pretend apps. Nothing is saved, and settings that could be abused (users, passwords, alert addresses, backups, adding apps) are locked.
+
+```
+docker run --rm -p 5080:5080 -e DEMO=1 ghcr.io/bdlnaredi/mediahub:latest
+```
+
+Open `http://localhost:5080` and sign in as `demo` with `demo-mediahub` (admin), or `guest` with `guest-mediahub` (a regular profile). Without Docker: `DEMO=1 node server.js`. Do not point a real data folder at a demo container, and do not leave a demo reachable from the internet if you do not want strangers poking at it.
 
 ## Quick start
 
@@ -43,7 +65,7 @@ services:
     container_name: mediahub
     restart: unless-stopped
     ports:
-      - "5080:8080"
+      - "5080:5080"
     environment:
       - PUID=1000
       - PGID=1000
@@ -61,7 +83,7 @@ docker compose up -d
 
 ```
 docker run -d --name mediahub --restart unless-stopped \
-  -p 5080:8080 -e PUID=1000 -e PGID=1000 \
+  -p 5080:5080 -e PUID=1000 -e PGID=1000 \
   -v /path/to/mediahub-data:/data \
   ghcr.io/bdlnaredi/mediahub:latest
 ```
@@ -80,11 +102,12 @@ If the port can be reached by anyone besides you, set `SETUP_TOKEN` first (see b
 
 | Variable | Default | What it does |
 | --- | --- | --- |
-| `PORT` | `8080` | Port inside the container. |
+| `PORT` | `5080` | Port inside the container. |
 | `DATA_DIR` | `/data` | Where accounts, saved apps and the encryption key are kept. |
 | `PUID` / `PGID` | `1000` / `1000` | The user and group that own the data folder. On Unraid use `99` and `100`. |
 | `SETUP_TOKEN` | empty | If set, creating the first admin asks for this code. |
 | `TRUST_PROXY` | off | Set to `true` **only** if MediaHub is behind a reverse proxy or tunnel you control. It makes MediaHub believe the proxy's client address and HTTPS headers. Leave it off otherwise. |
+| `DEMO` | off | Set to `1` to run the demo described above instead of your real data. |
 | `ALLOWED_ORIGINS` | empty | Comma-separated extra web addresses allowed to sign in, if a proxy changes the `Host` header, for example `https://media.example.com`. |
 
 ## Connecting your apps
@@ -99,11 +122,38 @@ If the port can be reached by anyone besides you, set `SETUP_TOKEN` first (see b
 | Tautulli | `:8181` | API key (Settings, Web Interface). |
 | SABnzbd | `:8080` | API key (Config, General). |
 | Unraid (7.2 or newer) | your Unraid web address | An API key from Settings, Management Access, API Keys. |
-| Bazarr / Lidarr / Readarr | `:6767` / `:8686` / `:8787` | API key. Status and an Open link only for now. |
+| Bazarr / Lidarr / Readarr | `:6767` / `:8686` / `:8787` | API key (Settings, General). |
 
 Settings, then Apps has a **Test connection** button and hints for each app. Use your server's address on your network, not names that only work inside Docker.
 
 Some features depend on fields that differ between app versions (for example Unraid disk details, parity control and container logs, or ending a Plex stream, which needs Plex Pass). When something is not available MediaHub shows a short note and carries on.
+
+## Compatibility
+
+"Author's server" means the feature has been used against that real app. "Test fakes" means MediaHub's own tests pass against a pretend copy of the app that follows its documented API, but nobody has confirmed it against the real thing yet. If you try one of those, please open an issue with the result and the app version, good or bad.
+
+| App | API used | Tested against |
+| --- | --- | --- |
+| Sonarr | v3 API (Sonarr v3 and v4) | Author's server for search, add, library and monitoring. Bulk edit and presets: test fakes. |
+| Radarr | v3 API (Radarr v4 and v5) | Author's server for search, add, library and monitoring. Bulk edit: test fakes. |
+| qBittorrent | Web API v2 (4.1 and 5.x) | Author's server (qBittorrent behind a VPN). Slowing downloads during streams: test fakes. |
+| Jackett | Torznab API | Author's server. |
+| Seerr / Overseerr / Jellyseerr | v1 API | Author's server for search and requests. Season choice and problem reports: test fakes. |
+| Unraid 7.2 | GraphQL API | Author's server. |
+| Plex | Local server API with a token | Test fakes. |
+| Tautulli | v2 API | Test fakes. |
+| SABnzbd | JSON API (3.x and 4.x) | Test fakes. |
+| Prowlarr | v1 API | Test fakes. |
+| Lidarr / Readarr | v1 API | Test fakes. |
+| Bazarr | REST API (1.x) | Test fakes. |
+
+Everything above runs on Node.js 20 or newer in the container (the image uses Node 22) and works in current Chrome, Firefox, Safari and Edge.
+
+## Languages and accessibility
+
+Choose a language under the palette icon (Appearance): English, Español, Deutsch, Français and हिन्दी. Texts that are not translated yet stay in English. Adding or improving a language is easy and does not need coding: see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+The page works with a keyboard (there is a skip link, dialogs keep focus inside and return it when closed), controls have names for screen readers, and text colors meet the WCAG AA contrast ratio in both themes with every accent color. This was checked with a script, not by a full audit, so reports are welcome.
 
 ## HTTPS and remote access
 
@@ -120,9 +170,11 @@ When you use a proxy or tunnel, set `TRUST_PROXY=true`. If sign-in says "Blocked
 - Passwords are hashed. The keys and passwords of your other apps are encrypted on disk with a key stored beside them in `secret.key`.
 - Sign-ins are rate limited, cookies are same-site and `HttpOnly`, requests from other websites are blocked, and a strict content security policy is sent.
 - Profiles can be limited on the server, not just hidden in the page.
+- Two-step sign-in (an authenticator app plus one-time recovery codes) is available for every profile and recommended for admins. An admin can switch it off for someone who lost their phone.
+- Status page links use a long secret in the address, show only what you chose, can be removed at any time, and are rate limited against guessing.
 - Saves are written atomically, and an automatic copy (`db.json.bak`) is kept. A damaged database is never silently replaced.
 
-Everything lives in your data folder: `db.json`, `db.json.bak`, `secret.key` and `sessions.json`. **Back up that whole folder**, or use **Settings, then Backup** for a passphrase-protected file. Keep backups private, because they contain the keys of your other apps. See [SECURITY.md](SECURITY.md).
+Everything lives in your data folder: `db.json`, `db.json.bak`, `secret.key`, `sessions.json` and a `backups` folder when automatic backups are on. **Back up that whole folder**, or use **Settings, then Backup** for a passphrase-protected file. Keep backups private, because they contain the keys of your other apps. See [SECURITY.md](SECURITY.md).
 
 ## Updating
 
@@ -130,7 +182,7 @@ Everything lives in your data folder: `db.json`, `db.json.bak`, `secret.key` and
 docker compose pull && docker compose up -d
 ```
 
-Your data folder is kept. Release notes are in [CHANGELOG.md](CHANGELOG.md). To pin a version, use a tag such as `ghcr.io/bdlnaredi/mediahub:0.9.0` instead of `latest`.
+Your data folder is kept. Release notes are in [CHANGELOG.md](CHANGELOG.md). To pin a version, use a tag such as `ghcr.io/bdlnaredi/mediahub:0.10.0` instead of `latest`.
 
 ## Troubleshooting
 
@@ -148,7 +200,7 @@ MediaHub is an independent project and is not affiliated with or endorsed by the
 Ideas, bug reports and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md). To run it locally you only need Node.js 20 or newer:
 
 ```
-DATA_DIR=./data PORT=8080 node server.js
+DATA_DIR=./data PORT=5080 node server.js
 npm test
 ```
 

@@ -1,6 +1,9 @@
 const http = require('http'), fs = require('fs'), path = require('path'), crypto = require('crypto');
 const DATA = process.env.DATA_DIR || '/data', FILE = path.join(DATA, 'db.json');
 fs.mkdirSync(DATA, { recursive: true });
+const totp = require('./lib/totp'), channels = require('./lib/channels');
+const PORT = +process.env.PORT || 5080, DEMO = /^(1|true|yes)$/i.test(process.env.DEMO || ''), DAY = 864e5;
+const demo = DEMO ? require('./lib/demo').create({ streams: 1 }) : null;
 const VERSION = (() => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'))).version; } catch { return 'dev'; } })();
 const TRUST = /^(1|true|yes)$/i.test(process.env.TRUST_PROXY || ''), SETUP_TOKEN = process.env.SETUP_TOKEN || '';
 const same = (a, b) => { const x = Buffer.from(String(a || '')), y = Buffer.from(String(b || '')); return x.length === y.length && crypto.timingSafeEqual(x, y); };
@@ -26,19 +29,47 @@ if (fs.existsSync(FILE)) {
     catch { console.error('db.json is damaged and there is no usable db.json.bak. Refusing to start so nothing is overwritten. Restore it from a backup in ' + DATA); process.exit(1); }
   }
 }
-db.requests = db.requests || []; db.log = db.log || []; db.history = db.history || []; db.seedRules = db.seedRules || [];
-db.services.forEach(s => { s.apiKey = dec(s.apiKey); s.pass = dec(s.pass); });
-if (db.alerts) db.alerts.token = dec(db.alerts.token);
+const defaults = d => {
+  d.users = d.users || []; d.services = d.services || []; d.requests = d.requests || []; d.log = d.log || []; d.history = d.history || [];
+  d.seedRules = d.seedRules || []; d.reports = d.reports || []; d.statusLinks = d.statusLinks || []; d.settings = d.settings || {};
+  return d;
+};
+// Turns the on-disk form (secrets encrypted) into the in-memory form, and upgrades the old single alert channel.
+const decryptAll = d => {
+  d.services.forEach(s => { s.apiKey = dec(s.apiKey); s.pass = dec(s.pass); });
+  if (d.alerts) {
+    if (!d.alerts.channels) {
+      const a = d.alerts;
+      d.alerts.channels = (a.target || (a.type === 'telegram' && a.token)) ? [{ id: crypto.randomBytes(6).toString('hex'), type: a.type || 'ntfy', target: a.target || '', token: dec(a.token) || '', chat: a.chat || '' }] : [];
+    } else d.alerts.channels.forEach(c => { c.token = dec(c.token); c.pass = dec(c.pass); });
+    delete d.alerts.type; delete d.alerts.target; delete d.alerts.token; delete d.alerts.chat;
+  }
+  d.users.forEach(u => { if (u.totp && u.totp.secret) u.totp.secret = dec(u.totp.secret); });
+  return d;
+};
+const dehydrate = d => JSON.stringify({ ...d,
+  services: d.services.map(s => ({ ...s, apiKey: enc(s.apiKey), pass: enc(s.pass) })),
+  alerts: d.alerts && { ...d.alerts, channels: (d.alerts.channels || []).map(c => ({ ...c, token: enc(c.token), pass: enc(c.pass) })) },
+  users: d.users.map(u => u.totp ? { ...u, totp: { ...u.totp, secret: enc(u.totp.secret) } } : u) }, null, 1);
+db = decryptAll(defaults(db));
 let lastBak = 0;
 const save = () => {
-  const data = JSON.stringify({ ...db,
-    services: db.services.map(s => ({ ...s, apiKey: enc(s.apiKey), pass: enc(s.pass) })),
-    alerts: db.alerts && { ...db.alerts, token: enc(db.alerts.token) } }, null, 1);
+  if (DEMO) return;
+  const data = dehydrate(db);
   const tmp = FILE + '.tmp';
   fs.writeFileSync(tmp, data, { mode: 0o600 });
   try { if (fs.existsSync(FILE) && Date.now() - lastBak > 36e5) { fs.copyFileSync(FILE, FILE + '.bak'); lastBak = Date.now(); } } catch {}
   fs.renameSync(tmp, FILE);
 };
+if (DEMO) {
+  // Demo: everything lives in memory, points at built-in pretend apps, and nothing is written to the data folder.
+  const base = 'http://127.0.0.1:' + PORT + '/__demo/', mk = (n, k) => ({ id: crypto.randomBytes(6).toString('hex'), type: k, name: n, url: base + k, apiKey: 'demo', user: 'demo', pass: 'demo' });
+  const salt = a => crypto.randomBytes(6).toString('hex'), mkU = (name, pw, role, extra = {}) => { const sl = salt(); return { id: crypto.randomBytes(6).toString('hex'), name, role, salt: sl, hash: crypto.scryptSync(pw, sl, 32).toString('hex'), access: [], ...extra }; };
+  db = defaults({ users: [mkU('demo', 'demo-mediahub', 'admin'), mkU('guest', 'guest-mediahub', 'user')], alerts: { channels: [], reports: true }, requests: [],
+    services: [['Sonarr', 'sonarr'], ['Radarr', 'radarr'], ['qBittorrent', 'qbittorrent'], ['Plex', 'plex'], ['Seerr', 'seerr'], ['Prowlarr', 'prowlarr'], ['Lidarr', 'lidarr'], ['Readarr', 'readarr'], ['Bazarr', 'bazarr'], ['SABnzbd', 'sabnzbd'], ['Tautulli', 'tautulli']].map(x => mk(x[0], x[1])) });
+  db.users[1].access = db.services.map(x => x.id);
+  db.requests.push({ id: 'r1', sid: db.services.find(x => x.type === 'seerr').id, uid: db.users[1].id, user: 'guest', mediaType: 'movie', mediaId: 801, title: 'Hidden Harbor', year: '2024', poster: '', status: 'pending', at: Date.now() - 3600e3 * 5 });
+}
 if (db.users.length) save();
 const uid = () => crypto.randomBytes(6).toString('hex');
 const hash = (pw, salt) => crypto.scryptSync(pw, salt, 32).toString('hex');
@@ -58,12 +89,12 @@ const notifyUser = (u, title, body) => u && u.notify ? pushTo(u.notify, title, b
 const KINDS = ['sonarr', 'radarr', 'prowlarr', 'jackett', 'qbittorrent', 'seerr', 'unraid', 'plex', 'tautulli', 'sabnzbd', 'bazarr', 'lidarr', 'readarr'];
 const SESSF = path.join(DATA, 'sessions.json'), th = t => crypto.createHash('sha256').update(String(t || '')).digest('hex');
 let sessions; try { sessions = new Map(Object.entries(JSON.parse(fs.readFileSync(SESSF))).map(([k, v]) => [k, typeof v === 'string' ? { uid: v, at: 0, seen: 0, ua: '', ip: '' } : v])); } catch { sessions = new Map(); }
-const saveSess = () => fs.writeFileSync(SESSF, JSON.stringify(Object.fromEntries(sessions)), { mode: 0o600 });
+const saveSess = () => DEMO || fs.writeFileSync(SESSF, JSON.stringify(Object.fromEntries(sessions)), { mode: 0o600 });
 const qbCookie = {}, fails = {};
 const ipOf = req => TRUST ? String(req.headers['cf-connecting-ip'] || String(req.headers['x-forwarded-for'] || '').split(',').pop().trim() || req.socket.remoteAddress).trim() : String(req.socket.remoteAddress || '');
 
 const mkUser = (name, pw, role) => { const salt = uid(); return { id: uid(), name, role, salt, hash: hash(pw, salt), access: [] }; };
-const pubUser = u => ({ id: u.id, name: u.name, role: u.role, access: u.access, perms: u.perms || null, notify: u.notify || '', dash: u.dash || null });
+const pubUser = u => ({ twofa: !!(u.totp && u.totp.on), id: u.id, name: u.name, role: u.role, access: u.access, perms: u.perms || null, notify: u.notify || '', dash: u.dash || null, reqLimit: u.reqLimit || null, autoApprove: !!u.autoApprove });
 const pubSvc = s => ({ id: s.id, type: s.type, name: s.name, url: s.url });
 
 // Checks that a service answers with the details you saved.
@@ -133,7 +164,7 @@ const login = (res, user) => {
       throw new Error('qBittorrent refused the request');
     };
 
-const grabCache = new Map(), vpnCache = {}, mon = { up: {}, done: {}, seeded: {}, disk: {}, vpn: {}, share: {}, reqT: 0, n: 0, busy: false };
+const tickets = new Map(), pending2fa = new Map(), fails2 = {}, failsPub = {}, pubCache = {}, qbListCache = {}, grabCache = new Map(), vpnCache = {}, mon = { idle: {}, up: {}, done: {}, seeded: {}, disk: {}, vpn: {}, share: {}, reqT: 0, n: 0, busy: false };
 let homeIp = { v: '', t: 0 };
 const cut = (v, n = 200) => String(v == null ? '' : v).slice(0, n);
 async function qbUpload(s, fields, files) {
@@ -160,16 +191,49 @@ const ruleDef = x => ({ enabled: !!x.enabled, mustContain: cut(x.mustContain, 50
   ...(x.torrentContentLayout ? { torrentContentLayout: cut(x.torrentContentLayout, 40) } : {}), ...(x.lastMatch ? { lastMatch: cut(x.lastMatch, 60) } : {}),
   ...(Array.isArray(x.previouslyMatchedEpisodes) ? { previouslyMatchedEpisodes: x.previouslyMatchedEpisodes.slice(0, 2000).map(e => cut(e, 60)) } : {}) });
 async function notify(title, body) {
-  const a = db.alerts;
-  if (!a || !(a.target || (a.type === 'telegram' && a.token && a.chat))) return false;
-  const go = async (url, opt) => {
-    const r = await fetch(url, { method: 'POST', signal: AbortSignal.timeout(8000), ...opt });
-    if (!r.ok) throw new Error('Notification service returned ' + r.status);
-  };
-  if (a.type === 'discord') await go(a.target, { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: `**${title}**\n${body}` }) });
-  else if (a.type === 'telegram') await go(`https://api.telegram.org/bot${a.token}/sendMessage`, { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat_id: a.chat, text: `${title}\n${body}` }) });
-  else await go(a.target, { headers: { Title: title }, body });
+  const list = ((db.alerts || {}).channels || []).filter(c => !channels.problem(c));
+  if (!list.length) return false;
+  const res = await Promise.allSettled(list.map(c => channels.send(c, title, body)));
+  const bad = res.filter(x => x.status === 'rejected');
+  if (bad.length === res.length) throw bad[0].reason;
   return true;
+}
+async function ext(s, path, opt = {}) {
+  const r = await fetch(s.url.replace(/\/+$/, '') + path, { signal: AbortSignal.timeout(15000), ...opt, headers: { 'X-Api-Key': s.apiKey, 'Content-Type': 'application/json', ...(opt.headers || {}) } });
+  const d = await r.json().catch(() => null);
+  if (!r.ok) throw new Error((Array.isArray(d) && d[0] && d[0].errorMessage) || (d && d.message) || 'Request failed (' + r.status + ')');
+  return d;
+}
+const plexGet = async (s, pth) => {
+  const x = await fetch(s.url.replace(/\/+$/, '') + pth, { signal: AbortSignal.timeout(8000), headers: { 'X-Plex-Token': s.apiKey, Accept: 'application/json' } });
+  if (!x.ok) throw new Error('Plex returned ' + x.status); return x.json();
+};
+const streamsOf = async s => (((await plexGet(s, '/status/sessions')).MediaContainer || {}).Metadata || []).filter(x => ['playing', 'buffering'].includes((x.Player || {}).state));
+const bz = async (s, pth, opt = {}) => {
+  const x = await fetch(s.url.replace(/\/+$/, '') + pth, { signal: AbortSignal.timeout(60000), ...opt, headers: { 'X-API-KEY': s.apiKey, ...(opt.headers || {}) } });
+  const t = await x.text(); let d = null; try { d = JSON.parse(t); } catch {}
+  if (!x.ok) throw new Error((d && (d.message || d.error)) || 'Bazarr returned ' + x.status); return d;
+};
+const GB = n => (n / 1073741824).toFixed(n > 1e11 ? 0 : 1) + ' GB';
+async function weeklyText() {
+  const wk = Date.now() - 7 * DAY, hist = db.history.filter(h => h.at >= wk), rq = db.requests.filter(r => r.at >= wk), lines = [];
+  lines.push(`Downloads finished: ${hist.length}${hist.length ? ' (' + GB(hist.reduce((a, h) => a + (h.size || 0), 0)) + ')' : ''}`);
+  lines.push(`Requests this week: ${rq.length} made, ${rq.filter(r => r.status === 'approved').length} approved, ${rq.filter(r => r.stage === 'available').length} ready to watch`);
+  const waiting = db.requests.filter(r => r.status === 'pending').length; if (waiting) lines.push(`Waiting for approval: ${waiting}`);
+  const rep = db.reports.filter(r => r.status === 'open').length; if (rep) lines.push(`Open problem reports: ${rep}`);
+  const off = db.services.filter(x => health[x.id] && !health[x.id].ok).map(x => x.name); lines.push(off.length ? 'Apps not responding: ' + off.join(', ') : 'All apps are responding');
+  for (const u of db.services.filter(x => x.type === 'unraid')) try { const k = (await gql(u, '{ array { capacity { kilobytes { used total } } } }')).array.capacity.kilobytes; lines.push(`${u.name} array: ${(+k.used / +k.total * 100).toFixed(0)}% used`); } catch {}
+  return lines.join('\n');
+}
+const BK = path.join(DATA, 'backups'), BKRE = /^(auto|pre-restore)-\d{4}-\d{2}-\d{2}-\d{4}\.json$/;
+function backupNow(kind = 'auto') {
+  fs.mkdirSync(BK, { recursive: true, mode: 0o700 });
+  const d = new Date().toISOString(), name = `${kind}-${d.slice(0, 10)}-${d.slice(11, 13)}${d.slice(14, 16)}.json`;
+  fs.writeFileSync(path.join(BK, name), dehydrate(db), { mode: 0o600 });
+  const keep = (db.settings.backup && db.settings.backup.keep) || 7, all = fs.readdirSync(BK).filter(f => BKRE.test(f)).sort();
+  for (const f of all.slice(0, Math.max(0, all.length - keep - 3))) try { fs.unlinkSync(path.join(BK, f)); } catch {}
+  db.settings.backup = { ...(db.settings.backup || {}), last: Date.now() }; save();
+  return name;
 }
 async function vpnStatus(s) {
   const c = vpnCache[s.id]; if (c && Date.now() - c.t < 60000) return c.r;
@@ -236,6 +300,26 @@ async function monitor() {
       if (v.vpn === false && !mon.vpn[s.id]) { mon.vpn[s.id] = 1; await notify('VPN not active', s.name + ' is not using the VPN'); }
       else if (v.vpn === true) mon.vpn[s.id] = 0;
     });
+    const th0 = db.settings.throttle || {}, held = th0.held || {};
+    if (th0.on || Object.keys(held).length) await safe(async () => {
+      let streams = 0; if (th0.on) for (const pl of db.services.filter(x => x.type === 'plex')) streams += (await streamsOf(pl)).length;
+      for (const s of db.services.filter(x => x.type === 'qbittorrent')) {
+        const slow = Number(await qb(s, '/api/v2/transfer/speedLimitsMode')) === 1, ours = !!held[s.id];
+        if (th0.on && streams > 0) { mon.idle[s.id] = 0; if (!slow && !ours) { await qb(s, '/api/v2/transfer/toggleSpeedLimitsMode', {}); db.settings.throttle.held = { ...held, [s.id]: 1 }; held[s.id] = 1; save(); audit('MediaHub', 'Slowed downloads', `${streams} stream${streams === 1 ? '' : 's'} playing`); } }
+        else if (ours && (!th0.on || (mon.idle[s.id] = (mon.idle[s.id] || 0) + 1) >= 2)) {
+          if (slow) await qb(s, '/api/v2/transfer/toggleSpeedLimitsMode', {});
+          delete held[s.id]; db.settings.throttle.held = { ...held }; save(); audit('MediaHub', 'Restored download speed', 'No one is streaming');
+        }
+      }
+    });
+    const wk = db.settings.weekly;
+    if (wk && wk.on) await safe(async () => {
+      const d = new Date(); d.setHours(wk.hour ?? 9, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() - (wk.day ?? 0) + 7) % 7)); if (d.getTime() > Date.now()) d.setDate(d.getDate() - 7);
+      if ((wk.last || 0) < d.getTime()) { wk.last = Date.now(); save(); await notify('MediaHub weekly summary', await weeklyText()); }
+    });
+    const bc = db.settings.backup || {};
+    if (bc.on && new Date(bc.last || 0).toDateString() !== new Date().toDateString() && new Date().getHours() >= (bc.hour ?? 3)) await safe(async () => { backupNow(); });
+    for (const [k, v] of tickets) if (v.exp < Date.now()) tickets.delete(k);
     if (++mon.n % 10 === 0) await safe(refreshRequests);
   } finally { mon.busy = false; }
 }
@@ -248,8 +332,10 @@ http.createServer(async (req, res) => {
   res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
   if (res.secure) res.setHeader('Strict-Transport-Security', 'max-age=15552000');
   res.info = { ua: cut(req.headers['user-agent'], 200), ip: ipOf(req) };
+  if (DEMO && p.startsWith('/__demo/')) return demo.handle(req, res, req.url.slice(7));
   if (!p.startsWith('/api/')) {
-    const fp = path.join(PUB, p), mime = { '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.js': 'text/javascript' }[path.extname(fp)];
+    if (/^\/s\/[\w-]{20,64}$/.test(p)) { res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' }); return res.end(fs.readFileSync(path.join(PUB, 'status.html'))); }
+    const fp = path.join(PUB, p), mime = { '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.json': 'application/json', '.js': 'text/javascript' }[path.extname(fp)];
     if (p !== '/' && mime && fp.startsWith(PUB + path.sep) && fs.existsSync(fp)) {
       res.writeHead(200, { 'Content-Type': mime, 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff' });
       return res.end(fs.readFileSync(fp));
@@ -268,7 +354,7 @@ http.createServer(async (req, res) => {
     if (me && Date.now() - sess.seen > 60000) sess.seen = Date.now();
     const setup = !db.users.length;
     if (p === '/api/health') return send(res, 200, { ok: true, version: VERSION });
-    if (p === '/api/me') return send(res, 200, { setup, setupCode: setup && !!SETUP_TOKEN, version: VERSION, user: me ? pubUser(me) : null });
+    if (p === '/api/me') return send(res, 200, { setup, setupCode: setup && !!SETUP_TOKEN, version: VERSION, demo: DEMO, user: me ? pubUser(me) : null });
 
     if (p === '/api/setup' && m === 'POST') {
       if (!setup) return send(res, 403, { error: 'Already set up' });
@@ -284,12 +370,74 @@ http.createServer(async (req, res) => {
       const b = await readBody(req), u = db.users.find(x => x.name.trim().toLowerCase() === (b.name || '').trim().toLowerCase());
       if (!(u ? crypto.timingSafeEqual(Buffer.from(hash(b.password || '', u.salt)), Buffer.from(u.hash)) : (hash(b.password || '', 'x'), false)))
         { fl.n++; fl.t = Date.now(); fails[ip] = fl; audit(cut(b.name, 40) || '?', 'Failed sign-in', ip); return send(res, 401, { error: 'Wrong name or password' }); }
-      delete fails[ip]; audit(u.name, 'Signed in', res.info.ip);
+      delete fails[ip];
+      if (u.totp && u.totp.on) { const tk = crypto.randomBytes(16).toString('hex'); tickets.set(tk, { uid: u.id, exp: Date.now() + 300000, n: 0 }); return send(res, 200, { twofa: true, ticket: tk }); }
+      audit(u.name, 'Signed in', res.info.ip);
       return login(res, u);
+    }
+    if (p === '/api/login/2fa' && m === 'POST') {
+      const b = await readBody(req), tk = tickets.get(String(b.ticket || ''));
+      if (!tk || tk.exp < Date.now()) return send(res, 401, { error: 'That sign-in timed out. Please start again.' });
+      const u = userOf(tk.uid), f = fails2[tk.uid] || { n: 0, t: 0 };
+      if (!u || !u.totp || !u.totp.on) return send(res, 401, { error: 'Please start again.' });
+      if (Date.now() - f.t > 600000) f.n = 0;
+      if (f.n >= 10) return send(res, 429, { error: 'Too many wrong codes. Try again in 10 minutes.' });
+      const code = String(b.code || '').trim(), step = totp.verify(u.totp.secret, code, Date.now(), u.totp.last || 0);
+      let ok = false;
+      if (step) { u.totp.last = step; ok = true; }
+      else { const i = (u.totp.recovery || []).indexOf(th(code.toLowerCase())); if (i >= 0) { u.totp.recovery.splice(i, 1); ok = true; audit(u.name, 'Used a recovery code', (u.totp.recovery.length) + ' left'); } }
+      if (!ok) { f.n++; f.t = Date.now(); fails2[tk.uid] = f; if (++tk.n >= 5) tickets.delete(String(b.ticket)); audit(u.name, 'Wrong two-step code', res.info.ip); return send(res, 401, { error: 'That code is not right' }); }
+      tickets.delete(String(b.ticket)); delete fails2[tk.uid]; save(); audit(u.name, 'Signed in', res.info.ip + ' (two-step)');
+      return login(res, u);
+    }
+    const pubm = p.match(/^\/api\/public\/([\w-]{20,64})$/);
+    if (pubm && m === 'GET') {
+      const ip = ipOf(req), fl = failsPub[ip] || { n: 0, t: 0 };
+      if (Date.now() - fl.t > 600000) fl.n = 0;
+      if (fl.n >= 30) return send(res, 429, { error: 'Too many attempts' });
+      const hh = th(pubm[1]), x = db.statusLinks.find(l => same(l.hash, hh));
+      if (!x) { fl.n++; fl.t = Date.now(); failsPub[ip] = fl; return send(res, 404, { error: 'This link is not valid' }); }
+      const c = pubCache[hh]; if (c && Date.now() - c.t < 3000) return send(res, 200, c.d);
+      const out = { name: x.name, at: Date.now() }, qs = db.services.filter(s => s.type === 'qbittorrent');
+      if (x.scopes.apps) out.apps = db.services.map(s => ({ name: s.name, type: s.type, ok: health[s.id] ? health[s.id].ok : null }));
+      if (x.scopes.traffic || x.scopes.downloads) for (const q of qs.slice(0, 1)) { try {
+        const [ti, l] = await Promise.all([qb(q, '/api/v2/transfer/info'), x.scopes.downloads ? qb(q, '/api/v2/torrents/info') : Promise.resolve([])]);
+        if (x.scopes.traffic) out.traffic = { dl: ti.dl_info_speed || 0, ul: ti.up_info_speed || 0 };
+        if (x.scopes.downloads) out.downloads = l.filter(y => y.progress < 1).slice(0, 10).map(y => ({ name: y.name, progress: y.progress, state: y.state }));
+      } catch {} }
+      if (x.scopes.upcoming) { out.upcoming = []; const today = new Date().toISOString().slice(0, 10), end = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+        for (const s of db.services.filter(y => y.type === 'sonarr' || y.type === 'radarr')) { try {
+          const cal = await ext(s, `/api/v3/calendar?start=${today}&end=${end}${s.type === 'sonarr' ? '&includeSeries=true' : ''}`);
+          for (const e of cal) out.upcoming.push({ title: s.type === 'sonarr' ? (e.series || {}).title : e.title, sub: s.type === 'sonarr' ? `S${String(e.seasonNumber).padStart(2, '0')}E${String(e.episodeNumber).padStart(2, '0')}` : 'Movie', date: e.airDateUtc || e.digitalRelease || e.physicalRelease || e.inCinemas });
+        } catch {} }
+        out.upcoming.sort((a, b) => String(a.date).localeCompare(String(b.date))); out.upcoming = out.upcoming.slice(0, 12); }
+      pubCache[hh] = { t: Date.now(), d: out }; x.used = (x.used || 0) + 1; x.lastUsed = Date.now();
+      return send(res, 200, out);
     }
     if (p === '/api/logout') { sessions.delete(th(token)); saveSess(); return send(res, 200, {}, { 'Set-Cookie': 'sid=; Path=/; Max-Age=0' }); }
     if (!me) return send(res, 401, { error: 'Sign in first' });
+    if (DEMO && m !== 'GET' && /^\/api\/(users|password|2fa|backups?|restore|alerts|statuslinks|services|weekly|throttle|me\/notify)/.test(p)) return send(res, 403, { error: 'This is turned off in the demo' });
 
+    if (p === '/api/2fa/start' && m === 'POST') {
+      if (me.totp && me.totp.on) return send(res, 400, { error: 'Two-step sign-in is already on' });
+      const secret = totp.newSecret(); pending2fa.set(me.id, { secret, exp: Date.now() + 600000 });
+      return send(res, 200, { secret, uri: totp.uri(secret, me.name) });
+    }
+    if (p === '/api/2fa/enable' && m === 'POST') {
+      const b = await readBody(req), pe = pending2fa.get(me.id);
+      if (!pe || pe.exp < Date.now()) return send(res, 400, { error: 'Please start again' });
+      const step = totp.verify(pe.secret, b.code); if (!step) return send(res, 400, { error: 'That code is not right. Check the time on your phone and try again.' });
+      const codes = totp.recoveryCodes(); me.totp = { on: true, secret: pe.secret, last: step, recovery: codes.map(c => th(c)) }; pending2fa.delete(me.id);
+      save(); audit(me.name, 'Turned on two-step sign-in', ''); return send(res, 200, { recovery: codes });
+    }
+    if (p === '/api/2fa/disable' && m === 'POST') {
+      const b = await readBody(req);
+      if (!me.totp || !me.totp.on) return send(res, 400, { error: 'Two-step sign-in is not on' });
+      if (hash(b.password || '', me.salt) !== me.hash) return send(res, 400, { error: 'Your password is wrong' });
+      const code = String(b.code || '').trim(), ok = totp.verify(me.totp.secret, code, Date.now(), 0) || (me.totp.recovery || []).includes(th(code.toLowerCase()));
+      if (!ok) return send(res, 400, { error: 'That code is not right' });
+      me.totp = undefined; save(); audit(me.name, 'Turned off two-step sign-in', ''); return send(res, 200, {});
+    }
     if (p === '/api/password' && m === 'POST') {
       const b = await readBody(req);
       if (hash(b.old || '', me.salt) !== me.hash) return send(res, 400, { error: 'Your current password is wrong' });
@@ -344,12 +492,15 @@ http.createServer(async (req, res) => {
     const adminOnly = () => me.role === 'admin' ? false : (send(res, 403, { error: 'Admins only' }), true);
     if ((r = p.match(/^\/api\/qb\/(\w+)\/list$/))) {
       const s = svcOf(r[1], 'qbittorrent'); if (!s) return send(res, 404, { error: 'Not found' });
+      const hit = qbListCache[s.id]; if (hit && Date.now() - hit.t < 1500) return send(res, 200, hit.d);
       const [t, ti, alt] = await Promise.all([qb(s, '/api/v2/torrents/info'), qb(s, '/api/v2/transfer/info'), qb(s, '/api/v2/transfer/speedLimitsMode').catch(() => 0)]);
-      return send(res, 200, { dl: ti.dl_info_speed || 0, ul: ti.up_info_speed || 0, alt: +alt === 1, torrents: t.map(x => ({ hash: x.hash, name: x.name, state: x.state, progress: x.progress,
+      const out = { dl: ti.dl_info_speed || 0, ul: ti.up_info_speed || 0, alt: +alt === 1, torrents: t.map(x => ({ hash: x.hash, name: x.name, state: x.state, progress: x.progress,
         dlspeed: x.dlspeed, upspeed: x.upspeed, size: x.size, added: x.added_on, eta: x.eta, ratio: x.ratio, seeds: x.num_seeds, peers: x.num_leechs, category: x.category || '',
-        tags: x.tags || '', path: x.save_path, prio: x.priority })) });
+        tags: x.tags || '', path: x.save_path, prio: x.priority })) };
+      qbListCache[s.id] = { t: Date.now(), d: out }; return send(res, 200, out);
     }
     if ((r = p.match(/^\/api\/qb\/(\w+)\/act$/)) && m === 'POST') {
+      delete qbListCache[r[1]];
       const b = await readBody(req), s = svcOf(r[1], 'qbittorrent'), act = b.action;
       if (deny(act === 'delete' ? 'remove' : 'control', act === 'delete' ? 'remove downloads' : 'control downloads')) return;
       const hashes = b.hashes === 'all' ? 'all' : hs(b.hashes || b.hash);
@@ -543,17 +694,49 @@ http.createServer(async (req, res) => {
         poster: x.posterPath ? 'https://image.tmdb.org/t/p/w342' + x.posterPath : '', status: (x.mediaInfo || {}).status || 0 })));
     }
     const seerrAdd = (s, x) => call(s, '/api/v1/request', { method: 'POST',
-      body: JSON.stringify({ mediaType: x.mediaType, mediaId: +x.mediaId, ...(x.mediaType === 'tv' ? { seasons: 'all' } : {}) }) });
+      body: JSON.stringify({ mediaType: x.mediaType, mediaId: +x.mediaId, ...(x.mediaType === 'tv' ? { seasons: x.seasons && x.seasons.length ? x.seasons : 'all' } : {}) }) });
+    const researchRequest = async x => {
+      const kind = x.mediaType === 'movie' ? 'radarr' : 'sonarr';
+      for (const sv of db.services.filter(y => y.type === kind)) try {
+        const cmd = b => ext(sv, '/api/v3/command', { method: 'POST', body: JSON.stringify(b) });
+        if (kind === 'radarr') { const l = await ext(sv, '/api/v3/movie?tmdbId=' + encodeURIComponent(x.mediaId)); if (Array.isArray(l) && l[0]) { await cmd({ name: 'MoviesSearch', movieIds: [l[0].id] }); return 'Searching again in ' + sv.name; } }
+        else { const l = await ext(sv, '/api/v3/series'), sr = (Array.isArray(l) ? l : []).find(y => y.tmdbId && y.tmdbId === +x.mediaId) || (Array.isArray(l) ? l : []).find(y => String(y.title).toLowerCase() === String(x.title).toLowerCase());
+          if (sr) { await cmd({ name: 'SeriesSearch', seriesId: sr.id }); return 'Searching again in ' + sv.name; } }
+      } catch {}
+      return '';
+    };
     if (p === '/api/requests' && m === 'POST') {
       if (deny('request', 'make requests')) return;
       const b = await readBody(req), s = svcOf(b.sid, 'seerr');
       if (!s || !+b.mediaId || !['movie', 'tv'].includes(b.mediaType)) return send(res, 400, { error: 'Bad request' });
+      const lim = me.reqLimit;
+      if (me.role !== 'admin' && lim && lim.n > 0) {
+        const used = db.requests.filter(r => r.uid === me.id && r.status !== 'declined' && r.at > Date.now() - lim.days * DAY).length;
+        if (used >= lim.n) return send(res, 429, { error: `You have used your ${lim.n} request${lim.n === 1 ? '' : 's'} for the last ${lim.days} day${lim.days === 1 ? '' : 's'}. Ask an admin if you need more.` });
+      }
+      const seasons = b.mediaType === 'tv' && Array.isArray(b.seasons) ? [...new Set(b.seasons.map(Number).filter(n => Number.isInteger(n) && n >= 0 && n <= 200))].slice(0, 100) : [];
       const x = { id: uid(), sid: s.id, uid: me.id, user: me.name, mediaType: b.mediaType, mediaId: +b.mediaId, title: String(b.title || '').slice(0, 200),
-        year: String(b.year || '').slice(0, 4), poster: String(b.poster || '').slice(0, 300), status: 'pending', at: Date.now() };
-      if (me.role === 'admin') { const sr = await seerrAdd(s, x); x.seerrId = sr && sr.id; x.status = 'approved'; x.stage = 'approved'; }
-      else notify('New request', `${me.name} requested ${x.title}`).catch(() => {});
-      db.requests.push(x); save(); audit(me.name, 'Requested', x.title); return send(res, 200, x);
+        year: String(b.year || '').slice(0, 4), poster: String(b.poster || '').slice(0, 300), status: 'pending', at: Date.now(), ...(seasons.length ? { seasons } : {}) };
+      if (me.role === 'admin' || me.autoApprove) { const sr = await seerrAdd(s, x); x.seerrId = sr && sr.id; x.status = 'approved'; x.stage = 'approved'; }
+      else if (db.alerts && db.alerts.requests) notify('New request', `${me.name} requested ${x.title}`).catch(() => {});
+      db.requests.push(x); save(); audit(me.name, me.role !== 'admin' && me.autoApprove ? 'Requested (auto-approved)' : 'Requested', x.title); return send(res, 200, x);
     }
+    if (p === '/api/seerr/tv' && m === 'GET') {
+      const q = new URL(req.url, 'http://x').searchParams, sv = svcOf(q.get('sid'), 'seerr'); if (!sv || !+q.get('id')) return send(res, 404, { error: 'Not found' });
+      const d = await call(sv, '/api/v1/tv/' + +q.get('id'));
+      return send(res, 200, { seasons: ((d && d.seasons) || []).filter(x => x.seasonNumber > 0).map(x => ({ n: x.seasonNumber, episodes: x.episodeCount || 0 })) });
+    }
+    if ((r = p.match(/^\/api\/requests\/(\w+)\/report$/)) && m === 'POST') {
+      const x = db.requests.find(y => y.id === r[1]); if (!x || (me.role !== 'admin' && x.uid !== me.id)) return send(res, 404, { error: 'Not found' });
+      const b = await readBody(req), text = String(b.text || '').trim().slice(0, 500); if (!text) return send(res, 400, { error: 'Please say what is wrong' });
+      if (db.reports.some(y => y.rid === x.id && y.uid === me.id && y.status === 'open')) return send(res, 400, { error: 'You already reported this. An admin will take a look.' });
+      let result = ''; if (x.status === 'approved' && Date.now() - (x.researched || 0) > 600000) { result = await researchRequest(x); if (result) x.researched = Date.now(); }
+      const rp = { id: uid(), rid: x.id, uid: me.id, user: me.name, title: x.title, text, at: Date.now(), status: 'open', result };
+      db.reports.push(rp); if (db.reports.length > 300) db.reports.splice(0, db.reports.length - 300); save(); audit(me.name, 'Reported a problem', x.title);
+      if ((db.alerts || {}).reports !== false) notify('Problem report', `${me.name} reported a problem with ${x.title}: ${text}${result ? ' (' + result + ')' : ''}`).catch(() => {});
+      return send(res, 200, { ok: true, result });
+    }
+    if (p === '/api/reports' && m === 'GET') return send(res, 200, db.reports.filter(x => me.role === 'admin' || x.uid === me.id).slice(-100).reverse());
     if (p === '/api/requests' && m === 'GET') {
       if (Date.now() - mon.reqT > 60000) { mon.reqT = Date.now(); await refreshRequests().catch(() => {}); }
       return send(res, 200, db.requests.filter(x => me.role === 'admin' || x.uid === me.id).slice(-100).reverse().map(x => ({ ...x, stage: x.stage || x.status })));
@@ -794,7 +977,156 @@ http.createServer(async (req, res) => {
       }));
       return send(res, 200, { calendar: cal.sort((a, b) => a.date.localeCompare(b.date)), queue, errors });
     }
+    const mbSvc = id => { const sv = db.services.find(x => x.id === id); return sv && allowed(sv) && ['lidarr', 'readarr'].includes(sv.type) ? sv : null; };
+    const MB = { lidarr: { ent: 'artist', name: 'artistName', cmd: 'ArtistSearch', key: 'artistId', add: { monitor: 'all', searchForMissingAlbums: true } }, readarr: { ent: 'author', name: 'authorName', cmd: 'AuthorSearch', key: 'authorId', add: { monitor: 'all', searchForMissingBooks: true } } };
+    const mbPoster = x => ((x.images || []).find(i => i.coverType === 'poster') || (x.images || [])[0] || {}).remoteUrl || '';
+    if ((r = p.match(/^\/api\/media\/(\w+)\/library$/)) && m === 'GET') {
+      const sv = mbSvc(r[1]); if (!sv) return send(res, 404, { error: 'Not found' }); const c = MB[sv.type];
+      const [d, miss] = await Promise.all([call(sv, `/api/v1/${c.ent}`, { signal: AbortSignal.timeout(60000) }), call(sv, '/api/v1/wanted/missing?pageSize=1').catch(() => ({}))]);
+      return send(res, 200, { missing: (miss && miss.totalRecords) || 0, items: (Array.isArray(d) ? d : []).map(x => { const t = x.statistics || {}, lidarr = sv.type === 'lidarr';
+        return { id: x.id, title: x[c.name], overview: (x.overview || '').slice(0, 400), poster: mbPoster(x), monitored: !!x.monitored, genres: (x.genres || []).slice(0, 4), added: x.added || '',
+          size: t.sizeOnDisk || 0, have: lidarr ? t.trackFileCount || 0 : t.bookFileCount || 0, total: lidarr ? t.trackCount || 0 : t.totalBookCount || t.bookCount || 0, count: lidarr ? t.albumCount || 0 : t.bookCount || 0 }; }) });
+    }
+    if ((r = p.match(/^\/api\/media\/(\w+)\/search$/)) && m === 'GET') {
+      const sv = mbSvc(r[1]); if (!sv) return send(res, 404, { error: 'Not found' }); const c = MB[sv.type], term = new URL(req.url, 'http://x').searchParams.get('term') || '';
+      const [found, folders, profiles, meta] = await Promise.all([call(sv, `/api/v1/${c.ent}/lookup?term=` + encodeURIComponent(term)), call(sv, '/api/v1/rootfolder'), call(sv, '/api/v1/qualityprofile'), call(sv, '/api/v1/metadataprofile').catch(() => [])]);
+      return send(res, 200, { results: (Array.isArray(found) ? found : []).slice(0, 12).map(x => ({ title: x[c.name], overview: (x.overview || '').slice(0, 300), poster: mbPoster(x), added: !!x.id, raw: x })),
+        folders: folders.map(x => ({ path: x.path })), profiles: profiles.map(x => ({ id: x.id, name: x.name })), meta: (Array.isArray(meta) ? meta : []).map(x => ({ id: x.id, name: x.name })) });
+    }
+    if ((r = p.match(/^\/api\/media\/(\w+)\/add$/)) && m === 'POST') {
+      if (deny('add', 'add music or books')) return;
+      const sv = mbSvc(r[1]), b = await readBody(req); if (!sv || !b.item) return send(res, 404, { error: 'Not found' }); const c = MB[sv.type];
+      await call(sv, `/api/v1/${c.ent}`, { method: 'POST', body: JSON.stringify({ ...b.item, rootFolderPath: b.rootFolderPath, qualityProfileId: +b.qualityProfileId, metadataProfileId: +b.metadataProfileId || 1, monitored: true, addOptions: c.add }) });
+      audit(me.name, 'Added', (b.item[c.name] || '') + ' to ' + sv.name); return send(res, 200, {});
+    }
+    if ((r = p.match(/^\/api\/media\/(\w+)\/(monitor|find)$/)) && m === 'POST') {
+      if (deny('add', 'change this library')) return;
+      const sv = mbSvc(r[1]), b = await readBody(req), id = +b.id; if (!sv || !(id > 0)) return send(res, 400, { error: 'Bad request' }); const c = MB[sv.type];
+      if (r[2] === 'find') await call(sv, '/api/v1/command', { method: 'POST', body: JSON.stringify({ name: c.cmd, [c.key]: id }) });
+      else { const it = await call(sv, `/api/v1/${c.ent}/${id}`); it.monitored = !!b.monitored; await call(sv, `/api/v1/${c.ent}/${id}`, { method: 'PUT', body: JSON.stringify(it) }); }
+      return send(res, 200, {});
+    }
+    const bzSvc = id => svcOf(id, 'bazarr');
+    if ((r = p.match(/^\/api\/bazarr\/(\w+)\/wanted$/)) && m === 'GET') {
+      const sv = bzSvc(r[1]); if (!sv) return send(res, 404, { error: 'Not found' });
+      const [e, mv] = await Promise.all([bz(sv, '/api/episodes/wanted?start=0&length=100').catch(x => ({ error: x.message })), bz(sv, '/api/movies/wanted?start=0&length=100').catch(x => ({ error: x.message }))]);
+      if (e.error && mv.error) throw new Error(e.error);
+      const miss = a => (a || []).map(l => ({ code: l.code2, name: l.name, forced: !!l.forced, hi: !!l.hi }));
+      return send(res, 200, { episodes: ((e && e.data) || []).map(x => ({ id: x.sonarrEpisodeId, seriesId: x.sonarrSeriesId, title: x.seriesTitle, ep: x.episode_number, name: x.episodeTitle, missing: miss(x.missing_subtitles) })),
+        movies: ((mv && mv.data) || []).map(x => ({ id: x.radarrId, title: x.title, missing: miss(x.missing_subtitles) })), total: ((e && e.total) || 0) + ((mv && mv.total) || 0) });
+    }
+    if ((r = p.match(/^\/api\/bazarr\/(\w+)\/search$/)) && m === 'POST') {
+      if (deny('control', 'search for subtitles')) return;
+      const sv = bzSvc(r[1]), b = await readBody(req); if (!sv || !(+b.id > 0) || !['episode', 'movie'].includes(b.kind)) return send(res, 400, { error: 'Bad request' });
+      const langs = (Array.isArray(b.langs) ? b.langs : []).filter(l => /^[a-z]{2,3}$/i.test(l.code)).slice(0, 10); if (!langs.length) return send(res, 400, { error: 'No language to search for' });
+      let ok = 0, bad = '';
+      for (const l of langs) try {
+        const form = new URLSearchParams(b.kind === 'episode' ? { seriesid: String(+b.seriesId), episodeid: String(+b.id), language: l.code, forced: String(!!l.forced), hi: String(!!l.hi) } : { radarrid: String(+b.id), language: l.code, forced: String(!!l.forced), hi: String(!!l.hi) });
+        await bz(sv, b.kind === 'episode' ? '/api/episodes/subtitles' : '/api/movies/subtitles', { method: 'PATCH', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: form }); ok++;
+      } catch (e) { bad = e.message; }
+      return send(res, ok ? 200 : 502, ok ? { found: ok, of: langs.length } : { error: bad || 'No subtitle was found' });
+    }
+    if ((r = p.match(/^\/api\/sab\/(\w+)\/history$/)) && m === 'GET') {
+      const sv = svcOf(r[1], 'sabnzbd'); if (!sv) return send(res, 404, { error: 'Not found' });
+      const d = (await sab(sv, 'mode=history&limit=30')).history || {};
+      return send(res, 200, (d.slots || []).map(h => ({ id: h.nzo_id, name: h.name, size: h.size, status: h.status, error: h.fail_message || '', cat: h.category || '', at: (+h.completed || 0) * 1000 })));
+    }
+    if ((r = p.match(/^\/api\/sab\/(\w+)\/history\/act$/)) && m === 'POST') {
+      if (deny('control', 'control downloads')) return;
+      const sv = svcOf(r[1], 'sabnzbd'), b = await readBody(req); if (!sv || !/^[\w-]{3,60}$/.test(b.id || '') || !['retry', 'delete'].includes(b.op)) return send(res, 400, { error: 'Bad request' });
+      await sab(sv, b.op === 'retry' ? 'mode=retry&value=' + b.id : 'mode=history&name=delete&value=' + b.id); return send(res, 200, {});
+    }
+    if ((r = p.match(/^\/api\/sab\/(\w+)\/add$/)) && m === 'POST') {
+      if (deny('add', 'add downloads')) return;
+      const sv = svcOf(r[1], 'sabnzbd'), b = await readBody(req); if (!sv) return send(res, 404, { error: 'Not found' });
+      const base = sv.url.replace(/\/+$/, '') + '/api?output=json&apikey=' + encodeURIComponent(sv.apiKey) + (b.category ? '&cat=' + encodeURIComponent(cut(b.category, 60)) : '');
+      let x;
+      if (b.url) { if (!/^https?:\/\//i.test(b.url)) return send(res, 400, { error: 'Enter a web address starting with http' }); x = await fetch(base + '&mode=addurl&name=' + encodeURIComponent(b.url), { signal: AbortSignal.timeout(20000) }); }
+      else if (b.nzb) {
+        const buf = Buffer.from(String(b.nzb), 'base64'); if (!buf.length || buf.length > 8e6) return send(res, 400, { error: 'That file is empty or too large' });
+        const fd = new FormData(); fd.append('name', new Blob([buf], { type: 'application/x-nzb' }), cut(String(b.name || 'upload.nzb').replace(/[^\w.\- ]/g, '_'), 120));
+        x = await fetch(base + '&mode=addfile', { method: 'POST', body: fd, signal: AbortSignal.timeout(30000) });
+      } else return send(res, 400, { error: 'Choose an NZB file or enter an address' });
+      const d = await x.json().catch(() => ({})); if (!x.ok || d.status === false) throw new Error(d.error || 'SABnzbd refused it');
+      audit(me.name, 'Added an NZB', b.name || b.url || ''); return send(res, 200, {});
+    }
+    const presetSeries = async (sv, id, preset) => {
+      const sr = await call(sv, `/api/v3/series/${id}`), eps = await call(sv, `/api/v3/episode?seriesId=${id}`), now = Date.now();
+      const last = Math.max(0, ...(sr.seasons || []).map(z => z.seasonNumber).filter(n => n > 0));
+      const want = e => preset === 'all' ? e.seasonNumber > 0 : preset === 'latest' ? e.seasonNumber === last : preset === 'future' ? Date.parse(e.airDateUtc || e.airDate || '') > now : false;
+      const on = new Set(eps.filter(want).map(e => e.id));
+      (sr.seasons || []).forEach(z => { z.monitored = eps.some(e => e.seasonNumber === z.seasonNumber && on.has(e.id)); });
+      sr.monitored = preset !== 'none';
+      await call(sv, `/api/v3/series/${id}`, { method: 'PUT', body: JSON.stringify(sr) });
+      const yes = eps.filter(e => on.has(e.id)).map(e => e.id), no = eps.filter(e => !on.has(e.id)).map(e => e.id);
+      if (yes.length) await call(sv, '/api/v3/episode/monitor', { method: 'PUT', body: JSON.stringify({ episodeIds: yes, monitored: true }) });
+      if (no.length) await call(sv, '/api/v3/episode/monitor', { method: 'PUT', body: JSON.stringify({ episodeIds: no, monitored: false }) });
+    };
+    if (p === '/api/profiles' && m === 'GET') {
+      const sv = arr(db.services.find(x => x.id === new URL(req.url, 'http://x').searchParams.get('sid'))); if (!sv) return send(res, 404, { error: 'Not found' });
+      return send(res, 200, (await call(sv, '/api/v3/qualityprofile')).map(x => ({ id: x.id, name: x.name })));
+    }
+    if (p === '/api/bulk' && m === 'POST') {
+      const b = await readBody(req), sv = arr(db.services.find(x => x.id === b.sid)), op = b.action, tv = sv && sv.type === 'sonarr';
+      const ids = [...new Set((Array.isArray(b.ids) ? b.ids : []).map(Number).filter(n => Number.isInteger(n) && n > 0))].slice(0, 300);
+      if (!sv || !ids.length || !['monitor', 'unmonitor', 'profile', 'search', 'remove', 'preset'].includes(op)) return send(res, 400, { error: 'Bad request' });
+      const key = tv ? 'seriesIds' : 'movieIds', edit = '/api/v3/' + (tv ? 'series' : 'movie') + '/editor', put = (o, method = 'PUT') => call(sv, edit, { method, body: JSON.stringify(o) });
+      if (op === 'remove') { if (adminOnly()) return; await put({ [key]: ids, deleteFiles: !!b.deleteFiles, addImportExclusion: false }, 'DELETE'); }
+      else {
+        if (deny('add', 'change the library')) return;
+        if (op === 'monitor' || op === 'unmonitor') await put({ [key]: ids, monitored: op === 'monitor' });
+        else if (op === 'profile') { if (!(+b.qualityProfileId > 0)) return send(res, 400, { error: 'Pick a quality profile' }); await put({ [key]: ids, qualityProfileId: +b.qualityProfileId }); }
+        else if (op === 'search') { if (tv) for (const id of ids.slice(0, 50)) await call(sv, '/api/v3/command', { method: 'POST', body: JSON.stringify({ name: 'SeriesSearch', seriesId: id }) });
+          else await call(sv, '/api/v3/command', { method: 'POST', body: JSON.stringify({ name: 'MoviesSearch', movieIds: ids }) }); }
+        else if (op === 'preset') { if (!tv || !['all', 'latest', 'future', 'none'].includes(b.preset)) return send(res, 400, { error: 'Bad request' }); for (const id of ids.slice(0, 100)) await presetSeries(sv, id, b.preset); }
+      }
+      audit(me.name, 'Bulk change', `${sv.name}: ${op}${op === 'preset' ? ' ' + b.preset : ''} on ${ids.length}`); return send(res, 200, { n: ids.length });
+    }
     if (me.role !== 'admin') return send(res, 403, { error: 'Admins only' });
+    if (p === '/api/throttle' && m === 'GET') { const t = db.settings.throttle || {}; return send(res, 200, { on: !!t.on, active: Object.keys(t.held || {}).length > 0 }); }
+    if (p === '/api/throttle' && m === 'PUT') { const b = await readBody(req); db.settings.throttle = { ...(db.settings.throttle || {}), on: !!b.on }; save(); audit(me.name, b.on ? 'Turned on slowing downloads during streams' : 'Turned off slowing downloads during streams', ''); return send(res, 200, {}); }
+    if (p === '/api/weekly' && m === 'GET') { const w = db.settings.weekly || {}; return send(res, 200, { on: !!w.on, day: w.day ?? 0, hour: w.hour ?? 9, last: w.last || 0 }); }
+    if (p === '/api/weekly' && m === 'PUT') {
+      const b = await readBody(req), o = db.settings.weekly || {}; db.settings.weekly = { on: !!b.on, day: Math.min(6, Math.max(0, Math.round(+b.day) || 0)), hour: Math.min(23, Math.max(0, Math.round(+b.hour) || 0)), last: o.on || !b.on ? o.last : Date.now() };
+      save(); audit(me.name, 'Changed the weekly summary', b.on ? 'on' : 'off'); return send(res, 200, {});
+    }
+    if (p === '/api/weekly/send' && m === 'POST') { if (!((db.alerts || {}).channels || []).length) return send(res, 400, { error: 'Add an alert channel first' }); await notify('MediaHub weekly summary', await weeklyText()); return send(res, 200, {}); }
+    if (p === '/api/weekly/preview' && m === 'GET') return send(res, 200, { text: await weeklyText() });
+    if ((r = p.match(/^\/api\/reports\/(\w+)\/resolve$/)) && m === 'POST') {
+      const x = db.reports.find(y => y.id === r[1]); if (!x) return send(res, 404, { error: 'Not found' }); x.status = 'done'; save(); return send(res, 200, {});
+    }
+    if (p === '/api/libhealth' && m === 'GET') {
+      const out = await Promise.all(db.services.filter(x => ['sonarr', 'radarr', 'lidarr', 'readarr', 'prowlarr'].includes(x.type)).map(async sv => {
+        const v = ['sonarr', 'radarr'].includes(sv.type) ? 'v3' : 'v1', o = { id: sv.id, name: sv.name, type: sv.type, issues: [], disks: [], queue: [], missing: null };
+        try {
+          const [h, d, q, w] = await Promise.all([ext(sv, `/api/${v}/health`), v === 'v3' ? ext(sv, '/api/v3/diskspace').catch(() => []) : [], v === 'v3' ? ext(sv, '/api/v3/queue?page=1&pageSize=50').catch(() => null) : null,
+            sv.type === 'prowlarr' ? null : ext(sv, `/api/${v}/wanted/missing?pageSize=1`).catch(() => null)]);
+          o.issues = (Array.isArray(h) ? h : []).map(x => ({ level: x.type === 'error' ? 'bad' : 'warn', text: x.message || x.source }));
+          o.disks = (Array.isArray(d) ? d : []).filter(x => x.totalSpace > 0).map(x => ({ path: x.path, free: x.freeSpace, total: x.totalSpace }));
+          o.queue = ((q && q.records) || []).filter(x => ['warning', 'error'].includes(x.trackedDownloadStatus) || x.status === 'warning').slice(0, 10).map(x => ({ title: x.title, message: ((x.statusMessages || [])[0] || {}).messages ? x.statusMessages[0].messages[0] : x.errorMessage || 'Needs attention' }));
+          o.missing = w && w.totalRecords != null ? w.totalRecords : null; o.ok = true;
+        } catch (e) { o.ok = false; o.error = e.message; }
+        return o;
+      }));
+      return send(res, 200, out);
+    }
+    if ((r = p.match(/^\/api\/prowlarr\/(\w+)\/indexers$/)) && m === 'GET') {
+      const sv = svcOf(r[1], 'prowlarr'); if (!sv) return send(res, 404, { error: 'Not found' });
+      const [ix, stt, h] = await Promise.all([ext(sv, '/api/v1/indexer'), ext(sv, '/api/v1/indexerstatus').catch(() => []), ext(sv, '/api/v1/health').catch(() => [])]), bad = {}; (Array.isArray(stt) ? stt : []).forEach(x => { bad[x.indexerId] = x; });
+      return send(res, 200, { health: (Array.isArray(h) ? h : []).map(x => x.message), indexers: ix.map(x => { const b = bad[x.id], blocked = b && b.disabledTill && Date.parse(b.disabledTill) > Date.now();
+        return { id: x.id, name: x.name, protocol: x.protocol, enabled: !!x.enable, priority: x.priority, status: !x.enable ? 'disabled' : blocked ? 'failing' : 'ok', until: blocked ? b.disabledTill : '' }; }) });
+    }
+    if ((r = p.match(/^\/api\/prowlarr\/(\w+)\/indexers\/(\d+|all)\/test$/)) && m === 'POST') {
+      const sv = svcOf(r[1], 'prowlarr'); if (!sv) return send(res, 404, { error: 'Not found' });
+      if (r[2] === 'all') { const l = await ext(sv, '/api/v1/indexer/testall', { method: 'POST', signal: AbortSignal.timeout(120000) }); return send(res, 200, (Array.isArray(l) ? l : []).map(x => ({ id: x.id, ok: !!x.isValid, error: ((x.validationFailures || [])[0] || {}).errorMessage || '' }))); }
+      const ix = await ext(sv, '/api/v1/indexer/' + r[2]);
+      try { await ext(sv, '/api/v1/indexer/test', { method: 'POST', body: JSON.stringify(ix), signal: AbortSignal.timeout(60000) }); return send(res, 200, { ok: true }); }
+      catch (e) { return send(res, 200, { ok: false, error: e.message }); }
+    }
+    if ((r = p.match(/^\/api\/media\/(\w+)\/(\d+)$/)) && m === 'DELETE') {
+      const sv = mbSvc(r[1]); if (!sv) return send(res, 404, { error: 'Not found' }); const c = MB[sv.type];
+      await call(sv, `/api/v1/${c.ent}/${r[2]}?deleteFiles=${new URL(req.url, 'http://x').searchParams.get('files') === '1'}`, { method: 'DELETE' }); audit(me.name, 'Removed from library', sv.name + ' item ' + r[2]); return send(res, 200, {});
+    }
     if ((r = p.match(/^\/api\/unraid\/(\w+)\/docker$/)) && m === 'POST') {
       const b = await readBody(req), s = svcOf(r[1], 'unraid');
       if (!s || !/^[\w:.\-]+$/.test(b.id || '') || !['start', 'stop', 'restart'].includes(b.action)) return send(res, 400, { error: 'Bad request' });
@@ -834,17 +1166,68 @@ http.createServer(async (req, res) => {
       mon.reqT = 0;
       return send(res, 200, x);
     }
-    if (p === '/api/alerts' && m === 'GET') { const a = db.alerts || {}; return send(res, 200, { ...a, token: undefined, hasToken: !!a.token }); }
+    if (p === '/api/alerts' && m === 'GET') {
+      const a = db.alerts || {}, pub = c => ({ id: c.id, type: c.type, where: c.target ? (() => { try { return new URL(c.target).origin + '/…'; } catch { return '…'; } })() : '', chat: c.type === 'telegram' || c.type === 'pushover' ? c.chat : '',
+        host: c.host || '', port: c.port || '', secure: c.secure || '', user: c.user || '', from: c.from || '', to: c.to || '', hasSecret: !!(c.token || c.pass) });
+      return send(res, 200, { finished: !!a.finished, offline: !!a.offline, disk: !!a.disk, vpn: !!a.vpn, requests: !!a.requests, reports: a.reports !== false, diskPct: a.diskPct || 90, channels: (a.channels || []).map(pub) });
+    }
     if (p === '/api/alerts' && m === 'PUT') {
-      const b = await readBody(req), o = db.alerts || {};
-      db.alerts = { type: ['ntfy', 'telegram', 'discord'].includes(b.type) ? b.type : 'ntfy', target: String(b.target || '').trim(), token: b.token || o.token || '',
-        chat: String(b.chat || '').trim(), finished: !!b.finished, offline: !!b.offline, disk: !!b.disk, vpn: !!b.vpn, requests: !!b.requests,
-        diskPct: Math.min(99, Math.max(50, +b.diskPct || 90)) };
-      save(); audit(me.name, 'Changed alert settings', db.alerts.type); return send(res, 200, {});
+      const b = await readBody(req), o = db.alerts || { channels: [] };
+      db.alerts = { ...o, finished: !!b.finished, offline: !!b.offline, disk: !!b.disk, vpn: !!b.vpn, requests: !!b.requests, reports: b.reports !== false, diskPct: Math.min(99, Math.max(50, +b.diskPct || 90)) };
+      save(); audit(me.name, 'Changed alert settings', ''); return send(res, 200, {});
+    }
+    const chanFields = (b, o = {}) => { const g = k => b[k] != null && String(b[k]).trim() !== '' ? String(b[k]).trim().slice(0, 500) : o[k];
+      return { id: o.id || uid(), type: b.type || o.type, target: g('target'), token: g('token'), chat: g('chat'), host: g('host'), port: g('port'), secure: ['ssl', 'starttls', 'none'].includes(b.secure) ? b.secure : o.secure || 'starttls', user: g('user'), pass: g('pass'), from: g('from'), to: g('to') }; };
+    if (p === '/api/alerts/channels' && m === 'POST') {
+      const c = chanFields(await readBody(req)), why = channels.problem(c); if (why) return send(res, 400, { error: why });
+      db.alerts = db.alerts || {}; (db.alerts.channels = db.alerts.channels || []).push(c); save(); audit(me.name, 'Added an alert channel', c.type); return send(res, 200, { id: c.id });
+    }
+    if ((r = p.match(/^\/api\/alerts\/channels\/(\w+)$/)) && (m === 'PUT' || m === 'DELETE')) {
+      const list = (db.alerts || {}).channels || [], i = list.findIndex(c => c.id === r[1]); if (i < 0) return send(res, 404, { error: 'Not found' });
+      if (m === 'DELETE') { list.splice(i, 1); save(); audit(me.name, 'Removed an alert channel', ''); return send(res, 200, {}); }
+      const c = chanFields(await readBody(req), list[i]), why = channels.problem(c); if (why) return send(res, 400, { error: why });
+      list[i] = c; save(); audit(me.name, 'Edited an alert channel', c.type); return send(res, 200, {});
     }
     if (p === '/api/alerts/test' && m === 'POST') {
-      if (!(await notify('MediaHub test', 'Alerts are working.'))) return send(res, 400, { error: 'Save your settings first' });
-      return send(res, 200, {});
+      const b = await readBody(req), list = ((db.alerts || {}).channels || []).filter(c => !b.id || c.id === b.id);
+      if (!list.length) return send(res, 400, { error: 'Add a channel first' });
+      const results = await Promise.all(list.map(async c => { try { await channels.send(c, 'MediaHub test', 'Alerts are working.'); return { id: c.id, ok: true }; } catch (e) { return { id: c.id, ok: false, error: String(e.message).slice(0, 200) }; } }));
+      return send(res, 200, { results });
+    }
+    if (p === '/api/statuslinks' && m === 'GET') return send(res, 200, db.statusLinks.map(x => ({ id: x.id, name: x.name, scopes: x.scopes, at: x.at, used: x.used || 0, lastUsed: x.lastUsed || 0 })));
+    if (p === '/api/statuslinks' && m === 'POST') {
+      const b = await readBody(req), token = crypto.randomBytes(24).toString('base64url');
+      const x = { id: uid(), name: cut(b.name, 60).trim() || 'Status page', hash: th(token), at: Date.now(), used: 0, scopes: { apps: b.apps !== false, traffic: !!b.traffic, downloads: !!b.downloads, upcoming: !!b.upcoming } };
+      db.statusLinks.push(x); save(); audit(me.name, 'Created a status link', x.name); return send(res, 200, { id: x.id, token });
+    }
+    if ((r = p.match(/^\/api\/statuslinks\/(\w+)$/)) && m === 'DELETE') {
+      const x = db.statusLinks.find(l => l.id === r[1]); if (!x) return send(res, 404, { error: 'Not found' });
+      db.statusLinks = db.statusLinks.filter(l => l !== x); delete pubCache[x.hash]; save(); audit(me.name, 'Removed a status link', x.name); return send(res, 200, {});
+    }
+    if ((r = p.match(/^\/api\/users\/(\w+)\/2fa\/reset$/)) && m === 'POST') {
+      const u = userOf(r[1]); if (!u) return send(res, 404, { error: 'Not found' });
+      u.totp = undefined; save(); audit(me.name, 'Turned off two-step sign-in for', u.name); return send(res, 200, {});
+    }
+    if (p === '/api/backups' && m === 'GET') {
+      const files = fs.existsSync(BK) ? fs.readdirSync(BK).filter(f => BKRE.test(f)).sort().reverse().map(f => { const st = fs.statSync(path.join(BK, f)); return { name: f, size: st.size, at: st.mtimeMs }; }) : [];
+      return send(res, 200, { cfg: { on: !!db.settings.backup?.on, keep: db.settings.backup?.keep || 7, hour: db.settings.backup?.hour ?? 3 }, files });
+    }
+    if (p === '/api/backups/config' && m === 'PUT') {
+      const b = await readBody(req); db.settings.backup = { ...(db.settings.backup || {}), on: !!b.on, keep: Math.min(60, Math.max(1, Math.round(+b.keep) || 7)), hour: Math.min(23, Math.max(0, Math.round(+b.hour) || 0)) };
+      save(); audit(me.name, 'Changed automatic backups', db.settings.backup.on ? 'on' : 'off'); return send(res, 200, {});
+    }
+    if (p === '/api/backups/run' && m === 'POST') { const f = backupNow(); audit(me.name, 'Made a backup copy', f); return send(res, 200, { name: f }); }
+    if (p === '/api/backups/restore' && m === 'POST') {
+      const b = await readBody(req); if (!BKRE.test(String(b.name || ''))) return send(res, 400, { error: 'Bad file name' });
+      let obj; try { obj = JSON.parse(fs.readFileSync(path.join(BK, b.name), 'utf8')); } catch { return send(res, 404, { error: 'That copy could not be read' }); }
+      if (!obj || !Array.isArray(obj.users) || !obj.users.some(u => u.role === 'admin') || !Array.isArray(obj.services)) return send(res, 400, { error: 'That copy looks incomplete' });
+      backupNow('pre-restore');
+      db = decryptAll(defaults(obj)); histKeys.clear(); db.history.forEach(h => histKeys.add(h.hash + ':' + Math.round(h.at / 1000)));
+      sessions.clear(); saveSess(); save(); audit('System', 'Restored a backup copy', b.name + ' (started by ' + me.name + ')'); return send(res, 200, {});
+    }
+    if ((r = p.match(/^\/api\/backups\/([\w.-]+)$/)) && m === 'DELETE') {
+      if (!BKRE.test(r[1])) return send(res, 400, { error: 'Bad file name' });
+      try { fs.unlinkSync(path.join(BK, r[1])); } catch {} return send(res, 200, {});
     }
     if ((r = p.match(/^\/api\/library\/(\w+)\/(\d+)$/)) && m === 'DELETE') {
       const s = arr(db.services.find(x => x.id === r[1])); if (!s) return send(res, 404, { error: 'Not found' });
@@ -879,6 +1262,8 @@ http.createServer(async (req, res) => {
         u.role = b.role;
       }
       if ('perms' in b) u.perms = b.perms ? Object.fromEntries(['add', 'control', 'remove', 'request'].map(k => [k, b.perms[k] !== false])) : undefined;
+      if ('reqLimit' in b) { const n = Math.round(+(b.reqLimit || {}).n), d = Math.round(+(b.reqLimit || {}).days); u.reqLimit = n > 0 ? { n: Math.min(n, 1000), days: Math.min(Math.max(d || 7, 1), 365) } : undefined; }
+      if ('autoApprove' in b) u.autoApprove = !!b.autoApprove;
       if ('notify' in b) { const v = String(b.notify || '').trim(); if (v && !/^https?:\/\//i.test(v)) return send(res, 400, { error: 'Enter a web address starting with https://' }); u.notify = v.slice(0, 500); }
       save(); audit(me.name, 'Changed a profile', u.name); return send(res, 200, pubUser(u));
     }
@@ -896,7 +1281,7 @@ http.createServer(async (req, res) => {
       catch { return send(res, 400, { error: 'Wrong passphrase, or this is not a MediaHub backup' }); }
       const n = obj && obj.db;
       if (!n || !Array.isArray(n.users) || !n.users.some(u => u.role === 'admin') || !Array.isArray(n.services)) return send(res, 400, { error: 'That backup looks incomplete' });
-      db = { requests: [], log: [], history: [], seedRules: [], alerts: null, ...n };
+      db = defaults({ alerts: null, ...n });
       histKeys.clear(); db.history.forEach(h => histKeys.add(h.hash + ':' + Math.round(h.at / 1000)));
       sessions.clear(); saveSess(); save(); audit('System', 'Restored a backup', 'started by ' + me.name);
       return send(res, 200, {});
@@ -942,8 +1327,9 @@ http.createServer(async (req, res) => {
     }
     send(res, 404, { error: 'Not found' });
   } catch (e) { console.error(req.method, p, e); send(res, 500, { error: 'Server error: ' + e.message }); }
-}).listen(process.env.PORT || 8080, () => console.log('MediaHub running'));
-setInterval(() => monitor().catch(() => {}), 30000);
+}).listen(PORT, () => console.log('MediaHub running' + (DEMO ? ' in demo mode' : '') + ' on port ' + PORT));
+const MON_MS = Math.max(500, +process.env.MONITOR_MS || 30000);
+setInterval(() => monitor().catch(() => {}), MON_MS);
 setInterval(() => { for (const k in fails) if (Date.now() - fails[k].t > 600000) delete fails[k]; }, 600000).unref();
 for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { console.log('MediaHub stopping'); process.exit(0); });
-setTimeout(() => monitor().catch(() => {}), 3000);
+setTimeout(() => monitor().catch(() => {}), Math.min(3000, MON_MS));

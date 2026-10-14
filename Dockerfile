@@ -12,17 +12,18 @@ RUN apk add --no-cache su-exec tini
 
 WORKDIR /app
 COPY package.json server.js entrypoint.sh ./
+COPY lib ./lib
 COPY public ./public
 RUN chmod +x entrypoint.sh && mkdir -p /data
 
 ENV NODE_ENV=production \
-    PORT=8080 \
+    PORT=5080 \
     DATA_DIR=/data \
     PUID=1000 \
     PGID=1000
 
 VOLUME /data
-EXPOSE 8080
+EXPOSE 5080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD wget -qO- "http://127.0.0.1:${PORT}/api/health" >/dev/null || exit 1

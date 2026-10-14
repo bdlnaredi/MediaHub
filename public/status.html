@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Status</title>
+<style>
+:root{color-scheme:dark light;--bg:#14152a;--s1:#1b1d36;--line:#30345a;--text:#ecebf6;--mute:#9a9dba;--accent:#ffb938;--ok:#3fd8c4;--bad:#ff6b81}
+@media (prefers-color-scheme:light){:root{--bg:#f5f4fb;--s1:#fff;--line:#dcd9ec;--text:#1a1830;--mute:#615f80;--accent:#b36b00;--ok:#0e8f80;--bad:#d03352}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:18px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:28px}
+h1{margin:0 0 4px;font-size:30px;letter-spacing:-.02em}.mute{color:var(--mute);font-size:15px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;margin-top:22px}
+.panel{background:var(--s1);border:1px solid var(--line);border-radius:18px;padding:20px}.panel h2{margin:0 0 12px;font-size:19px}
+.row{display:flex;align-items:center;gap:12px;padding:7px 0;border-bottom:1px solid var(--line)}.row:last-child{border:0}.grow{flex:1;min-width:0;word-break:break-word}
+.dot{width:12px;height:12px;border-radius:50%;background:var(--mute);flex:none}.dot.ok{background:var(--ok)}.dot.bad{background:var(--bad)}
+.big{font-size:38px;font-weight:700;letter-spacing:-.02em}progress{width:100%;height:8px;border:0;border-radius:99px;-webkit-appearance:none;appearance:none;background:rgba(128,128,160,.25)}
+progress::-webkit-progress-bar{background:rgba(128,128,160,.25);border-radius:99px}progress::-webkit-progress-value{background:var(--accent);border-radius:99px}progress::-moz-progress-bar{background:var(--accent);border-radius:99px}
+</style></head><body>
+<h1 id="t">Status</h1><div class="mute" id="u">Loading…</div><div class="grid" id="g"></div>
+<script>
+const tok=location.pathname.split('/')[2]||'';
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=b=>b>=1e9?(b/1e9).toFixed(1)+' GB':b>=1e6?(b/1e6).toFixed(1)+' MB':Math.round((b||0)/1e3)+' KB';
+async function load(){
+  try{const r=await fetch('/api/public/'+encodeURIComponent(tok));if(!r.ok)throw new Error(r.status===404?'This link is not valid or was turned off.':'Could not load');const d=await r.json();
+    document.title=d.name;document.getElementById('t').textContent=d.name;document.getElementById('u').textContent='Updated '+new Date(d.at).toLocaleTimeString();
+    let h='';
+    if(d.apps)h+=`<div class="panel"><h2>Apps</h2>${d.apps.map(a=>`<div class="row"><span class="dot ${a.ok===true?'ok':a.ok===false?'bad':''}"></span><span class="grow">${esc(a.name)}</span><span class="mute">${a.ok===true?'Online':a.ok===false?'Offline':'Checking'}</span></div>`).join('')}</div>`;
+    if(d.traffic)h+=`<div class="panel"><h2>Downloads</h2><div class="mute">Downloading</div><div class="big" style="color:var(--accent)">${fmt(d.traffic.dl)}/s</div><div class="mute" style="margin-top:10px">Uploading</div><div style="font-size:24px;color:var(--ok)">${fmt(d.traffic.ul)}/s</div></div>`;
+    if(d.downloads)h+=`<div class="panel"><h2>In progress</h2>${d.downloads.map(x=>`<div style="padding:7px 0"><div>${esc(x.name)}</div><progress value="${x.progress}" max="1"></progress></div>`).join('')||'<div class="mute">Nothing right now</div>'}</div>`;
+    if(d.upcoming)h+=`<div class="panel"><h2>Coming up</h2>${d.upcoming.map(x=>`<div class="row"><span class="grow">${esc(x.title)} <span class="mute">${esc(x.sub)}</span></span><span class="mute">${esc(new Date(x.date).toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'}))}</span></div>`).join('')||'<div class="mute">Nothing in the next week</div>'}</div>`;
+    document.getElementById('g').innerHTML=h;
+  }catch(e){document.getElementById('u').textContent=e.message}
+}
+load();setInterval(()=>{if(!document.hidden)load()},10000);
+</script></body></html>
