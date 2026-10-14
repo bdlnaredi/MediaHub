@@ -357,6 +357,14 @@ html[data-rail=min]{--rail:70px}
 .login .lnk{display:block;margin:6px auto 0}
 
 .tgl input[type=checkbox]{min-height:0!important;height:22px!important;width:38px!important;padding:0!important}
+.ct{display:grid;grid-template-columns:22px minmax(170px,1fr) 92px 80px 96px 120px 330px;gap:12px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line)}
+.ct.hd{padding:4px 0;font-size:12px;border-bottom:1px solid var(--line)}
+.ct .cn{display:flex;align-items:center;gap:10px;min-width:0}.ct .cn img{width:28px;height:28px;border-radius:7px;object-fit:contain;flex:none}.ct .cn>span:last-child{min-width:0}
+.ct .ci{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ct .cu{font-variant-numeric:tabular-nums;font-size:13px}
+.ct .ca{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}.ct .ca button{padding:5px 10px;font-size:13px}
+.ub{height:5px;border-radius:9px;background:var(--s2);margin-top:5px;overflow:hidden;max-width:90px}.ub i{display:block;height:100%;background:var(--accent);border-radius:9px;transition:width .6s}
+@media(max-width:860px){.ct{grid-template-columns:22px repeat(3,minmax(0,1fr));row-gap:6px}.ct.hd{display:none}.ct .cn{grid-column:2/4}.ct .cs{justify-self:end}.ct>.cu[data-l=CPU]{grid-column:2}.ct .cu{font-size:12px}.ct .cu::before{content:attr(data-l) ' ';color:var(--mute);display:block;font-size:11px}
+ .ct .cu .ub{display:none}.ct .ca{grid-column:1/-1;justify-content:flex-start}}
 </style></head><body>
 <div id="app"></div><div id="toasts" aria-live="polite"></div>
 <link rel="stylesheet" href="/statuskit.css"><link rel="stylesheet" href="/cinema.css"><script src="/statuskit.js"></script><script src="/scenes.js"></script><script src="/cinema.js"></script>
@@ -1594,45 +1602,154 @@ function idxSearch(s){
         catch(x){b.disabled=false;b.textContent='Send to qBittorrent';$('#e').textContent=x.message}})}
     catch(x){$('#r').innerHTML='';$('#e').textContent=x.message}};
 }
+let urQ='',urF='all',urSort=(()=>{try{return localStorage.getItem('mh-ur-sort')||'name'}catch{return 'name'}})();const urSel=new Set();
 function urView(){
   const s=first('unraid');if(!s)return noSvc('Unraid');
-  cpuH.length=memH.length=0;
+  const admin=me.role==='admin',api2=(p,b)=>api(`/api/unraid/${s.id}/${p}`,'POST',b);
+  cpuH.length=memH.length=0;urSel.clear();
   $('#m').innerHTML=`<div class="grid">
     <div class="box"><div class="mute">CPU</div><div id="rc" style="text-align:center"></div><div id="sc"></div></div>
     <div class="box"><div class="mute">Memory</div><div id="rm" style="text-align:center"></div><div id="sm"></div></div>
     <div class="box"><div class="mute">Array storage</div><div id="ra" style="text-align:center"></div><div class="mute" id="at" style="text-align:center"></div></div></div>
-    <p class="mute" id="hd"></p><div class="err" id="e"></div><div id="dk"></div><div id="cl"></div>`;
-  let busy=0,fb=0;
+    <p class="mute" id="hd"></p><div class="err" id="e"></div><div id="jb"></div><div id="nt"></div>
+    <h2 class="sec">Containers</h2>
+    <div class="row" style="margin-bottom:10px"><input id="uq" type="search" placeholder="Search containers" aria-label="Search containers" style="flex:1;min-width:150px">
+      <select id="us" aria-label="Sort containers"><option value="name">Name</option><option value="cpu">Most CPU</option><option value="mem">Most memory</option><option value="state">Stopped first</option></select>
+      ${admin?'<button id="ua" style="display:none"></button>':''}</div>
+    <div class="row" style="margin-bottom:8px;justify-content:space-between"><div class="seg" id="uf">${[['all','All'],['running','Running'],['stopped','Stopped'],['updates','Updates']].map(([k,n])=>`<button data-f="${k}">${n}<i></i></button>`).join('')}</div>
+      ${admin?'<label class="chk" style="margin:0"><input type="checkbox" id="uall" aria-label="Select all shown containers">Select all</label>':''}</div>
+    <p class="mute" id="un" style="margin:4px 0 8px"></p>
+    <div class="ct hd mute" aria-hidden="true"><span></span><span>Container</span><span>Status</span><span>CPU</span><span>Memory</span><span>Network in / out</span><span></span></div>
+    <div id="cl">${skel(5)}</div>
+    <div class="bulk" id="ub" style="display:none"></div>
+    <div id="wd"></div><div id="vm"></div><div id="dk"></div>`;
+  $('#uq').value=urQ;$('#us').value=urSort;
+  let D=null,U={},S={},busy=0,fb=0,order='',skOpen=false;
+  const key=id=>String(id).split(':').pop(),usage=id=>{const k=key(id);if(U[k])return U[k];for(const x in U)if(x.startsWith(k)||k.startsWith(x))return U[x];return null};
+  const stOf=c=>(S[c.id]||c),run=c=>stOf(c).state==='RUNNING',paused=c=>stOf(c).state==='PAUSED',upd=c=>!!(D.updates&&D.updates[c.id]);
+  const memOf=u=>u?String(u.mem||'').split(' / ')[0]:'',netOf=u=>{if(!u||!u.net)return '';const p=String(u.net).split(' / ');return `${p[0]} / ${p[1]||''}`};
+  const list=()=>{const q=urQ.toLowerCase();let l=D.containers.filter(c=>(!q||c.name.toLowerCase().includes(q)||(c.image||'').toLowerCase().includes(q))&&
+      (urF==='all'||(urF==='running'?run(c)||paused(c):urF==='stopped'?!run(c)&&!paused(c):upd(c))));
+    const cpu=c=>(usage(c.id)||{}).cpu||0,mem=c=>(usage(c.id)||{}).memPct||0;
+    l.sort(urSort==='cpu'?(a,b)=>cpu(b)-cpu(a):urSort==='mem'?(a,b)=>mem(b)-mem(a):urSort==='state'?(a,b)=>run(a)-run(b)||a.name.localeCompare(b.name):(a,b)=>a.name.localeCompare(b.name));return l};
+  const pill=c=>{const st=stOf(c),h=/\(unhealthy\)/i.test(st.status||'');return paused(c)?'<span class="pill warn">Paused</span>':run(c)?(h?'<span class="pill bad">Unhealthy</span>':'<span class="pill ok">Running</span>'):'<span class="pill">Stopped</span>'};
+  const cells=c=>{const u=run(c)?usage(c.id):null,cp=u?Math.min(100,u.cpu):0;
+    return `<span class="cu" data-l="CPU">${u?`${u.cpu.toFixed(1)}%<div class="ub"><i style="width:${cp}%"></i></div>`:'<span class="mute">–</span>'}</span>
+      <span class="cu" data-l="Memory">${u?`${esc(memOf(u))}<div class="ub"><i style="width:${Math.min(100,u.memPct*4)}%;background:var(--ok)"></i></div>`:'<span class="mute">–</span>'}</span>
+      <span class="cu mute" data-l="Network">${u?esc(netOf(u)):'–'}</span>`};
+  const acts=c=>{if(!admin)return '<span></span>';const ex=(D.extra||{})[c.id]||{},b=(a,t,cls='')=>`<button class="${cls}" data-a="${a}" data-id="${esc(c.id)}" data-n="${esc(c.name)}">${t}</button>`;
+    return `<span class="ca">${run(c)?b('stop','Stop')+b('restart','Restart')+b('pause','Pause'):paused(c)?b('unpause','Resume')+b('stop','Stop'):b('start','Start','primary')}${upd(c)?b('update','Update','primary'):''}${b('logs','Logs')}</span>`};
+  const row=c=>{const ex=(D.extra||{})[c.id]||{},k=key(c.id);
+    return `<div class="ct" data-k="${esc(k)}">${admin?`<input type="checkbox" data-s="${esc(c.id)}" aria-label="Select ${esc(c.name)}" ${urSel.has(c.id)?'checked':''}>`:'<span></span>'}
+      <span class="cn">${ex.icon?`<img src="${esc(ex.icon)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:`<span class="dot ${run(c)?'ok':paused(c)?'warn':'bad'}"></span>`}<span><b>${esc(c.name)}</b>${ex.web&&run(c)?` <a class="chip" href="${esc(ex.web)}" target="_blank" rel="noopener" title="Open ${esc(c.name)} in a new tab">Open ↗</a>`:''}${upd(c)?' <span class="pill acc">Update</span>':''}${c.autoStart===false?' <span class="chip">No autostart</span>':''}<div class="mute ci">${esc((c.image||'').replace(/^(docker\.io|ghcr\.io|lscr\.io)\//,''))}</div></span></span>
+      <span class="cs">${pill(c)}</span>${cells(c)}${acts(c)}</div>`};
+  const drawList=()=>{if(!D)return;const l=list();order=l.map(c=>c.id).join();
+    $('#cl').innerHTML=l.length?l.map(row).join(''):`<div class="empty" style="padding:22px 0">${D.containers.length?'No containers match.':'No containers found. Is Docker enabled in Unraid?'}</div>`;
+    document.querySelectorAll('#uf button').forEach(b=>{b.classList.toggle('on',b.dataset.f===urF);const n=D.containers.filter(c=>b.dataset.f==='all'||(b.dataset.f==='running'?run(c)||paused(c):b.dataset.f==='stopped'?!run(c)&&!paused(c):upd(c))).length;b.querySelector('i').textContent=n?' '+n:''});
+    const nu=D.containers.filter(upd).length,ua=$('#ua');if(ua){ua.style.display=nu?'':'none';ua.className='primary';ua.textContent=`Update all (${nu})`}
+    bulk()};
+  const refreshCells=()=>{if(!D)return;if(urSort!=='name'&&list().map(c=>c.id).join()!==order)return drawList();
+    for(const c of D.containers){const el=document.querySelector(`.ct[data-k="${CSS.escape(key(c.id))}"]`);if(!el)continue;
+      const t=document.createElement('div');t.innerHTML=row(c);const n=t.firstElementChild;
+      const st=el.querySelector('.cs'),ns=n.querySelector('.cs');if(st.innerHTML!==ns.innerHTML){el.replaceWith(n);continue}
+      el.querySelectorAll('.cu').forEach((x,i)=>{x.innerHTML=n.querySelectorAll('.cu')[i].innerHTML})}};
+  const bulk=()=>{const b=$('#ub');if(!b)return;const m=$('#uall');for(const id of [...urSel])if(!D.containers.some(c=>c.id===id))urSel.delete(id);
+    const vis=list(),n=vis.filter(c=>urSel.has(c.id)).length;if(m){m.checked=vis.length>0&&n===vis.length;m.indeterminate=n>0&&n<vis.length}
+    if(!urSel.size){b.style.display='none';return}b.style.display='flex';const any=f=>D.containers.some(c=>urSel.has(c.id)&&f(c));
+    b.innerHTML=`<b>${urSel.size} selected</b><span class="sep"></span>${any(c=>!run(c))?'<button data-b="start">Start</button>':''}${any(run)?'<button data-b="stop">Stop</button><button data-b="restart">Restart</button>':''}${any(upd)?'<button class="primary" data-b="update">Update</button>':''}<button data-b="clear" class="ghost">Clear</button>`};
+  const confirmFor=(a,names)=>{const self=names.some(n=>/mediahub/i.test(n)),who=names.length===1?names[0]:names.length+' containers';
+    if(a==='stop')return confirm(`Stop ${who}?`+(self?'\n\nThis includes MediaHub itself, so this page will stop working until it is started again from Unraid.':''));
+    if(a==='restart')return confirm(`Restart ${who}?`+(self?'\n\nMediaHub itself will restart, so this page will reconnect in a moment.':''));
+    if(a==='update')return confirm(`Update ${who}? ${names.length===1?'It':'They'} will download the new version and restart.`+(self?'\n\nMediaHub itself will restart.':''));
+    return true};
+  const doAct=async(a,ids,names)=>{if(!confirmFor(a,names))return;
+    try{const r=await api2('docker',{action:a,ids,names});
+      if(a==='update'){toast('Update started. It keeps going if you leave this page.','ok');live()}
+      else{if(r.failed)toast(`${r.failed} of ${ids.length} did not work: ${r.error}`,'bad');else toast('Done','ok');fb=0;await full()}}
+    catch(x){toast(x.message,'bad')}};
+  const logs=async(id,n)=>{try{const r=await api(`/api/unraid/${s.id}/logs?id=${encodeURIComponent(id)}`);
+      const o=document.createElement('div');o.className='ov';
+      o.innerHTML=`<div class="dlg" style="display:block;width:100%"><div class="row"><h2 class="grow" style="margin:0">${esc(n)} logs</h2><input type="search" id="lf" placeholder="Filter lines" aria-label="Filter log lines" style="max-width:220px"></div><pre id="lp" style="white-space:pre-wrap;max-height:60vh;overflow:auto;font-size:12px;margin-top:12px"></pre><div class="row"><button id="lr">${ic('refresh')}Refresh</button><span class="grow"></span><button class="primary" id="cl2">Close</button></div></div>`;
+      let txt=r.text||'';const show=()=>{const f=$('#lf').value.toLowerCase(),l=txt.split('\n').filter(x=>!f||x.toLowerCase().includes(f));$('#lp').textContent=l.join('\n')||'No log lines returned.';$('#lp').scrollTop=1e9};
+      o.onclick=e=>{if(e.target===o||e.target.id==='cl2')o.remove()};document.body.append(o);show();$('#lf').oninput=show;
+      $('#lr').onclick=async()=>{try{txt=(await api(`/api/unraid/${s.id}/logs?id=${encodeURIComponent(id)}`)).text||'';show()}catch(x){toast(x.message,'bad')}}}
+    catch(x){toast(x.message,'bad')}};
+  $('#cl').onclick=e=>{const cb=e.target.closest('[data-s]');if(cb){cb.checked?urSel.add(cb.dataset.s):urSel.delete(cb.dataset.s);return bulk()}
+    const b=e.target.closest('button[data-a]');if(!b)return;
+    if(b.dataset.a==='logs')return logs(b.dataset.id,b.dataset.n);
+    b.disabled=true;doAct(b.dataset.a,[b.dataset.id],[b.dataset.n]).finally(()=>{b.disabled=false})};
+  $('#ub').onclick=e=>{const b=e.target.closest('[data-b]');if(!b)return;const a=b.dataset.b;if(a==='clear'){urSel.clear();drawList();return}
+    const pick=D.containers.filter(c=>urSel.has(c.id)&&(a==='start'?!run(c):a==='update'?upd(c):run(c)));if(!pick.length)return;
+    doAct(a,pick.map(c=>c.id),pick.map(c=>c.name)).then(()=>{urSel.clear();drawList()})};
+  if($('#uall'))$('#uall').onchange=e=>{for(const c of list())e.target.checked?urSel.add(c.id):urSel.delete(c.id);drawList()};
+  if($('#ua'))$('#ua').onclick=async()=>{const n=D.containers.filter(upd);if(!confirmFor('update',n.map(c=>c.name)))return;
+    try{await api2('docker',{action:'update',all:true,names:n.map(c=>c.name)});toast('Update started. It keeps going if you leave this page.','ok');live()}catch(x){toast(x.message,'bad')}};
+  $('#uq').oninput=e=>{urQ=e.target.value;drawList()};
+  $('#us').onchange=e=>{urSort=e.target.value;try{localStorage.setItem('mh-ur-sort',urSort)}catch{}drawList()};
+  $('#uf').onclick=e=>{const b=e.target.closest('[data-f]');if(!b)return;urF=b.dataset.f;drawList()};
+  let jobWas=null;
+  const showJob=j=>{const el=$('#jb');if(!el)return;
+    if(!j){el.innerHTML='';jobWas=null;return}
+    el.innerHTML=`<div class="panel row" style="margin-bottom:14px;border-color:${j.running?'var(--accent)':j.error?'var(--bad)':'var(--ok)'}">${j.running?`<span class="dot warn"></span><span class="grow">Updating ${esc(j.names&&j.names.length?j.names.join(', '):'containers')}… new images are downloading, this can take a few minutes.</span>`
+      :j.error?`<span class="dot bad"></span><span class="grow">The update did not work: ${esc(j.error)}</span>`:`<span class="dot ok"></span><span class="grow">Updated ${j.done} ${j.done===1?'container':'containers'}${j.names&&j.names.length?' ('+esc(j.names.join(', '))+')':''}.</span>`}</div>`;
+    if(jobWas&&jobWas.running&&!j.running){fb=0;full()}jobWas=j};
   const live=async()=>{if(busy)return;busy=1;
-    try{const d=await api(`/api/unraid/${s.id}?fast=1`);if(tab!=='ur')return;
+    try{const d=await api(`/api/unraid/${s.id}?fast=1&usage=1`);if(tab!=='ur')return;
       hp(cpuH,d.cpu);hp(memH,d.mem);
       $('#rc').innerHTML=ring(d.cpu,'CPU');$('#rm').innerHTML=ring(d.mem,'Memory');
       $('#sc').innerHTML=spark([{v:cpuH,c:'var(--accent)'}],50,'CPU over the last two minutes',100);
       $('#sm').innerHTML=spark([{v:memH,c:'var(--ok-t)'}],50,'Memory over the last two minutes',100);
+      U=d.usage||{};if(d.states)S=d.states;showJob(d.job);
+      $('#un').textContent=d.usageErr?'Live usage: '+d.usageErr:(!d.usageOn&&!Object.keys(U).length?'Connecting to live usage…':'');
+      refreshCells();
       if(d.errors.length)$('#e').textContent=d.errors.join(' | ')}
     catch(x){if(tab==='ur')$('#e').textContent=x.message}finally{busy=0}};
+  const vmSec=d=>{if(!d.vms&&!(d.miss||{}).vms)return '';
+    const on=v=>v.state==='RUNNING'||v.state==='IDLE',b=(v,a,t,cls='')=>`<button class="${cls}" data-v="${a}" data-id="${esc(v.id)}" data-n="${esc(v.name)}">${t}</button>`;
+    const pl=v=>on(v)?'<span class="pill ok">Running</span>':v.state==='PAUSED'||v.state==='PMSUSPENDED'?'<span class="pill warn">Paused</span>':v.state==='CRASHED'?'<span class="pill bad">Crashed</span>':'<span class="pill">Off</span>';
+    return `<h2 class="sec">Virtual machines</h2><div class="panel" style="padding:4px 18px">${(d.miss||{}).vms?`<p class="mute">${esc(d.miss.vms)}</p>`:(d.vms.length?d.vms.map(v=>`<div class="srow" style="grid-template-columns:1fr auto auto"><b>${esc(v.name)}</b>${pl(v)}<span class="row" style="gap:6px">${admin?(on(v)?b(v,'stop','Shut down')+b(v,'pause','Pause')+b(v,'reboot','Restart')+b(v,'forceStop','Force off','danger'):v.state==='PAUSED'||v.state==='PMSUSPENDED'?b(v,'resume','Resume','primary')+b(v,'forceStop','Force off','danger'):b(v,'start','Start','primary')):''}</span></div>`).join(''):'<p class="mute">No virtual machines. Turn on VMs in Unraid to see them here.</p>')}</div>`};
+  const noteSec=d=>{const N=d.notices,ms=(d.miss||{}).notices;if(!N&&!ms)return '';
+    const lv=l=>l==='ALERT'?'bad':l==='WARNING'?'warn':'ok',c=N&&N.count||{};
+    return `<h2 class="sec">Unraid notifications ${N&&c.total?`<span class="mute" style="font-weight:400;font-size:14px">${c.alert?c.alert+(c.alert===1?' alert · ':' alerts · '):''}${c.warning?c.warning+(c.warning===1?' warning · ':' warnings · '):''}${c.total} unread</span>`:''}</h2>
+      <div class="panel" style="padding:4px 18px">${ms?`<p class="mute">${esc(ms)}</p>`:N.list.length?N.list.map(n=>`<div class="srow" style="grid-template-columns:12px 1fr auto"><span class="dot ${lv(n.level)}"></span><span><b>${esc(n.subject||n.title)}</b><div class="mute">${esc(n.title)}${n.text?' · '+esc(n.text):''}${n.at?' · '+esc(ago(Date.parse(n.at))):''}</div></span>${admin?`<button data-nz="${esc(n.id)}">Dismiss</button>`:'<span></span>'}</div>`).join('')+(admin?'<div class="row" style="padding:12px 0"><button id="nza">Dismiss all</button></div>':''):'<p class="mute">No unread notifications. All quiet.</p>'}</div>`};
+  const wdSec=d=>{const w=d.watchdog;if(!w)return '';
+    const tg=(k,t,sub)=>`<label class="tgl" style="margin:8px 0;display:flex"><input type="checkbox" data-w="${k}" ${w[k]?'checked':''} ${k!=='on'&&!w.on?'disabled':''}><span><b style="font-weight:600">${t}</b><div class="mute">${sub}</div></span></label>`;
+    const skip=new Set((w.skip||[]).map(x=>x.toLowerCase())),lv=l=>l==='bad'?'bad':l==='warn'?'warn':'ok';
+    return `<h2 class="sec">Container watchdog</h2><div class="panel">
+      ${tg('on','Watch containers','Checks every 30 seconds for containers that stop on their own.')}
+      ${tg('restart','Restart crashed containers','Starts a crashed container again, up to 3 times an hour. Containers stopped on purpose (from here or from Unraid) are left alone.')}
+      ${tg('alert','Send an alert','Uses your alert channels in Settings.')}
+      ${tg('unhealthy','Tell me when a container reports itself unhealthy','Only for containers that have a health check.')}
+      <details id="skd" style="margin-top:8px" ${skOpen?'open':''}><summary>Never restart these (${skip.size})</summary><div class="row" style="flex-wrap:wrap;gap:4px 16px;margin-top:8px">${D.containers.map(c=>`<label class="chk"><input type="checkbox" data-sk="${esc(c.name)}" ${skip.has(c.name.toLowerCase())?'checked':''}>${esc(c.name)}</label>`).join('')}</div></details>
+      ${w.log.length?`<div style="margin-top:12px"><div class="mute" style="margin-bottom:4px">Recent activity</div>${w.log.slice(0,8).map(x=>`<div class="row" style="padding:5px 0"><span class="dot ${lv(x.level)}" style="margin:0"></span><span class="grow"><b>${esc(x.name)}</b> ${esc(x.what)}</span><span class="mute">${esc(ago(x.at))}</span></div>`).join('')}</div>`:''}</div>`};
   const full=async()=>{if(fb)return;fb=1;
-    try{const d=await api(`/api/unraid/${s.id}`);if(tab!=='ur')return;
-      const run=c=>/run|start/i.test(c.state);
-      $('#hd').textContent=`${d.host||''} · array ${d.arrayState||'unknown'} · ${d.containers.filter(run).length} of ${d.containers.length} containers running`;
+    try{const d=await api(`/api/unraid/${s.id}`);if(tab!=='ur')return;D=d;S={};U=d.usage||U;
+      const n=d.containers.filter(c=>c.state==='RUNNING').length;
+      $('#hd').textContent=`${d.host||''} · array ${(d.arrayState||'unknown').toLowerCase()} · ${n} of ${d.containers.length} containers running${d.vms&&d.vms.length?` · ${d.vms.filter(v=>v.state==='RUNNING').length} of ${d.vms.length} VMs on`:''}`;
       $('#ra').innerHTML=ring(d.total?d.used/d.total*100:0,'Array used');
-      $('#at').textContent=d.total?`${fmt(d.used*1024)} of ${fmt(d.total*1024)} used`:'';
-      $('#e').textContent=d.errors.join(' | ');
-      const shr=d.shares&&d.shares.length?`<h2 class="sec">Shares</h2><div class="panel" style="padding:4px 18px">${d.shares.map(x=>`<div style="margin:12px 0"><div class="row"><b class="grow">${esc(x.name)}</b><span class="mute">${fmt(x.used*1024)} used of ${fmt(x.size*1024)}</span></div><progress value="${x.used}" max="${x.size||1}" style="margin-top:6px"></progress></div>`).join('')}</div>`:'';
+      $('#at').textContent=d.total?`${fmtBig(d.used*1024)} of ${fmtBig(d.total*1024)} used`:'';
+      $('#e').textContent=d.errors.join(' | ');showJob(d.job);
+      const al=d.notices&&d.notices.count&&d.notices.count.alert;
+      $('#nt').innerHTML=al?`<div class="panel row" style="margin-bottom:14px;border-color:var(--bad)"><span class="dot bad"></span><span class="grow">Unraid has ${al} unread ${al===1?'alert':'alerts'}.</span><button id="ntg">Show</button></div>`:'';
+      if($('#ntg'))$('#ntg').onclick=()=>{const x=$('#nz');if(x)x.scrollIntoView({behavior:'smooth'})};
+      drawList();
+      const shr=d.shares&&d.shares.length?`<h2 class="sec">Shares</h2><div class="panel" style="padding:4px 18px">${d.shares.map(x=>`<div style="margin:12px 0"><div class="row"><b class="grow">${esc(x.name)}</b><span class="mute">${fmtBig(x.used*1024)} used of ${fmtBig(x.size*1024)}</span></div><progress value="${x.used}" max="${x.size||1}" style="margin-top:6px"></progress></div>`).join('')}</div>`:'';
       const tc=v=>v==null?'':v>=55?'var(--bad)':v>=45?'#ffb547':'var(--ok-t)',pc=d.parity;
-      $('#dk').innerHTML=((d.disks&&d.disks.length)||pc?`<h2 class="sec">Disks</h2><div class="panel" style="padding:4px 18px">${pc?`<div class="srow" style="grid-template-columns:1fr auto auto"><span>Parity check</span><span class="mute">${esc(pc.running?'running '+Math.round(pc.progress||0)+'%':(pc.status||'idle'))}${pc.errors?', '+pc.errors+' errors':''}</span>${me.role==='admin'?(pc.running?'<button data-pq="cancel">Cancel check</button>':'<button data-pq="start">Start check</button>'):'<span></span>'}</div>`:''}${(d.disks||[]).map(k=>`<div class="srow" style="grid-template-columns:1fr auto auto"><span>${esc(k.name)} <span class="mute">${esc(k.role)}</span></span><span class="mute">${esc(k.status||'')}</span><b style="color:${tc(k.temp)}">${k.temp==null?'':k.temp+' °C'}</b></div>`).join('')}</div>`:'')+shr+(d.notes&&d.notes.length?`<p class="mute">Disk details are not available: ${esc(d.notes[0])}</p>`:'');
-      $('#cl').innerHTML=d.containers.map(c=>`<div class="box row"><span class="dot ${run(c)?'ok':'bad'}"></span><b>${esc(c.name)}</b><span class="mute">${esc(c.state)}</span>${d.updates&&d.updates[c.id]?'<span class="pill acc">Update available</span>':''}
-        ${me.role==='admin'?`<span class="row" style="margin-left:auto">${['start','stop','restart'].map(a=>`<button data-i="${esc(c.id)}" data-c="${a}">${a[0].toUpperCase()+a.slice(1)}</button>`).join('')}<button data-l="${esc(c.id)}" data-n="${esc(c.name)}">Logs</button></span>`:''}</div>`).join('');
+      $('#wd').innerHTML=wdSec(d);
+      $('#vm').innerHTML=vmSec(d)+`<div id="nz">${noteSec(d)}</div>`;
+      $('#dk').innerHTML=((d.disks&&d.disks.length)||pc?`<h2 class="sec">Disks</h2><div class="panel" style="padding:4px 18px">${pc?`<div class="srow" style="grid-template-columns:1fr auto auto"><span>Parity check</span><span class="mute">${esc(pc.running?'running '+Math.round(pc.progress||0)+'%':(pc.status||'idle').replace(/_/g,' ').toLowerCase())}${pc.errors?', '+pc.errors+' errors':''}</span>${admin?(pc.running?'<button data-pq="cancel">Cancel check</button>':'<button data-pq="start">Start check</button>'):'<span></span>'}</div>`:''}${(d.disks||[]).map(k=>`<div class="srow" style="grid-template-columns:1fr auto auto"><span>${esc(k.name)} <span class="mute">${esc(k.role)}</span></span><span class="mute">${esc(k.status||'')}</span><b style="color:${tc(k.temp)}">${k.temp==null?'':k.temp+' °C'}</b></div>`).join('')}</div>`:'')+shr+(d.notes&&d.notes.length?`<p class="mute">Disk details are not available: ${esc(d.notes[0])}</p>`:'');
       document.querySelectorAll('[data-pq]').forEach(b=>b.onclick=async()=>{if(!confirm(b.dataset.pq==='start'?'Start a parity check now? It can slow the server for hours.':'Cancel the running parity check?'))return;
         try{await api(`/api/unraid/${s.id}/parity`,'POST',{op:b.dataset.pq});toast('Done','ok');fb=0;full()}catch(x){toast(x.message,'bad')}});
-      document.querySelectorAll('[data-l]').forEach(b=>b.onclick=async()=>{
-        try{const r=await api(`/api/unraid/${s.id}/logs?id=${encodeURIComponent(b.dataset.l)}`);
-          const o=document.createElement('div');o.className='ov';
-          o.innerHTML=`<div class="dlg" style="display:block;width:100%"><h2>${esc(b.dataset.n)} logs</h2><pre style="white-space:pre-wrap;max-height:60vh;overflow:auto;font-size:12px">${esc(r.text||'No log lines returned.')}</pre><button class="primary" id="cl2">Close</button></div>`;
-          o.onclick=e=>{if(e.target===o||e.target.id==='cl2')o.remove()};document.body.append(o)}catch(x){toast(x.message,'bad')}});
-      document.querySelectorAll('[data-i]').forEach(b=>b.onclick=async()=>{b.disabled=true;
-        try{await api(`/api/unraid/${s.id}/docker`,'POST',{id:b.dataset.i,action:b.dataset.c})}catch(x){toast(x.message,'bad')}
-        fb=0;full()});
+      document.querySelectorAll('[data-v]').forEach(b=>b.onclick=async()=>{const a=b.dataset.v,n=b.dataset.n;
+        if(a==='forceStop'&&!confirm(`Force off ${n}? This is like pulling the power cord, so unsaved work inside it is lost.`))return;
+        if((a==='stop'||a==='reboot')&&!confirm(`${a==='stop'?'Shut down':'Restart'} ${n}?`))return;
+        b.disabled=true;try{await api2('vm',{id:b.dataset.id,action:a,name:n});toast(a==='stop'?'Shutdown sent. It can take a minute.':'Done','ok');fb=0;await full()}catch(x){toast(x.message,'bad');b.disabled=false}});
+      document.querySelectorAll('[data-nz]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await api2('notices',{ids:[b.dataset.nz]});fb=0;await full()}catch(x){toast(x.message,'bad');b.disabled=false}});
+      if($('#nza'))$('#nza').onclick=async()=>{if(!confirm('Dismiss all unread Unraid notifications? They move to the archive in Unraid.'))return;try{await api2('notices',{all:true});fb=0;await full()}catch(x){toast(x.message,'bad')}};
+      const saveWd=async b=>{try{await api('/api/watchdog','PUT',b);toast('Saved','ok');fb=0;await full()}catch(x){toast(x.message,'bad')}};
+      document.querySelectorAll('[data-w]').forEach(b=>b.onchange=()=>{if(b.dataset.w==='on'&&!b.checked&&!confirm('Turn off the container watchdog? Crashed containers will not be noticed or restarted.')){b.checked=true;return}saveWd({[b.dataset.w]:b.checked})});
+      if($('#skd'))$('#skd').ontoggle=e=>{skOpen=e.target.open};
+      document.querySelectorAll('[data-sk]').forEach(b=>b.onchange=()=>saveWd({skip:[...document.querySelectorAll('[data-sk]:checked')].map(x=>x.dataset.sk)}));
     }catch(x){if(tab==='ur')$('#e').textContent=x.message}finally{fb=0}};
   live();full();timer=[tick(live,2000),tick(full,15000)];
 }

@@ -33,7 +33,7 @@ One friendly web page for the apps on your home media server. See what is downlo
 - **Forgot password.** Profiles can save a recovery email. MediaHub sends a single-use link (valid 30 minutes, signs the profile out everywhere) through the email alert channel you already set up.
 - **Status pages:** a private read-only link for a wall tablet that refreshes by itself and shows only the sections you pick, without signing in: an all-clear banner, 48-hour uptime bars per app, speed graph, and optionally how many people are watching (titles only, never names).
 - **Backups:** an encrypted backup file, plus automatic daily copies inside the data folder.
-- **Also:** Plex (who is watching, recently added), Tautulli stats with poster grids and charts (plays per day, busiest hours, devices, top viewers), Unraid (CPU, memory, array, disks, shares, containers), quick search (`Ctrl+K`), light and dark themes, five languages, and install-to-home-screen on a phone.
+- **Also:** Plex (who is watching, recently added), Tautulli stats with poster grids and charts (plays per day, busiest hours, devices, top viewers), Unraid (CPU, memory, array, disks, shares, containers with live usage, one-click updates and a crash watchdog, virtual machines, Unraid notifications), quick search (`Ctrl+K`), light and dark themes, five languages, and install-to-home-screen on a phone.
 
 | Downloads | Library |
 | --- | --- |
@@ -129,12 +129,12 @@ If the port can be reached by anyone besides you, set `SETUP_TOKEN` first (see b
 | Plex | `:32400` | Your Plex token. |
 | Tautulli | `:8181` | API key (Settings, Web Interface). |
 | SABnzbd | `:8080` | API key (Config, General). |
-| Unraid (7.2 or newer) | your Unraid web address | An API key from Settings, Management Access, API Keys. |
+| Unraid (7.2 or newer) | your Unraid web address | An API key from Settings, Management Access, API Keys. To control everything, allow it to read and change Docker, VMs and notifications. |
 | Bazarr / Lidarr / Readarr | `:6767` / `:8686` / `:8787` | API key (Settings, General). |
 
 Settings, then Apps has a **Test connection** button and hints for each app. Use your server's address on your network, not names that only work inside Docker.
 
-Some features depend on fields that differ between app versions (for example Unraid disk details, parity control and container logs, or ending a Plex stream, which needs Plex Pass). When something is not available MediaHub shows a short note and carries on.
+Some features depend on fields that differ between app versions (for example Unraid disk details, parity control, container logs, live container usage and one-click container updates, or ending a Plex stream, which needs Plex Pass). When something is not available MediaHub shows a short note and carries on.
 
 ## Compatibility
 
@@ -147,7 +147,7 @@ Some features depend on fields that differ between app versions (for example Unr
 | qBittorrent | Web API v2 (4.1 and 5.x) | Author's server (qBittorrent behind a VPN). Slowing downloads during streams: test fakes. |
 | Jackett | Torznab API | Author's server. |
 | Seerr / Overseerr / Jellyseerr | v1 API | Author's server for search and requests. Season choice and problem reports: test fakes. |
-| Unraid 7.2 | GraphQL API | Author's server. |
+| Unraid 7.2 | GraphQL API | Author's server for status, disks and start/stop. Live container usage, container updates, VMs, notifications and the watchdog: test fakes. Live usage and updates need a newer Unraid API than 7.2 first shipped with. |
 | Plex | Local server API with a token | Test fakes. |
 | Tautulli | v2 API | Test fakes. |
 | SABnzbd | JSON API (3.x and 4.x) | Test fakes. |

@@ -2,6 +2,27 @@
 
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.14.0] - 2026-10-14
+
+### Added
+- **Manage containers properly.** The Unraid page now has a container table with live CPU, memory and network use for each container (streamed from Unraid while the page is open), search, filters (running, stopped, updates), sorting by CPU or memory, and the container's icon and a link to its web page.
+- **Container updates.** Update one container, tick several and update them together, or **Update all**. Updates run in the background with a progress banner, so you can leave the page.
+- **Bulk actions.** Tick containers to start, stop, restart or update them together. Pause and resume single containers.
+- **Container watchdog** (on by default). Every 30 seconds MediaHub looks for containers that stopped on their own. A crashed container is started again and you get an alert. It gives up after 3 restarts in an hour so a broken container does not loop forever. Containers stopped on purpose (from MediaHub, or from Unraid with a normal exit) are only reported, never restarted. You can switch restarting off, choose containers it should never restart, and get told when a container's health check says it is unhealthy. Nothing is restarted while the array is stopped.
+- **Virtual machines:** start, shut down, pause, resume, restart and force off.
+- **Unraid notifications:** see unread Unraid notifications (alerts, warnings, info) and dismiss them one by one or all at once.
+- Logs viewer: filter lines and refresh.
+- Needs attention now lists container updates, unread Unraid alerts and containers that stopped unexpectedly.
+
+### Changed
+- Array and share sizes on the Unraid page are shown in TB instead of very large GB numbers.
+- Stopping, restarting or updating MediaHub's own container asks first and says the page will reconnect.
+
+### Notes
+- Live container usage and one-click updates need a newer Unraid API than the one Unraid 7.2 first shipped with. On an older API the rest of the page works and those parts show a short message saying an update to Unraid (or the Unraid Connect plugin) adds them.
+- For VMs and notifications the Unraid API key needs those permissions. Without them, that section explains what is missing.
+- The new parts follow Unraid's published GraphQL schema and were tested against built-in pretend apps, not yet against a real server. Please report anything that looks wrong, with your Unraid version.
+
 ## [0.13.0] - 2026-10-14
 
 ### Added
