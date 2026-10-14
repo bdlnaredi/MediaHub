@@ -31,7 +31,7 @@ if (fs.existsSync(FILE)) {
 }
 const defaults = d => {
   d.users = d.users || []; d.services = d.services || []; d.requests = d.requests || []; d.log = d.log || []; d.history = d.history || [];
-  d.seedRules = d.seedRules || []; d.reports = d.reports || []; d.statusLinks = d.statusLinks || []; d.settings = d.settings || {}; d.wdLog = d.wdLog || [];
+  d.seedRules = d.seedRules || []; d.reports = d.reports || []; d.statusLinks = d.statusLinks || []; d.settings = d.settings || {};
   return d;
 };
 // Turns the on-disk form (secrets encrypted) into the in-memory form, and upgrades the old single alert channel.
@@ -138,101 +138,13 @@ const login = (res, user) => {
   send(res, 200, { user: pubUser(user) }, { 'Set-Cookie': `sid=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000${res.secure ? '; Secure' : ''}` });
 };
 
-    const gql = async (s, query, ms = 10000) => {
-      const x = await fetch(s.url.replace(/\/+$/, '') + '/graphql', { method: 'POST', signal: AbortSignal.timeout(ms),
+    const gql = async (s, query) => {
+      const x = await fetch(s.url.replace(/\/+$/, '') + '/graphql', { method: 'POST', signal: AbortSignal.timeout(10000),
         headers: { 'Content-Type': 'application/json', 'x-api-key': s.apiKey }, body: JSON.stringify({ query }) });
       const d = await x.json().catch(() => ({}));
       if (!x.ok || d.errors) throw new Error((d.errors && d.errors[0].message) || 'Unraid returned ' + x.status);
       return d.data;
     };
-
-// ---- Unraid extras: live container usage, background updates and the container watchdog ----
-// Older Unraid APIs (as first shipped with Unraid 7.2) do not have container usage or one-click updates. Their errors are turned into a plain message.
-const UR_OLD = /Cannot query field|Unknown argument|Unknown type|Cannot return null|Field .* not defined/i;
-const urMsg = e => { const t = (e && e.message) || String(e || ''); return UR_OLD.test(t) ? 'Your Unraid API is too old for this. Updating Unraid OS (or the Unraid Connect plugin, if you use it) adds it.'
-  : /forbidden|permission|unauthori[sz]ed|not allowed/i.test(t) ? 'The Unraid API key is not allowed to do this. Give the key the matching permission in Unraid: Settings, Management Access, API Keys.' : t; };
-const ur = { stats: {}, ws: {}, want: {}, quiet: {}, prev: {}, tries: {}, jobs: {} };
-const cidKey = id => String(id || '').split(':').pop();
-const urQuiet = (sid, ids) => Array.isArray(ids) && ids.forEach(id => { ur.quiet[sid + ':' + cidKey(id)] = Date.now(); });
-const usageOf = (map, id) => { const k = cidKey(id); if (map[k]) return map[k]; for (const x in map) if (x.startsWith(k) || k.startsWith(x)) return map[x]; return null; };
-// Opens (or keeps open) Unraid's live "docker stats" stream. It only runs while someone is looking at the Unraid page.
-function urStatsOpen(s) {
-  ur.want[s.id] = Date.now();
-  const c = ur.ws[s.id]; if (c && (!c.closed || Date.now() - c.t < 20000)) return;
-  if (typeof WebSocket !== 'function') { ur.ws[s.id] = { t: Date.now(), closed: true, err: 'Live usage needs Node.js 22 or newer' }; return; }
-  const box = ur.ws[s.id] = { t: Date.now(), open: false, closed: false, err: '' }, map = ur.stats[s.id] || (ur.stats[s.id] = {});
-  let ws; try { ws = new WebSocket(s.url.replace(/\/+$/, '').replace(/^http/i, 'ws') + '/graphql', 'graphql-transport-ws'); }
-  catch (e) { box.closed = true; box.err = e.message; return; }
-  box.ws = ws;
-  ws.onopen = () => ws.send(JSON.stringify({ type: 'connection_init', payload: { 'x-api-key': s.apiKey } }));
-  ws.onmessage = ev => {
-    let m; try { m = JSON.parse(String(ev.data)); } catch { return; }
-    if (m.type === 'connection_ack') { box.open = true; ws.send(JSON.stringify({ id: '1', type: 'subscribe', payload: { query: 'subscription { dockerContainerStats { id cpuPercent memUsage memPercent netIO blockIO } }' } })); }
-    else if (m.type === 'ping') ws.send(JSON.stringify({ type: 'pong' }));
-    else if (m.type === 'next' && m.payload) {
-      if (m.payload.errors) { box.err = urMsg(m.payload.errors[0]); return; }
-      const d = (m.payload.data || {}).dockerContainerStats;
-      if (d && d.id) { box.err = ''; map[cidKey(d.id)] = { cpu: +d.cpuPercent || 0, mem: String(d.memUsage || ''), memPct: +d.memPercent || 0, net: String(d.netIO || ''), disk: String(d.blockIO || ''), t: Date.now() }; }
-    } else if (m.type === 'error') box.err = urMsg((Array.isArray(m.payload) ? m.payload[0] : m.payload) || 'Unraid refused the live usage stream');
-  };
-  ws.onerror = () => { if (!box.err) box.err = 'Could not open the live usage stream'; };
-  ws.onclose = ev => { box.open = false; box.closed = true; box.t = Date.now(); if (!box.err && ev.code === 4403) box.err = urMsg('forbidden'); else if (!box.err && ev.code >= 4400) box.err = urMsg(ev.reason || 'Unraid closed the live usage stream'); };
-}
-setInterval(() => {
-  for (const id of Object.keys(ur.ws)) {
-    const c = ur.ws[id];
-    if (Date.now() - (ur.want[id] || 0) > 60000) { try { c.ws && c.ws.close(); } catch {} delete ur.ws[id]; delete ur.stats[id]; }
-    else for (const k in ur.stats[id] || {}) if (Date.now() - ur.stats[id][k].t > 30000) delete ur.stats[id][k];
-  }
-}, 15000).unref();
-const urUsage = s => { urStatsOpen(s); const c = ur.ws[s.id] || {}; return { usage: ur.stats[s.id] || {}, usageErr: c.err || '', usageOn: !!c.open }; };
-// Container updates can take minutes (the new image has to download), so they run in the background and the page asks how it went.
-function urUpdate(s, ids, names, who) {
-  const j = ur.jobs[s.id]; if (j && j.running) throw new Error('An update is already running. Wait for it to finish.');
-  const job = ur.jobs[s.id] = { running: true, names, at: Date.now(), done: 0, error: '' };
-  urQuiet(s.id, ids);
-  (async () => {
-    try {
-      const q = ids === 'all' ? 'mutation { docker { updateAllContainers { id } } }'
-        : ids.length === 1 ? `mutation { docker { updateContainer(id: ${JSON.stringify(ids[0])}) { id } } }`
-        : `mutation { docker { updateContainers(ids: ${JSON.stringify(ids)}) { id } } }`;
-      const d = await gql(s, q, 900000), r = (d.docker || {}), got = r.updateAllContainers || r.updateContainers || (r.updateContainer ? [r.updateContainer] : []);
-      job.done = got.length; if (ids === 'all') urQuiet(s.id, got.map(x => x.id));
-      audit(who, 'Updated containers', s.name + ': ' + (names.join(', ') || got.length + ' containers'));
-    } catch (e) { job.error = urMsg(e); audit(who, 'Container update failed', s.name + ': ' + job.error); }
-    finally { job.running = false; job.end = Date.now(); urQuiet(s.id, ids === 'all' ? [] : ids); }
-  })();
-  return job;
-}
-const wdCfg = () => ({ on: true, restart: true, alert: true, unhealthy: true, skip: [], ...(db.settings.watchdog || {}) });
-const wdLog = (sid, name, what, level) => { db.wdLog = db.wdLog || []; db.wdLog.push({ at: Date.now(), sid, name, what, level }); if (db.wdLog.length > 60) db.wdLog.splice(0, db.wdLog.length - 60); save(); };
-const exitCode = st => { const m = /Exited \((\d+)\)/i.exec(st || ''); return m ? +m[1] : null; };
-// Notices containers that stop on their own. Exit codes 0 and 143 mean someone stopped it on purpose (for example from Unraid's own page), so those are only reported.
-async function watchdog(s) {
-  const cfg = wdCfg(); if (!cfg.on) { delete ur.prev[s.id]; return; }
-  const d = await gql(s, '{ array { state } docker { containers { id names state status } } }');
-  const prev = ur.prev[s.id], now = {}, skip = new Set((cfg.skip || []).map(x => String(x).toLowerCase()));
-  if (d.array.state !== 'STARTED') { delete ur.prev[s.id]; return; }
-  for (const c of d.docker.containers) now[cidKey(c.id)] = { id: c.id, name: (c.names[0] || '').replace(/^\//, ''), state: c.state, status: c.status || '' };
-  ur.prev[s.id] = now; if (!prev) return;
-  const say = async (title, body) => { if (cfg.alert) await notify(title, body).catch(() => {}); };
-  for (const [k, c] of Object.entries(now)) {
-    const was = prev[k]; if (!was) continue;
-    if (cfg.unhealthy && /\(unhealthy\)/i.test(c.status) && !/\(unhealthy\)/i.test(was.status)) { wdLog(s.id, c.name, 'reports itself unhealthy', 'warn'); await say('Container unhealthy', `${c.name} on ${s.name} reports itself unhealthy.`); }
-    if (was.state !== 'RUNNING' || c.state !== 'EXITED') continue;
-    const q = ur.quiet[s.id + ':' + k]; if (q && Date.now() - q < 180000) continue;
-    const code = exitCode(c.status), onPurpose = code === 0 || code === 143;
-    if (onPurpose) { wdLog(s.id, c.name, 'was stopped', 'info'); await say('Container stopped', `${c.name} on ${s.name} was stopped.`); continue; }
-    const why = code == null ? 'stopped unexpectedly' : `crashed (exit code ${code})`;
-    if (!cfg.restart || skip.has(c.name.toLowerCase())) { wdLog(s.id, c.name, why, 'bad'); await say('Container stopped', `${c.name} on ${s.name} ${why}.`); continue; }
-    const t = ur.tries[s.id + ':' + k] = (ur.tries[s.id + ':' + k] || []).filter(x => Date.now() - x < 3600000);
-    if (t.length >= 3) { if (t.length === 3) { t.push(Date.now()); wdLog(s.id, c.name, why + ' again. Gave up after 3 restarts in an hour', 'bad'); await say('Container keeps crashing', `${c.name} on ${s.name} ${why} again. MediaHub restarted it 3 times this hour and has stopped trying. Check its logs.`); } continue; }
-    t.push(Date.now());
-    try { await gql(s, `mutation { docker { start(id: ${JSON.stringify(c.id)}) { id } } }`); c.state = 'RUNNING';
-      wdLog(s.id, c.name, why + ', restarted it', 'warn'); audit('MediaHub', 'Restarted a container', `${s.name}: ${c.name} ${why}`); await say('Container restarted', `${c.name} on ${s.name} ${why}. MediaHub started it again.`); }
-    catch (e) { wdLog(s.id, c.name, why + ', and restarting failed: ' + urMsg(e), 'bad'); await say('Container stopped', `${c.name} on ${s.name} ${why}, and MediaHub could not start it: ${urMsg(e)}`); }
-  }
-}
     const qb = async (s, path, form) => {
       const u = s.url.replace(/\/+$/, ''), F = { 'Content-Type': 'application/x-www-form-urlencoded', Referer: u };
       for (let i = 0; i < 2; i++) {
@@ -368,10 +280,10 @@ const ruleDef = x => ({ enabled: !!x.enabled, mustContain: cut(x.mustContain, 50
   savePath: cut(x.savePath, 500), assignedCategory: cut(x.assignedCategory, 200), ignoreDays: Math.max(0, +x.ignoreDays || 0), addPaused: x.addPaused === true ? true : null,
   ...(x.torrentContentLayout ? { torrentContentLayout: cut(x.torrentContentLayout, 40) } : {}), ...(x.lastMatch ? { lastMatch: cut(x.lastMatch, 60) } : {}),
   ...(Array.isArray(x.previouslyMatchedEpisodes) ? { previouslyMatchedEpisodes: x.previouslyMatchedEpisodes.slice(0, 2000).map(e => cut(e, 60)) } : {}) });
-async function notify(title, body) {
+async function notify(title, body, html) {
   const list = ((db.alerts || {}).channels || []).filter(c => !channels.problem(c));
   if (!list.length) return false;
-  const res = await Promise.allSettled(list.map(c => channels.send(c, title, body)));
+  const res = await Promise.allSettled(list.map(c => channels.send(c, title, body, html)));
   const bad = res.filter(x => x.status === 'rejected');
   if (bad.length === res.length) throw bad[0].reason;
   return true;
@@ -393,16 +305,55 @@ const bz = async (s, pth, opt = {}) => {
   if (!x.ok) throw new Error((d && (d.message || d.error)) || 'Bazarr returned ' + x.status); return d;
 };
 const GB = n => (n / 1073741824).toFixed(n > 1e11 ? 0 : 1) + ' GB';
-async function weeklyText() {
-  const wk = Date.now() - 7 * DAY, hist = db.history.filter(h => h.at >= wk), rq = db.requests.filter(r => r.at >= wk), lines = [];
-  lines.push(`Downloads finished: ${hist.length}${hist.length ? ' (' + GB(hist.reduce((a, h) => a + (h.size || 0), 0)) + ')' : ''}`);
-  lines.push(`Requests this week: ${rq.length} made, ${rq.filter(r => r.status === 'approved').length} approved, ${rq.filter(r => r.stage === 'available').length} ready to watch`);
-  const waiting = db.requests.filter(r => r.status === 'pending').length; if (waiting) lines.push(`Waiting for approval: ${waiting}`);
-  const rep = db.reports.filter(r => r.status === 'open').length; if (rep) lines.push(`Open problem reports: ${rep}`);
-  const off = db.services.filter(x => health[x.id] && !health[x.id].ok).map(x => x.name); lines.push(off.length ? 'Apps not responding: ' + off.join(', ') : 'All apps are responding');
-  for (const u of db.services.filter(x => x.type === 'unraid')) try { const k = (await gql(u, '{ array { capacity { kilobytes { used total } } } }')).array.capacity.kilobytes; lines.push(`${u.name} array: ${(+k.used / +k.total * 100).toFixed(0)}% used`); } catch {}
-  return lines.join('\n');
+const hx = t => String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// Gathers everything the weekly newsletter talks about. Each part is optional: an app that is down just leaves its part out.
+async function newsData() {
+  const wk = Date.now() - 7 * DAY, hist = db.history.filter(h => h.at >= wk), rq = db.requests.filter(r => r.at >= wk), arr = db.services.filter(s => ['sonarr', 'radarr'].includes(s.type));
+  const added = (await Promise.all(arr.map(s => artItems(s).catch(() => [])))).flat().filter(x => x.added && Date.parse(x.added) >= wk).sort((a, b) => Date.parse(b.added) - Date.parse(a.added)).slice(0, 8);
+  const soon = [], from = new Date().toISOString().slice(0, 10), to = new Date(Date.now() + 7 * DAY).toISOString().slice(0, 10);
+  await Promise.all(arr.map(async s => { try {
+    const tv = s.type === 'sonarr', d = await ext(s, `/api/v3/calendar?start=${from}&end=${to}&unmonitored=false` + (tv ? '&includeSeries=true' : ''));
+    for (const x of Array.isArray(d) ? d : []) soon.push(tv ? { at: x.airDateUtc || x.airDate, title: cut((x.series || {}).title, 80), sub: `S${String(x.seasonNumber).padStart(2, '0')}E${String(x.episodeNumber).padStart(2, '0')}` }
+      : { at: x.digitalRelease || x.physicalRelease || x.inCinemas, title: cut(x.title, 80), sub: 'Movie' });
+  } catch {} }));
+  soon.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  const arrays = [];
+  for (const u of db.services.filter(x => x.type === 'unraid')) try { const k = (await gql(u, '{ array { capacity { kilobytes { used total } } } }')).array.capacity.kilobytes; arrays.push({ name: u.name, pct: Math.round(+k.used / +k.total * 100) }); } catch {}
+  return { added, soon: soon.slice(0, 8), hist: hist.length, size: hist.reduce((a, h) => a + (h.size || 0), 0), made: rq.length, approved: rq.filter(r => r.status === 'approved').length, ready: rq.filter(r => r.stage === 'available').length,
+    waiting: db.requests.filter(r => r.status === 'pending').length, reports: db.reports.filter(r => r.status === 'open').length, off: db.services.filter(x => health[x.id] && !health[x.id].ok).map(x => x.name), arrays };
 }
+const when = t => { const d = new Date(t); return isNaN(d) ? '' : d.toLocaleDateString('en', { weekday: 'short', day: 'numeric', month: 'short' }); };
+function newsText(n) {
+  const l = ['MediaHub weekly newsletter', ''];
+  if (n.added.length) { l.push('Added this week'); n.added.forEach(x => l.push(`  ${x.title}${x.year ? ' (' + x.year + ')' : ''}`)); l.push(''); }
+  if (n.soon.length) { l.push('Coming up'); n.soon.forEach(x => l.push(`  ${when(x.at)}  ${x.title} ${x.sub}`)); l.push(''); }
+  l.push(`Downloads finished: ${n.hist}${n.hist ? ' (' + GB(n.size) + ')' : ''}`);
+  l.push(`Requests this week: ${n.made} made, ${n.approved} approved, ${n.ready} ready to watch`);
+  if (n.waiting) l.push(`Waiting for approval: ${n.waiting}`);
+  if (n.reports) l.push(`Open problem reports: ${n.reports}`);
+  l.push(n.off.length ? 'Apps not responding: ' + n.off.join(', ') : 'All apps are responding');
+  n.arrays.forEach(a => l.push(`${a.name} array: ${a.pct}% used`));
+  return l.join('\n');
+}
+// The email version. Inline styles only and a single column, so it reads the same in Gmail, Outlook and on a phone.
+function newsHtml(n, link) {
+  const F = 'font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif', h = t => `<h2 style="${F};font-size:15px;margin:26px 0 10px;color:#111">${hx(t)}</h2>`;
+  const tile = x => { const img = /^https:\/\//.test(x.poster) ? `<img src="${hx(x.poster)}" width="104" height="156" alt="" style="display:block;width:104px;height:156px;object-fit:cover;border-radius:6px;background:#ddd">` : `<div style="width:104px;height:156px;border-radius:6px;background:#2b3245;color:#fff;${F};font-size:12px;text-align:center;line-height:156px">${x.tv ? 'TV' : 'Film'}</div>`;
+    return `<td width="112" valign="top" style="padding:0 8px 12px 0">${img}<div style="${F};font-size:12px;font-weight:600;margin-top:6px;color:#111;width:104px">${hx(x.title)}</div><div style="${F};font-size:11px;color:#667">${x.year || ''}</div></td>`; };
+  let rows = ''; for (let i = 0; i < n.added.length; i += 4) rows += '<tr>' + n.added.slice(i, i + 4).map(tile).join('') + '</tr>';
+  const stat = (v, t) => `<td align="center" style="padding:12px 4px;background:#f2f4f8;border-radius:8px"><div style="${F};font-size:22px;font-weight:700;color:#111">${hx(v)}</div><div style="${F};font-size:11px;color:#667">${hx(t)}</div></td>`;
+  const li = t => `<li style="${F};font-size:13px;color:#222;margin:4px 0">${t}</li>`;
+  return `<!doctype html><html><body style="margin:0;background:#e9ecf2"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:20px 10px">
+<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#fff;border-radius:12px"><tr><td style="padding:26px 26px 8px">
+<div style="${F};font-size:12px;color:#667">${hx(when(Date.now()))}</div><div style="${F};font-size:24px;font-weight:700;color:#111;margin-top:2px">Your week on MediaHub</div>
+${n.added.length ? h('Added this week') + `<table role="presentation" cellpadding="0" cellspacing="0">${rows}</table>` : ''}
+${n.soon.length ? h('Coming up') + `<ul style="margin:0;padding-left:18px">${n.soon.map(x => li(`<b>${hx(when(x.at))}</b> &nbsp;${hx(x.title)} <span style="color:#667">${hx(x.sub)}</span>`)).join('')}</ul>` : ''}
+${h('This week in numbers')}<table role="presentation" width="100%" cellpadding="0" cellspacing="6"><tr>${stat(n.hist, 'downloads finished')}${stat(n.made, 'requests made')}${stat(n.ready, 'ready to watch')}</tr></table>
+<ul style="margin:12px 0 0;padding-left:18px">${n.waiting ? li(`${n.waiting} request${n.waiting > 1 ? 's' : ''} waiting for approval`) : ''}${n.reports ? li(`${n.reports} open problem report${n.reports > 1 ? 's' : ''}`) : ''}${li(n.off.length ? 'Not responding: ' + hx(n.off.join(', ')) : 'All apps are responding')}${n.arrays.map(a => li(`${hx(a.name)} array is ${a.pct}% full`)).join('')}</ul>
+${link ? `<p style="margin:26px 0 0"><a href="${hx(link)}" style="${F};display:inline-block;background:#4f7cff;color:#fff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:8px">Open MediaHub</a></p>` : ''}
+</td></tr><tr><td style="padding:22px 26px;${F};font-size:11px;color:#889">You get this because the weekly newsletter is on in MediaHub, under Settings, Alerts.</td></tr></table></td></tr></table></body></html>`;
+}
+const sendNews = async () => { const n = await newsData(); return notify('MediaHub weekly newsletter', newsText(n), newsHtml(n, baseUrl())); };
 const BK = path.join(DATA, 'backups'), BKRE = /^(auto|pre-restore)-\d{4}-\d{2}-\d{2}-\d{4}\.json$/;
 function backupNow(kind = 'auto') {
   fs.mkdirSync(BK, { recursive: true, mode: 0o700 });
@@ -474,7 +425,6 @@ async function monitor() {
       if (pct >= a.diskPct && !mon.disk[s.id]) { mon.disk[s.id] = 1; await notify('Array almost full', pct.toFixed(0) + '% of the array is used'); }
       else if (pct < a.diskPct - 3) mon.disk[s.id] = 0;
     });
-    for (const s of db.services.filter(x => x.type === 'unraid')) await safe(() => watchdog(s));
     if (a.vpn) for (const s of db.services.filter(x => x.type === 'qbittorrent')) await safe(async () => {
       const v = await vpnStatus(s);
       if (v.vpn === false && !mon.vpn[s.id]) { mon.vpn[s.id] = 1; await notify('VPN not active', s.name + ' is not using the VPN'); }
@@ -495,7 +445,7 @@ async function monitor() {
     const wk = db.settings.weekly;
     if (wk && wk.on) await safe(async () => {
       const d = new Date(); d.setHours(wk.hour ?? 9, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() - (wk.day ?? 0) + 7) % 7)); if (d.getTime() > Date.now()) d.setDate(d.getDate() - 7);
-      if ((wk.last || 0) < d.getTime()) { wk.last = Date.now(); save(); await notify('MediaHub weekly summary', await weeklyText()); }
+      if ((wk.last || 0) < d.getTime()) { wk.last = Date.now(); save(); await sendNews(); }
     });
     const bc = db.settings.backup || {};
     if (bc.on && new Date(bc.last || 0).toDateString() !== new Date().toDateString() && new Date().getHours() >= (bc.hour ?? 3)) await safe(async () => { backupNow(); });
@@ -595,7 +545,7 @@ const RESET_MS = 30 * 60e3, failsRst = {}, askRst = {};
 const mailer = () => ((db.alerts || {}).channels || []).find(c => c.type === 'email' && !channels.problem(c));
 const baseUrl = () => String(process.env.PUBLIC_URL || (db.settings || {}).publicUrl || '').replace(/\/+$/, '');
 const sendRecovery = (c, to, subject, text) => require('./lib/smtp').sendMail({ host: c.host, port: c.port, secure: c.secure, user: c.user, pass: c.pass, from: c.from, insecure: !!c.insecure, to, subject, text });
-const SRV = http.createServer(async (req, res) => {
+http.createServer(async (req, res) => {
   const p = new URL(req.url, 'http://x').pathname, m = req.method;
   res.secure = !!req.socket.encrypted || (TRUST && req.headers['x-forwarded-proto'] === 'https');
   res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('X-Frame-Options', 'DENY'); res.setHeader('Referrer-Policy', 'no-referrer');
@@ -954,15 +904,10 @@ const SRV = http.createServer(async (req, res) => {
     }
     if ((r = p.match(/^\/api\/unraid\/(\w+)$/)) && m === 'GET') {
       const s = svcOf(r[1], 'unraid'); if (!s) return send(res, 404, { error: 'Not found' });
-      const out = { containers: [], errors: [], notes: [], miss: {} };
-      const part = async (q, f, soft) => { try { f(await gql(s, q)); } catch (e) { typeof soft === 'string' ? out.miss[soft] = urMsg(e) : (soft ? out.notes : out.errors).push(e.message); } };
-      const jobOf = () => { const j = ur.jobs[s.id]; return j && (j.running || Date.now() - j.end < 600000) ? { running: j.running, names: j.names, done: j.done, error: j.error, at: j.at } : null; };
+      const out = { containers: [], errors: [], notes: [] };
+      const part = async (q, f, soft) => { try { f(await gql(s, q)); } catch (e) { (soft ? out.notes : out.errors).push(e.message); } };
       if (new URL(req.url, 'http://x').searchParams.get('fast')) {
         await part('{ metrics { cpu { percentTotal } memory { percentTotal } } }', d => { out.cpu = d.metrics.cpu.percentTotal; out.mem = d.metrics.memory.percentTotal; });
-        if (new URL(req.url, 'http://x').searchParams.get('usage')) {
-          Object.assign(out, urUsage(s)); out.job = jobOf();
-          await part('{ docker { containers { id state status } } }', d => { out.states = {}; for (const c of d.docker.containers) out.states[c.id] = { state: c.state, status: c.status || '' }; }, 'states');
-        }
         return send(res, 200, out);
       }
       await Promise.all([
@@ -970,24 +915,16 @@ const SRV = http.createServer(async (req, res) => {
           out.host = d.info.os.hostname; out.arrayState = d.array.state;
           out.used = +d.array.capacity.kilobytes.used; out.total = +d.array.capacity.kilobytes.total; }),
         part('{ metrics { cpu { percentTotal } memory { percentTotal } } }', d => { out.cpu = d.metrics.cpu.percentTotal; out.mem = d.metrics.memory.percentTotal; }),
-        (async () => {
-          const map = d => { out.containers = d.docker.containers.map(c => ({ id: c.id, name: (c.names[0] || '').replace(/^\//, ''), state: c.state, status: c.status || '', image: c.image || '', autoStart: c.autoStart })); };
-          try { map(await gql(s, '{ docker { containers { id names state status image autoStart } } }')); }
-          catch { await part('{ docker { containers { id names state } } }', map); }
-        })(),
-        part('{ docker { containers { id iconUrl webUiUrl } } }', d => { out.extra = {}; for (const c of d.docker.containers) out.extra[c.id] = { icon: /^https:\/\//i.test(c.iconUrl || '') ? c.iconUrl : '', web: /^https?:\/\//i.test(c.webUiUrl || '') ? c.webUiUrl : '' }; }, 'extra'),
-        part('{ vms { domains { id name state } } }', d => { out.vms = ((d.vms || {}).domains || []).map(v => ({ id: v.id, name: v.name || 'VM', state: v.state })); }, 'vms'),
-        part('{ notifications { overview { unread { info warning alert total } } list(filter: { type: UNREAD, offset: 0, limit: 30 }) { id title subject description importance timestamp } } }', d => {
-          out.notices = { count: d.notifications.overview.unread, list: d.notifications.list.map(n => ({ id: n.id, title: n.title, subject: n.subject, text: n.description, level: n.importance, at: n.timestamp })) }; }, 'notices'),
+        part('{ docker { containers { id names state } } }', d => { out.containers = d.docker.containers.map(c => ({ id: c.id, name: (c.names[0] || '').replace(/^\//, ''), state: c.state })); }),
         part('{ array { parityCheckStatus { status progress errors running } disks { name temp status } parities { name temp status } caches { name temp status } } }', d => {
           const a = d.array, tag = (l, r) => (l || []).map(x => ({ name: x.name, role: r, temp: x.temp, status: x.status }));
           out.disks = [...tag(a.parities, 'Parity'), ...tag(a.disks, 'Data'), ...tag(a.caches, 'Cache')]; out.parity = a.parityCheckStatus || null;
         }, true),
         part('{ shares { name free used size } }', d => { out.shares = (d.shares || []).map(x => ({ name: x.name, free: +x.free, used: +x.used, size: +x.size })); }, true),
+        part('{ info { os { uptime } cpu { brand cores threads } } }', d => { out.uptime = d.info.os && d.info.os.uptime || ''; out.cpuInfo = d.info.cpu ? { brand: cut(d.info.cpu.brand, 80), cores: d.info.cpu.cores || 0, threads: d.info.cpu.threads || 0 } : null; }, true),
+        part('{ docker { containers { id image status } } }', d => { out.meta = {}; for (const c of d.docker.containers) out.meta[c.id] = { image: cut(c.image, 100), status: cut(c.status, 60) }; }, true),
         part('{ docker { containers { id isUpdateAvailable } } }', d => { out.updates = {}; for (const c of d.docker.containers) if (c.isUpdateAvailable) out.updates[c.id] = true; }, true)
       ]);
-      Object.assign(out, urUsage(s)); out.job = jobOf();
-      if (me.role === 'admin') out.watchdog = { ...wdCfg(), log: db.wdLog.filter(x => x.sid === s.id).slice(-25).reverse() };
       return send(res, 200, out);
     }
     if (p === '/api/torrent/add' && m === 'POST') {
@@ -1175,12 +1112,6 @@ const SRV = http.createServer(async (req, res) => {
         } else if (s.type === 'unraid') {
           const k = (await gql(s, '{ array { capacity { kilobytes { used total } } } }')).array.capacity.kilobytes, pct = +k.used / +k.total * 100, lim = (db.alerts && db.alerts.diskPct) || 90;
           if (pct >= lim) add(pct >= 95 ? 'bad' : 'warn', `The Unraid array is ${pct.toFixed(0)}% full`, 'ur');
-          const up = await gql(s, '{ docker { containers { isUpdateAvailable } } }').then(d => d.docker.containers.filter(c => c.isUpdateAvailable).length).catch(() => 0);
-          if (up && me.role === 'admin') add('warn', `${up} ${plural(up, 'container has an update', 'containers have updates')} on ${s.name}`, 'ur');
-          const al = await gql(s, '{ notifications { overview { unread { alert warning } } } }').then(d => d.notifications.overview.unread).catch(() => null);
-          if (al && al.alert) add('bad', `${al.alert} unread Unraid ${plural(al.alert, 'alert', 'alerts')} on ${s.name}`, 'ur');
-          const gave = db.wdLog.filter(x => x.sid === s.id && x.level === 'bad' && Date.now() - x.at < 6 * 3600e3), names = [...new Set(gave.map(x => x.name))];
-          if (names.length && me.role === 'admin') add('bad', `${names.slice(0, 3).join(', ')}${names.length > 3 ? ' and others' : ''} stopped unexpectedly on ${s.name}`, 'ur');
         } else if (s.type === 'sonarr' || s.type === 'radarr') {
           const q = await call(s, '/api/v3/queue?page=1&pageSize=100'), bad = (q.records || []).filter(x => ['warning', 'error'].includes(x.trackedDownloadStatus) || x.status === 'failed');
           if (bad.length) add('warn', `${bad.length} ${plural(bad.length, 'item', 'items')} in ${s.name}'s queue ${plural(bad.length, 'needs', 'need')} attention`, 'up');
@@ -1453,10 +1384,10 @@ const SRV = http.createServer(async (req, res) => {
     if (p === '/api/weekly' && m === 'GET') { const w = db.settings.weekly || {}; return send(res, 200, { on: !!w.on, day: w.day ?? 0, hour: w.hour ?? 9, last: w.last || 0 }); }
     if (p === '/api/weekly' && m === 'PUT') {
       const b = await readBody(req), o = db.settings.weekly || {}; db.settings.weekly = { on: !!b.on, day: Math.min(6, Math.max(0, Math.round(+b.day) || 0)), hour: Math.min(23, Math.max(0, Math.round(+b.hour) || 0)), last: o.on || !b.on ? o.last : Date.now() };
-      save(); audit(me.name, 'Changed the weekly summary', b.on ? 'on' : 'off'); return send(res, 200, {});
+      save(); audit(me.name, 'Changed the weekly newsletter', b.on ? 'on' : 'off'); return send(res, 200, {});
     }
-    if (p === '/api/weekly/send' && m === 'POST') { if (!((db.alerts || {}).channels || []).length) return send(res, 400, { error: 'Add an alert channel first' }); await notify('MediaHub weekly summary', await weeklyText()); return send(res, 200, {}); }
-    if (p === '/api/weekly/preview' && m === 'GET') return send(res, 200, { text: await weeklyText() });
+    if (p === '/api/weekly/send' && m === 'POST') { if (!((db.alerts || {}).channels || []).length) return send(res, 400, { error: 'Add an alert channel first' }); await sendNews(); return send(res, 200, {}); }
+    if (p === '/api/weekly/preview' && m === 'GET') { const n = await newsData(); return send(res, 200, { text: newsText(n), html: newsHtml(n, baseUrl()) }); }
     if ((r = p.match(/^\/api\/reports\/(\w+)\/resolve$/)) && m === 'POST') {
       const x = db.reports.find(y => y.id === r[1]); if (!x) return send(res, 404, { error: 'Not found' }); x.status = 'done'; save(); return send(res, 200, {});
     }
@@ -1493,43 +1424,11 @@ const SRV = http.createServer(async (req, res) => {
       await call(sv, `/api/v1/${c.ent}/${r[2]}?deleteFiles=${new URL(req.url, 'http://x').searchParams.get('files') === '1'}`, { method: 'DELETE' }); audit(me.name, 'Removed from library', sv.name + ' item ' + r[2]); return send(res, 200, {});
     }
     if ((r = p.match(/^\/api\/unraid\/(\w+)\/docker$/)) && m === 'POST') {
-      const b = await readBody(req), s = svcOf(r[1], 'unraid'), okId = x => typeof x === 'string' && /^[\w:.\-]{1,200}$/.test(x);
-      const ids = b.all ? 'all' : (Array.isArray(b.ids) ? b.ids : [b.id]).slice(0, 100);
-      if (!s || !['start', 'stop', 'restart', 'pause', 'unpause', 'update'].includes(b.action) || (ids !== 'all' && (!ids.length || !ids.every(okId))) || (ids === 'all' && b.action !== 'update'))
-        return send(res, 400, { error: 'Bad request' });
-      const names = (Array.isArray(b.names) ? b.names : []).slice(0, 100).map(x => cut(x, 80));
-      if (b.action === 'update') { let j; try { j = urUpdate(s, ids, names, me.name); } catch (e) { return send(res, 409, { error: e.message }); } return send(res, 200, { started: true, at: j.at }); }
-      const stops = ['stop', 'restart', 'pause'].includes(b.action); if (stops) urQuiet(s.id, ids);
-      const run = (a, id) => gql(s, `mutation { docker { ${a}(id: ${JSON.stringify(id)}) { id } } }`, 120000), failed = [];
-      for (const id of ids) {
-        try { if (b.action === 'restart') { await run('stop', id); await run('start', id); } else await run(b.action, id); }
-        catch (e) { failed.push(urMsg(e)); }
-      }
-      if (stops) urQuiet(s.id, ids); else ids.forEach(x => delete ur.quiet[s.id + ':' + cidKey(x)]);
-      audit(me.name, 'Containers: ' + b.action, s.name + ': ' + (names.join(', ') || ids.length + ' containers'));
-      if (failed.length === ids.length) return send(res, 400, { error: failed[0] });
-      return send(res, 200, { failed: failed.length, error: failed[0] || '' });
-    }
-    if ((r = p.match(/^\/api\/unraid\/(\w+)\/vm$/)) && m === 'POST') {
       const b = await readBody(req), s = svcOf(r[1], 'unraid');
-      if (!s || !/^[\w:.\-]{1,200}$/.test(b.id || '') || !['start', 'stop', 'pause', 'resume', 'reboot', 'forceStop'].includes(b.action)) return send(res, 400, { error: 'Bad request' });
-      try { await gql(s, `mutation { vm { ${b.action}(id: ${JSON.stringify(b.id)}) } }`, 120000); }
-      catch (e) { return send(res, 400, { error: urMsg(e) }); }
-      audit(me.name, 'VM: ' + b.action, s.name + ': ' + cut(b.name || b.id, 80)); return send(res, 200, {});
-    }
-    if ((r = p.match(/^\/api\/unraid\/(\w+)\/notices$/)) && m === 'POST') {
-      const b = await readBody(req), s = svcOf(r[1], 'unraid'), ids = (Array.isArray(b.ids) ? b.ids : []).slice(0, 200);
-      if (!s || (!b.all && (!ids.length || !ids.every(x => typeof x === 'string' && /^[\w:.\-]{1,300}$/.test(x))))) return send(res, 400, { error: 'Bad request' });
-      try { await gql(s, b.all ? 'mutation { archiveAll { unread { total } } }' : `mutation { archiveNotifications(ids: ${JSON.stringify(ids)}) { unread { total } } }`); }
-      catch (e) { return send(res, 400, { error: urMsg(e) }); }
+      if (!s || !/^[\w:.\-]+$/.test(b.id || '') || !['start', 'stop', 'restart'].includes(b.action)) return send(res, 400, { error: 'Bad request' });
+      const run = a => gql(s, `mutation { docker { ${a}(id: ${JSON.stringify(b.id)}) { id } } }`);
+      if (b.action === 'restart') { await run('stop'); await run('start'); } else await run(b.action);
       return send(res, 200, {});
-    }
-    if (p === '/api/watchdog' && m === 'PUT') {
-      const b = await readBody(req), c = wdCfg();
-      for (const k of ['on', 'restart', 'alert', 'unhealthy']) if (k in b) c[k] = !!b[k];
-      if (Array.isArray(b.skip)) c.skip = [...new Set(b.skip.map(x => cut(String(x).trim(), 80)).filter(Boolean))].slice(0, 200);
-      db.settings.watchdog = c; save(); audit(me.name, 'Changed the container watchdog', c.on ? (c.restart ? 'on, restarts crashed containers' : 'on, alerts only') : 'off');
-      return send(res, 200, c);
     }
     if (p === '/api/services' && m === 'POST') {
       const b = await readBody(req);
@@ -1764,9 +1663,7 @@ const SRV = http.createServer(async (req, res) => {
     }
     send(res, 404, { error: 'Not found' });
   } catch (e) { console.error(req.method, p, e); send(res, 500, { error: 'Server error: ' + e.message }); }
-});
-if (DEMO) SRV.on('upgrade', (req, sock) => req.url.startsWith('/__demo/') ? demo.upgrade(req, sock, req.url.slice(7)) : sock.destroy());
-SRV.listen(PORT, () => console.log('MediaHub running' + (DEMO ? ' in demo mode' : '') + ' on port ' + PORT));
+}).listen(PORT, () => console.log('MediaHub running' + (DEMO ? ' in demo mode' : '') + ' on port ' + PORT));
 const MON_MS = Math.max(500, +process.env.MONITOR_MS || 30000);
 setInterval(() => monitor().catch(() => {}), MON_MS);
 setInterval(() => { for (const k in fails) if (Date.now() - fails[k].t > 600000) delete fails[k]; }, 600000).unref();

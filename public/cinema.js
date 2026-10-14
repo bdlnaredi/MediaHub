@@ -74,17 +74,16 @@
     C.reveal(el);
   };
 
-  // Two slow rows of posters drifting in opposite directions, with counters.
-  C.wall = (el, art, onPick) => {
+  // A single slow row of posters across the top, with counters.
+  C.ticker = (el, art, onPick) => {
     const all = (art.wall || []).filter(x => x.poster);
     if (all.length < 3) { el.innerHTML = ''; return; }
-    const half = Math.ceil(all.length / 2), rows = [all.slice(0, half), all.slice(half)], fill = r => { let o = r.slice(); while (o.length < 14) o = o.concat(r); return o; };
-    const row = (r, cls) => { const f = fill(r); return `<div class="cn-row ${cls}">${f.concat(f).map((x, k) => card(x, k).replace(/ style="[^"]*"/, '').replace('data-k="' + k + '"', 'data-i="' + x.sid + ':' + x.id + '" tabindex="' + (k < f.length ? 0 : -1) + '"')).join('')}</div>`; };
-    el.innerHTML = `<section class="rv"><div class="cn-wallh"><h2 class="sec" style="margin:0">Your library</h2><span class="cn-n" data-n="${art.shows}">0</span><span class="mute">series</span><span class="cn-n" data-n="${art.movies}">0</span><span class="mute">movies</span></div><div class="cn-wall">${row(rows[0], '')}${row(rows[1] || rows[0], 'r')}</div></section>`;
+    let f = all.slice(); while (f.length < 16) f = f.concat(all);
+    const tile = (x, k) => `<button type="button" class="cn-tt" data-i="${x.sid}:${x.id}" tabindex="${k < f.length ? 0 : -1}" aria-label="${esc(x.title)}${x.year ? ', ' + x.year : ''}" title="${esc(x.title)}"><img src="${esc(x.poster)}" alt="" loading="lazy"></button>`;
+    el.innerHTML = `<section class="cn-tk"><div class="cn-tkh"><span class="cn-n" data-n="${art.shows}">0</span><span>series</span><span class="cn-n" data-n="${art.movies}">0</span><span>movies</span></div><div class="cn-tkw"><div class="cn-tkr">${f.concat(f).map(tile).join('')}</div></div></section>`;
     const by = Object.fromEntries(all.map(x => [x.sid + ':' + x.id, x]));
-    el.querySelector('.cn-wall').onclick = e => { const b = e.target.closest('[data-i]'); if (b && onPick) onPick(by[b.dataset.i]); };
-    el.querySelectorAll('[data-n]').forEach(n => { const to = +n.dataset.n, t0 = performance.now(); if (reduce()) { n.textContent = to; return; } const f = t => { const p = Math.min(1, (t - t0) / 1100); n.textContent = Math.round(to * (1 - Math.pow(1 - p, 3))); if (p < 1) requestAnimationFrame(f); }; requestAnimationFrame(f); });
-    C.reveal(el);
+    el.querySelector('.cn-tkw').onclick = e => { const b = e.target.closest('[data-i]'); if (b && onPick) onPick(by[b.dataset.i]); };
+    el.querySelectorAll('[data-n]').forEach(n => { const to = +n.dataset.n, t0 = performance.now(); if (reduce()) { n.textContent = to; return; } const g = t => { const p = Math.min(1, (t - t0) / 1100); n.textContent = Math.round(to * (1 - Math.pow(1 - p, 3))); if (p < 1) requestAnimationFrame(g); }; requestAnimationFrame(g); });
   };
 
   // Fade things in as they scroll into view.

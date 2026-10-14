@@ -67,18 +67,18 @@ html.cn-js .rv.in{opacity:1;transform:none;transition:opacity .7s ease,transform
 .cn-t{display:block;margin-top:10px;font-size:14px;font-weight:650;line-height:1.3;padding:0 2px}
 @media(hover:none){.cn-ov{display:none}}
 
-/* library wall */
-.cn-wallh{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin:6px 0 4px}
-.cn-wallh .cn-n{font-size:clamp(34px,6vw,60px);font-weight:820;letter-spacing:-.05em;line-height:1}
-.cn-wallh span.mute{font-size:15px}
-.cn-wall{overflow:hidden;padding:12px 0;-webkit-mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent);mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent)}
-.cn-row{display:flex;gap:14px;width:max-content;margin-bottom:14px;animation:cnmq 70s linear infinite}
-.cn-row.r{animation-direction:reverse;animation-duration:88s}
-.cn-wall:hover .cn-row{animation-play-state:paused}
+/* poster ticker across the top */
+.cn-tk{display:flex;align-items:center;gap:16px;margin:0 0 18px;padding:10px 14px 10px 18px;border-radius:26px;background:var(--glass,var(--s1));border:1px solid var(--line);overflow:hidden}
+.cn-tkh{flex:none;display:grid;grid-template-columns:auto auto;gap:0 7px;align-items:baseline;font-size:13px;color:var(--mute)}
+.cn-tkh .cn-n{font-size:26px;font-weight:800;letter-spacing:-.04em;color:var(--text);text-align:right;line-height:1.1}
+.cn-tkw{flex:1;min-width:0;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent);mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent)}
+.cn-tkr{display:flex;gap:10px;width:max-content;animation:cnmq 80s linear infinite}
+.cn-tkw:hover .cn-tkr{animation-play-state:paused}
 @keyframes cnmq{to{transform:translateX(-50%)}}
-.cn-wall .cn-card{width:clamp(96px,9vw,128px);scroll-snap-align:none}
-.cn-wall .cn-pw{border-radius:16px}
-.cn-wall .cn-t{display:none}
+.cn-tt{flex:none;width:58px;aspect-ratio:2/3;padding:0;border:0;border-radius:11px;overflow:hidden;background:var(--s2);box-shadow:0 8px 16px -8px rgba(0,0,0,.7);transition:transform .25s cubic-bezier(.2,.8,.2,1),box-shadow .25s}
+.cn-tt:hover{transform:translateY(-4px) scale(1.12);box-shadow:0 0 0 2px var(--accent),0 14px 24px -10px rgba(0,0,0,.8);position:relative;z-index:2}
+.cn-tt img{width:100%;height:100%;object-fit:cover;display:block}
+@media(max-width:600px){.cn-tkh{display:none}.cn-tk{padding:10px 12px}}
 
 /* library grid cards and detail banner */
 .card[data-v]{position:relative;transform:perspective(760px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));transition:transform .3s cubic-bezier(.2,.8,.2,1),box-shadow .3s}
@@ -90,7 +90,7 @@ html.cn-js .rv.in{opacity:1;transform:none;transition:opacity .7s ease,transform
 @media(prefers-reduced-motion:reduce){
   .cn-sl.on,.cn-in>*,.pgin,.pw img,.card>img,.cn-pw img,.rv.in .cn-card,.dbd{animation:none}
   html.cn-js .rv{opacity:1;transform:none}
-  .cn-row{animation:none}.cn-wall{overflow-x:auto}
+  .cn-tkr{animation:none}.cn-tkw{overflow-x:auto}
   .cn-thumbs button.on .cn-ring{animation:none;width:100%}
   #amb i{transition:none}
 }

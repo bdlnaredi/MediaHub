@@ -5,24 +5,17 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 ## [0.14.0] - 2026-10-14
 
 ### Added
-- **Manage containers properly.** The Unraid page now has a container table with live CPU, memory and network use for each container (streamed from Unraid while the page is open), search, filters (running, stopped, updates), sorting by CPU or memory, and the container's icon and a link to its web page.
-- **Container updates.** Update one container, tick several and update them together, or **Update all**. Updates run in the background with a progress banner, so you can leave the page.
-- **Bulk actions.** Tick containers to start, stop, restart or update them together. Pause and resume single containers.
-- **Container watchdog** (on by default). Every 30 seconds MediaHub looks for containers that stopped on their own. A crashed container is started again and you get an alert. It gives up after 3 restarts in an hour so a broken container does not loop forever. Containers stopped on purpose (from MediaHub, or from Unraid with a normal exit) are only reported, never restarted. You can switch restarting off, choose containers it should never restart, and get told when a container's health check says it is unhealthy. Nothing is restarted while the array is stopped.
-- **Virtual machines:** start, shut down, pause, resume, restart and force off.
-- **Unraid notifications:** see unread Unraid notifications (alerts, warnings, info) and dismiss them one by one or all at once.
-- Logs viewer: filter lines and refresh.
-- Needs attention now lists container updates, unread Unraid alerts and containers that stopped unexpectedly.
+- **Weekly newsletter** (Settings, then Alerts) replaces the weekly summary. It lists what was added to the library (with posters in email), what is coming up, downloads, requests, open problems and apps that are not responding. Email gets a styled HTML version with a plain-text fallback; other channels get plain text. Preview it on the page, send one now, or pick the day and hour.
+- **QR code for two-step sign-in.** Scan it with Aegis, Google Authenticator or 1Password. The typed key is still there under "Can't scan?".
+- **App icons** in front of every app name in Settings, then Apps, and in the dashboard Apps list.
+- **Unraid page rebuilt:** array, CPU and memory rings, disks with temperatures, shares, uptime and CPU model, and containers with image, status, update badge and Start/Stop/Restart/Logs. Newer fields are optional and are left out if your Unraid does not return them.
 
 ### Changed
-- Array and share sizes on the Unraid page are shown in TB instead of very large GB numbers.
-- Stopping, restarting or updating MediaHub's own container asks first and says the page will reconnect.
+- Settings, then Account: the sign-in picture and password-email panels now show a three-step checklist of what is missing and plain choices for the sign-in page pictures.
+- The poster strip on the dashboard moved from the bottom to the top.
 
-### Notes
-- Live container usage and one-click updates need a newer Unraid API than the one Unraid 7.2 first shipped with. On an older API the rest of the page works and those parts show a short message saying an update to Unraid (or the Unraid Connect plugin) adds them.
-- Live container usage uses the WebSocket support built into Node.js 22, which the Docker image already has. If you run MediaHub outside Docker on Node.js 20, everything else works and the Unraid page says live usage needs Node.js 22.
-- For VMs and notifications the Unraid API key needs those permissions. Without them, that section explains what is missing.
-- The new parts follow Unraid's published GraphQL schema and were tested against built-in pretend apps, not yet against a real server. Please report anything that looks wrong, with your Unraid version.
+### Removed
+- The weekly summary message (use the weekly newsletter).
 
 ## [0.13.0] - 2026-10-14
 
