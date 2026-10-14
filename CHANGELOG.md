@@ -2,6 +2,30 @@
 
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.13.0] - 2026-10-14
+
+### Added
+- **Forgot password.** A "Forgot password?" link on the sign-in page. Profiles can save a recovery email (Settings, then Account, needs the current password). The reset link is single use, valid for 30 minutes, signs the profile out everywhere and keeps two-step sign-in on. The reply never reveals which names exist, requests are rate limited, and the secret sits after the `#` in the link so it stays out of server logs. Email goes through your existing email alert channel; the address in the link is `PUBLIC_URL` or the address the admin used.
+- **Library artwork everywhere.** A featured hero with Ken Burns backdrops and a poster strip, "Recently added" and "Top rated" poster rows, an animated poster wall with counters, a blurred backdrop behind the whole app, rating badges, posters that tilt with a light glare, backdrops in detail windows, fade-in images and page transitions. All of it respects "reduce motion".
+- **Sign-in wallpaper from your library.** Backdrops are saved from Sonarr and Radarr into `wallpapers` (16 at a time, rotated every six hours) and fade behind the sign-in card. A switch in Settings, then Account, chooses between library artwork and the built-in scenes. No titles are exposed to signed-out visitors.
+- New admin options in Settings, then Account: sign-in wallpaper source, the address used in emails, and a test email.
+
+### Fixed
+- The bottom dock on phones did nothing when tapped (only "More" worked).
+- Toggle switches looked like large ovals inside phone bottom sheets.
+
+## [0.12.0] - 2026-10-14
+
+### Added
+- **New look across the whole app.** Glass panels over a soft aurora background, rounded floating sidebar, gradient buttons, tiles with a coloured glow, and dialogs that slide up as sheets on phones.
+- **Phone friendly.** A top bar and a bottom dock (with a More sheet) replace the sidebar on small screens, and tiles use two columns.
+- **Changing sign-in wallpaper.** Six built-in scenes fade into each other behind the sign-in card. To use your own, put JPG, PNG or WebP files (under 12 MB, up to 40) in a `wallpapers` folder inside your data folder.
+- **Interactive status page builder** in Settings: section cards, a message at the top, a Dark, Light or Match device look, and a live preview you can switch between phone, tablet and wall screen. Existing pages can be edited, and "New address" replaces a link that leaked.
+- The public status page is redesigned: status ring, hover details on uptime bars, pause button, full screen, and a kiosk mode (`?kiosk=1`).
+
+### Changed
+- Status page code is shared between the public page and the Settings preview (`statuskit.js` and `statuskit.css`).
+
 ## [0.11.0] - 2026-10-14
 
 ### Added

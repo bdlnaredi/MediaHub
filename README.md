@@ -28,6 +28,9 @@ One friendly web page for the apps on your home media server. See what is downlo
 - **Slow downloads while Plex streams:** qBittorrent's alternative speed limits switch on while someone is watching, and back when they stop.
 - **Profiles:** per-person app access and permissions (for example "view only"), two-step sign-in, signed-in devices, and an activity log.
 - **Alerts:** messages through ntfy, Telegram, Discord, Pushover, Gotify, a webhook or email, for finished downloads, apps going offline, a full array, the VPN dropping, new requests and problem reports, plus an optional weekly summary.
+- **Artwork-first UI** built from your own library: a featured hero with backdrops, poster rows, a moving poster wall, a blurred backdrop glowing behind every page, posters that lean toward the pointer, and a phone layout with a bottom dock. Everything honours "reduce motion".
+- **Sign-in wallpaper from your library.** MediaHub saves a rotating set of backdrops from Sonarr and Radarr and shows them behind the sign-in card (never titles). Pick "Built-in scenes" in Settings, then Account, if you do not want your artwork visible to anyone who can open the sign-in page. Your own JPG, PNG or WebP files in `data/wallpapers` are included too.
+- **Forgot password.** Profiles can save a recovery email. MediaHub sends a single-use link (valid 30 minutes, signs the profile out everywhere) through the email alert channel you already set up.
 - **Status pages:** a private read-only link for a wall tablet that refreshes by itself and shows only the sections you pick, without signing in: an all-clear banner, 48-hour uptime bars per app, speed graph, and optionally how many people are watching (titles only, never names).
 - **Backups:** an encrypted backup file, plus automatic daily copies inside the data folder.
 - **Also:** Plex (who is watching, recently added), Tautulli stats with poster grids and charts (plays per day, busiest hours, devices, top viewers), Unraid (CPU, memory, array, disks, shares, containers), quick search (`Ctrl+K`), light and dark themes, five languages, and install-to-home-screen on a phone.
@@ -112,6 +115,7 @@ If the port can be reached by anyone besides you, set `SETUP_TOKEN` first (see b
 | `SETUP_TOKEN` | empty | If set, creating the first admin asks for this code. |
 | `TRUST_PROXY` | off | Set to `true` **only** if MediaHub is behind a reverse proxy or tunnel you control. It makes MediaHub believe the proxy's client address and HTTPS headers. Leave it off otherwise. |
 | `DEMO` | off | Set to `1` to run the demo described above instead of your real data. |
+| `PUBLIC_URL` | learned from the admin | The address people open from password emails, for example `https://media.example.com`. If unset, MediaHub remembers the address the first admin used, and it can be changed in Settings, then Account. |
 | `ALLOWED_ORIGINS` | empty | Comma-separated extra web addresses allowed to sign in, if a proxy changes the `Host` header, for example `https://media.example.com`. |
 
 ## Connecting your apps

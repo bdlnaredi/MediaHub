@@ -3,54 +3,33 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>Status</title>
-<style>
-:root{color-scheme:dark light;--bg:#14152a;--s1:#1b1d36;--s2:#242746;--line:#30345a;--text:#ecebf6;--mute:#9a9dba;--accent:#ffb938;--ok:#3fd8c4;--okt:#3fd8c4;--bad:#ff6b81;--warn:#ffb938}
-@media (prefers-color-scheme:light){:root{--bg:#f5f4fb;--s1:#fff;--s2:#edebf7;--line:#dcd9ec;--text:#1a1830;--mute:#615f80;--accent:#b36b00;--ok:#0e8f80;--okt:#0a6b60;--bad:#d03352;--warn:#b36b00}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:18px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:28px;font-variant-numeric:tabular-nums}
-.top{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap}.top>div{flex:1;min-width:0}
-h1{margin:0 0 4px;font-size:30px;letter-spacing:-.02em}.mute{color:var(--mute);font-size:15px}
-.banner{display:flex;align-items:center;gap:12px;margin-top:20px;padding:16px 20px;border-radius:18px;border:1px solid var(--line);background:var(--s1);font-size:20px;font-weight:650}
-.banner i{width:14px;height:14px;border-radius:50%;background:var(--mute);flex:none}.banner.ok i{background:var(--ok)}.banner.bad i{background:var(--bad)}
-.live{display:inline-flex;align-items:center;gap:7px;padding:4px 12px;border-radius:99px;background:var(--s2);color:var(--mute);font-size:14px;font-weight:600}
-.live i{width:8px;height:8px;border-radius:50%;background:var(--mute)}.live.on{color:var(--okt)}.live.on i{background:var(--ok);animation:pulse 2s ease-out infinite}.live.off{color:var(--warn)}.live.off i{background:var(--warn)}
-@keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--ok) 55%,transparent)}100%{box-shadow:0 0 0 9px transparent}}
-@media (prefers-reduced-motion:reduce){.live.on i{animation:none}}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:18px;margin-top:22px}
-.panel{background:var(--s1);border:1px solid var(--line);border-radius:18px;padding:20px;min-width:0}.panel h2{margin:0 0 12px;font-size:19px}
-.row{display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--line)}.row:last-child{border:0}.grow{flex:1;min-width:0;word-break:break-word}
-.dot{width:12px;height:12px;border-radius:50%;background:var(--mute);flex:none}.dot.ok{background:var(--ok)}.dot.bad{background:var(--bad)}
-.ub{display:block;max-width:100%;height:16px}
-.big{font-size:38px;font-weight:700;letter-spacing:-.02em}progress{width:100%;height:8px;border:0;border-radius:99px;-webkit-appearance:none;appearance:none;background:rgba(128,128,160,.25)}
-progress::-webkit-progress-bar{background:rgba(128,128,160,.25);border-radius:99px}progress::-webkit-progress-value{background:var(--accent);border-radius:99px;transition:width .5s}progress::-moz-progress-bar{background:var(--accent);border-radius:99px}
-.spark{display:block;margin-top:10px}
-.pill{display:inline-block;padding:1px 10px;border-radius:99px;background:var(--s2);font-size:13px;color:var(--mute)}
-</style></head><body>
-<div class="top"><div><h1 id="t">Status</h1><div class="mute" id="u">Loading…</div></div><span class="live" id="lv" role="status"><i></i><span>Connecting</span></span></div>
-<div id="ban"></div><div class="grid" id="g"></div>
+<link rel="stylesheet" href="/statuskit.css">
+<style>html,body{margin:0;min-height:100%;background:#0a0b14}body.l{background:#f1f0fa}@media(prefers-color-scheme:light){body.a{background:#f1f0fa}}.stx{min-height:100vh;border-radius:0}.stx-err{margin-top:30vh;text-align:center;font-size:20px}</style>
+</head><body>
+<main class="stx" id="sk" data-look="auto">
+  <div class="stx-top"><div class="stx-ttl"><h1 id="t">Status</h1></div>
+    <button class="stx-live hold" id="lv" type="button" title="Pause or resume live updates" aria-label="Live updates"><i></i><span>Connecting</span></button>
+    <button class="stx-ib stx-ctl" id="fs" type="button" title="Full screen" aria-label="Full screen"></button></div>
+  <div id="body"></div>
+</main>
+<script src="/statuskit.js"></script>
 <script>
-const tok=location.pathname.split('/')[2]||'';
-const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const spd=b=>b>=1e6?(b/1e6).toFixed(1)+' MB/s':b>=1e3?Math.round(b/1e3)+' KB/s':'0 KB/s';
-const hist={dl:[],ul:[]},N=40;let fails=0;
-const spark=(v,c)=>{if(v.length<2)return '';const W=300,H=48,mx=Math.max(1,...v)*1.15,x=i=>(W-(v.length-1-i)*W/(N-1)).toFixed(1),y=n=>(H-3-n/mx*(H-8)).toFixed(1),l=v.map((n,i)=>`${i?'L':'M'}${x(i)},${y(n)}`).join('');
-  return `<svg class="spark" viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="none" aria-hidden="true"><path d="${l}L${W},${H}L${x(0)},${H}Z" style="fill:${c};fill-opacity:.18"/><path d="${l}" fill="none" style="stroke:${c}" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg>`};
-const bars=(b,p)=>b?`<svg class="ub" viewBox="0 0 ${b.length*4} 16" width="${b.length*4}" role="img" aria-label="Last 48 hours: ${p==null?'no history yet':p+'% online'}"><title>${p==null?'No history yet':p+'% online in the last 48 hours'}</title>${b.map((v,i)=>`<rect x="${i*4}" y="0" width="3" height="16" rx="1" style="fill:${v==null?'var(--line)':v>=.99?'var(--ok)':v>=.5?'var(--warn)':'var(--bad)'}"/>`).join('')}</svg>`:'';
-function pill(on){const l=document.getElementById('lv');l.className='live '+(on?'on':'off');l.lastChild.textContent=on?'Live':'Reconnecting'}
+const tok=location.pathname.split('/')[2]||'',sk=document.getElementById('sk'),K=window.StatusKit,st={};
+let paused=false,iv=null,fails=0;
+if(/[?&]kiosk=1/.test(location.search))sk.dataset.kiosk='1';
+document.getElementById('fs').innerHTML=K.ICON.full;
+K.attach(sk);
+function pill(cls,txt){const l=document.getElementById('lv');l.className='stx-live '+cls;l.lastChild.textContent=txt}
 async function load(){
   try{const r=await fetch('/api/public/'+encodeURIComponent(tok));if(!r.ok)throw new Error(r.status===404?'This link is not valid or was turned off.':'Could not load');const d=await r.json();
-    fails=0;pill(true);document.title=d.name;document.getElementById('t').textContent=d.name;document.getElementById('u').textContent='Updated '+new Date(d.at).toLocaleTimeString();
-    if(d.apps){const bad=d.apps.filter(a=>a.ok===false).length,unk=d.apps.every(a=>a.ok==null);
-      document.getElementById('ban').innerHTML=`<div class="banner ${unk?'':bad?'bad':'ok'}" role="status"><i></i><span>${unk?'Checking…':bad?(bad===1?'One service is down':bad+' services are down'):'All services are running'}</span></div>`}
-    let h='';
-    if(d.apps)h+=`<div class="panel"><h2>Apps</h2>${d.apps.map(a=>`<div class="row"><span class="dot ${a.ok===true?'ok':a.ok===false?'bad':''}"></span><div class="grow">${esc(a.name)}<div>${bars(a.bars,a.pct)}</div></div><span class="mute">${a.ok===true?'Online':a.ok===false?'Offline':'Checking'}${a.pct!=null?', '+a.pct+'%':''}</span></div>`).join('')}</div>`;
-    if(d.traffic){hist.dl.push(d.traffic.dl);hist.ul.push(d.traffic.ul);if(hist.dl.length>N){hist.dl.shift();hist.ul.shift()}
-      h+=`<div class="panel"><h2>Downloads</h2><div class="mute">Downloading</div><div class="big" style="color:var(--accent)">${spd(d.traffic.dl)}</div>${spark(hist.dl,'var(--accent)')}<div class="mute" style="margin-top:10px">Uploading</div><div style="font-size:24px;color:var(--okt)">${spd(d.traffic.ul)}</div></div>`}
-    if(d.watching)h+=`<div class="panel"><h2>Watching now</h2><div class="big">${d.watching.count}</div><div class="mute">${d.watching.count?(d.watching.kbps?(d.watching.kbps/1000).toFixed(1)+' Mbps in use':'streaming'):'Nobody is watching right now'}</div>${d.watching.items.map(x=>`<div style="padding:8px 0"><div>${esc(x.title)} <span class="mute">${esc(x.sub)}${x.state==='paused'?', paused':''}</span></div><progress value="${x.progress}" max="1" aria-label="Progress"></progress></div>`).join('')}</div>`;
-    if(d.downloads)h+=`<div class="panel"><h2>In progress</h2>${d.downloads.map(x=>`<div style="padding:7px 0"><div>${esc(x.name)}</div><progress value="${x.progress}" max="1" aria-label="Progress"></progress></div>`).join('')||'<div class="mute">Nothing right now</div>'}</div>`;
-    if(d.upcoming)h+=`<div class="panel"><h2>Coming up</h2>${d.upcoming.map(x=>`<div class="row"><span class="grow">${esc(x.title)} <span class="mute">${esc(x.sub)}</span></span><span class="mute">${esc(new Date(x.date).toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'}))}</span></div>`).join('')||'<div class="mute">Nothing in the next week</div>'}</div>`;
-    document.getElementById('g').innerHTML=h;
-  }catch(e){fails++;pill(false);document.getElementById('u').textContent=e.message;if(/not valid/.test(e.message))clearInterval(iv)}
+    fails=0;pill('on','Live');document.title=d.name;document.getElementById('t').textContent=d.name;
+    const look=['dark','light'].includes(d.look)?d.look:'auto';sk.dataset.look=look;document.body.className=look==='light'?'l':look==='auto'?'a':'';
+    document.getElementById('body').innerHTML=K.html(d,st);
+  }catch(e){fails++;pill('off','Reconnecting');if(/not valid/.test(e.message)){clearInterval(iv);document.getElementById('body').innerHTML='<p class="stx-err">'+K.esc(e.message)+'</p>';pill('hold','Off')}}
 }
-load();const iv=setInterval(()=>{if(!document.hidden)load()},4000);
-document.addEventListener('visibilitychange',()=>{if(!document.hidden)load()});
+function run(){clearInterval(iv);iv=setInterval(()=>{if(!document.hidden&&!paused)load()},4000)}
+document.getElementById('lv').onclick=()=>{paused=!paused;if(paused)pill('hold','Paused');else{pill('on','Live');load()}};
+document.getElementById('fs').onclick=()=>{document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen()};
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!paused)load()});
+load();run();
 </script></body></html>

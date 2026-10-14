@@ -94,7 +94,7 @@ const qbCookie = {}, fails = {};
 const ipOf = req => TRUST ? String(req.headers['cf-connecting-ip'] || String(req.headers['x-forwarded-for'] || '').split(',').pop().trim() || req.socket.remoteAddress).trim() : String(req.socket.remoteAddress || '');
 
 const mkUser = (name, pw, role) => { const salt = uid(); return { id: uid(), name, role, salt, hash: hash(pw, salt), access: [] }; };
-const pubUser = u => ({ twofa: !!(u.totp && u.totp.on), id: u.id, name: u.name, role: u.role, access: u.access, perms: u.perms || null, notify: u.notify || '', dash: u.dash || null, reqLimit: u.reqLimit || null, autoApprove: !!u.autoApprove });
+const pubUser = u => ({ email: u.email || '', twofa: !!(u.totp && u.totp.on), id: u.id, name: u.name, role: u.role, access: u.access, perms: u.perms || null, notify: u.notify || '', dash: u.dash || null, reqLimit: u.reqLimit || null, autoApprove: !!u.autoApprove });
 const pubSvc = s => ({ id: s.id, type: s.type, name: s.name, url: s.url });
 
 // Checks that a service answers with the details you saved.
@@ -416,6 +416,96 @@ async function monitor() {
   } finally { mon.busy = false; }
 }
 
+
+// ---- What a status page shows (shared by the public link and the admin preview)
+async function statusData(x) {
+  const out = { name: x.name, at: Date.now(), note: x.note || '', look: x.look || 'auto' }, qs = db.services.filter(s => s.type === 'qbittorrent');
+  if (x.scopes.apps) out.apps = db.services.map(s => ({ name: s.name, type: s.type, ok: health[s.id] ? health[s.id].ok : null, bars: uptBars(s.id), pct: uptPct(s.id) }));
+  if (x.scopes.watching) { out.watching = { count: 0, kbps: 0, items: [] }; for (const s of db.services.filter(y => y.type === 'plex')) { try {
+    const l = (await plexSessions(s)).filter(y => ['playing', 'buffering', 'paused'].includes(y.state)); out.watching.count += l.length; out.watching.kbps += l.reduce((a, y) => a + y.kbps, 0);
+    out.watching.items.push(...l.slice(0, 6).map(y => ({ title: y.title, sub: y.sub, state: y.state, progress: y.progress }))); } catch {} } }
+  if (x.scopes.traffic || x.scopes.downloads) for (const q of qs.slice(0, 1)) { try {
+    const [ti, l] = await Promise.all([qb(q, '/api/v2/transfer/info'), x.scopes.downloads ? qb(q, '/api/v2/torrents/info') : Promise.resolve([])]);
+    if (x.scopes.traffic) out.traffic = { dl: ti.dl_info_speed || 0, ul: ti.up_info_speed || 0 };
+    if (x.scopes.downloads) out.downloads = l.filter(y => y.progress < 1).slice(0, 10).map(y => ({ name: y.name, progress: y.progress, state: y.state }));
+  } catch {} }
+  if (x.scopes.upcoming) { out.upcoming = []; const today = new Date().toISOString().slice(0, 10), end = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+    for (const s of db.services.filter(y => y.type === 'sonarr' || y.type === 'radarr')) { try {
+      const cal = await ext(s, `/api/v3/calendar?start=${today}&end=${end}${s.type === 'sonarr' ? '&includeSeries=true' : ''}`);
+      for (const e of cal) out.upcoming.push({ title: s.type === 'sonarr' ? (e.series || {}).title : e.title, sub: s.type === 'sonarr' ? `S${String(e.seasonNumber).padStart(2, '0')}E${String(e.episodeNumber).padStart(2, '0')}` : 'Movie', date: e.airDateUtc || e.digitalRelease || e.physicalRelease || e.inCinemas });
+    } catch {} }
+    out.upcoming.sort((a, b) => String(a.date).localeCompare(String(b.date))); out.upcoming = out.upcoming.slice(0, 12); }
+  return out;
+}
+
+// ---- Sign-in wallpapers: pictures you drop in <data folder>/wallpapers replace the built-in scenes ----
+const WPD = path.join(DATA, 'wallpapers'), WPX = /^[\w][\w .()-]{0,80}\.(jpe?g|png|webp)$/i, WPM = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
+const wpList = () => { try { return fs.readdirSync(WPD).filter(f => WPX.test(f) && fs.statSync(path.join(WPD, f)).size < 12e6).sort().slice(0, 56); } catch { return []; } };
+const wpMode = () => (db.settings || {}).loginArt === 'scenes' ? 'scenes' : 'library';
+
+// ---- Library artwork: posters and backdrops for the dashboard, and cached backdrops for the sign-in page ----
+const artCache = new Map();                       // service id -> { at, p }
+const mediaUrl = (s, o, type) => {
+  const i = (o.images || []).find(x => x.coverType === type); if (!i) return { url: '', local: '' };
+  const local = i.url && /^\/MediaCover\/[\w./%-]+$/.test(String(i.url).split('?')[0]) && !String(i.url).includes('..') ? String(i.url).split('?')[0] : '';
+  const remote = i.remoteUrl && /^(https:\/\/|data:image\/)/.test(i.remoteUrl) ? i.remoteUrl : '';
+  return { url: remote || (local ? '/api/artimg?sid=' + s.id + '&p=' + encodeURIComponent(local) : ''), local };
+};
+function artItems(s) {
+  const c = artCache.get(s.id); if (c && Date.now() - c.at < 6e5) return c.p;
+  const tv = s.type === 'sonarr';
+  const pr = ext(s, tv ? '/api/v3/series' : '/api/v3/movie', { signal: AbortSignal.timeout(60000) }).then(d => (Array.isArray(d) ? d : []).map(x => {
+    const rt = x.ratings || {}, po = mediaUrl(s, x, 'poster'), fa = mediaUrl(s, x, 'fanart');
+    return { sid: s.id, id: x.id, tv, title: cut(x.title, 120), year: x.year || 0, poster: po.url, fanart: fa.url, fl: fa.local, overview: cut(x.overview, 280),
+      genres: (x.genres || []).slice(0, 3), rating: tv ? +rt.value || 0 : +((rt.imdb || {}).value || (rt.tmdb || {}).value || rt.value) || 0, added: x.added || '',
+      status: x.status || '', maker: cut((tv ? x.network : x.studio) || '', 60), runtime: x.runtime || 0, cert: cut(x.certification, 12),
+      have: tv ? (x.statistics || {}).episodeFileCount || 0 : (x.hasFile ? 1 : 0) };
+  }).filter(x => x.poster || x.fanart));
+  artCache.set(s.id, { at: Date.now(), p: pr }); pr.catch(() => artCache.delete(s.id)); return pr;
+}
+const shuffled = a => { const b = a.slice(); for (let i = b.length - 1; i > 0; i--) { const j = crypto.randomInt(i + 1); [b[i], b[j]] = [b[j], b[i]]; } return b; };
+const imgKind = b => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff ? 'jpg' : b.length > 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47 ? 'png' : b.length > 12 && b.toString('latin1', 0, 4) === 'RIFF' && b.toString('latin1', 8, 12) === 'WEBP' ? 'webp' : '';
+// Gets one backdrop from the app itself (preferred, no internet needed) or from its public address.
+async function artBytes(s, x) {
+  let target, opt = {};
+  if (x.fl) { target = s.url.replace(/\/+$/, '') + x.fl; opt = { headers: { 'X-Api-Key': s.apiKey } }; }
+  else {
+    let u; try { u = new URL(x.fanart); } catch { throw new Error('skipped'); }
+    if (u.protocol !== 'https:' || /^(localhost$|\[|\d+\.\d+\.\d+\.\d+$)/.test(u.hostname)) throw new Error('skipped');
+    target = u.href;
+  }
+  const r = await fetch(target, { signal: AbortSignal.timeout(25000), redirect: 'follow', ...opt });
+  if (!r.ok) throw new Error('answered ' + r.status);
+  const b = Buffer.from(await r.arrayBuffer());
+  if (b.length < 4e3 || b.length > 9e6 || !imgKind(b)) throw new Error('not a usable picture');
+  return { b, ext: imgKind(b) };
+}
+const LIBWP = /^lib-[0-9a-f]{10}\.(jpg|png|webp)$/;
+let wpBusy = false, wpKicked = 0;
+async function wpSync() {
+  if (DEMO || wpBusy || wpMode() === 'scenes') return; wpBusy = true;
+  try {
+    const svcs = db.services.filter(s => ['sonarr', 'radarr'].includes(s.type)), by = Object.fromEntries(svcs.map(s => [s.id, s]));
+    const items = (await Promise.all(svcs.map(s => artItems(s).catch(() => [])))).flat().filter(x => x.fanart || x.fl);
+    if (!items.length) return;
+    fs.mkdirSync(WPD, { recursive: true });
+    const have = fs.readdirSync(WPD).filter(f => LIBWP.test(f)), keep = new Set();
+    const want = shuffled(items).slice(0, 16);
+    for (const x of want) {
+      const h = th(x.sid + ':' + x.id).slice(0, 10), old = have.find(f => f.startsWith('lib-' + h + '.'));
+      if (old) { keep.add(old); continue; }
+      try { const { b, ext: e } = await artBytes(by[x.sid], x), n = `lib-${h}.${e}`; fs.writeFileSync(path.join(WPD, n), b); keep.add(n); } catch {}
+    }
+    if (keep.size >= 4) for (const f of have) if (!keep.has(f)) { try { fs.unlinkSync(path.join(WPD, f)); } catch {} }   // rotate: drop old ones only once enough new ones are saved
+  } catch {} finally { wpBusy = false; }
+}
+const wpKick = () => { if (Date.now() - wpKicked > 6e4) { wpKicked = Date.now(); wpSync(); } };
+
+// ---- Password recovery by email ----
+const RESET_MS = 30 * 60e3, failsRst = {}, askRst = {};
+const mailer = () => ((db.alerts || {}).channels || []).find(c => c.type === 'email' && !channels.problem(c));
+const baseUrl = () => String(process.env.PUBLIC_URL || (db.settings || {}).publicUrl || '').replace(/\/+$/, '');
+const sendRecovery = (c, to, subject, text) => require('./lib/smtp').sendMail({ host: c.host, port: c.port, secure: c.secure, user: c.user, pass: c.pass, from: c.from, insecure: !!c.insecure, to, subject, text });
 http.createServer(async (req, res) => {
   const p = new URL(req.url, 'http://x').pathname, m = req.method;
   res.secure = !!req.socket.encrypted || (TRUST && req.headers['x-forwarded-proto'] === 'https');
@@ -425,9 +515,15 @@ http.createServer(async (req, res) => {
   if (res.secure) res.setHeader('Strict-Transport-Security', 'max-age=15552000');
   res.info = { ua: cut(req.headers['user-agent'], 200), ip: ipOf(req) };
   if (DEMO && p.startsWith('/__demo/')) return demo.handle(req, res, req.url.slice(7));
+  if (p.startsWith('/wallpapers/') && (m === 'GET' || m === 'HEAD')) {
+    let n = ''; try { n = decodeURIComponent(p.slice(12)); } catch {}
+    if (!n || !wpList().includes(n)) { res.writeHead(404); return res.end(); }
+    res.writeHead(200, { 'Content-Type': WPM[n.split('.').pop().toLowerCase()], 'Cache-Control': 'public, max-age=86400', 'X-Content-Type-Options': 'nosniff' });
+    return fs.createReadStream(path.join(WPD, n)).pipe(res);
+  }
   if (!p.startsWith('/api/')) {
     if (/^\/s\/[\w-]{20,64}$/.test(p)) { res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' }); return res.end(fs.readFileSync(path.join(PUB, 'status.html'))); }
-    const fp = path.join(PUB, p), mime = { '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.json': 'application/json', '.js': 'text/javascript' }[path.extname(fp)];
+    const fp = path.join(PUB, p), mime = { '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.json': 'application/json', '.js': 'text/javascript', '.css': 'text/css' }[path.extname(fp)];
     if (p !== '/' && mime && fp.startsWith(PUB + path.sep) && fs.existsSync(fp)) {
       res.writeHead(200, { 'Content-Type': mime, 'Cache-Control': 'no-cache', 'X-Content-Type-Options': 'nosniff' });
       return res.end(fs.readFileSync(fp));
@@ -446,7 +542,8 @@ http.createServer(async (req, res) => {
     if (me && Date.now() - sess.seen > 60000) sess.seen = Date.now();
     const setup = !db.users.length;
     if (p === '/api/health') return send(res, 200, { ok: true, version: VERSION });
-    if (p === '/api/me') return send(res, 200, { setup, setupCode: setup && !!SETUP_TOKEN, version: VERSION, demo: DEMO, user: me ? pubUser(me) : null });
+    if (p === '/api/wallpapers' && m === 'GET') return send(res, 200, wpMode() === 'scenes' ? [] : DEMO ? demo.fanarts() : wpList());
+    if (p === '/api/me') return send(res, 200, { setup, setupCode: setup && !!SETUP_TOKEN, version: VERSION, demo: DEMO, recovery: !DEMO && !!(mailer() && baseUrl()), user: me ? pubUser(me) : null });
 
     if (p === '/api/setup' && m === 'POST') {
       if (!setup) return send(res, 403, { error: 'Already set up' });
@@ -454,6 +551,33 @@ http.createServer(async (req, res) => {
       if (SETUP_TOKEN && !same(b.token, SETUP_TOKEN)) return send(res, 403, { error: 'That setup code is not right' });
       if (!b.name || (b.password || '').length < 8) return send(res, 400, { error: 'Enter a name and a password of 8+ characters' });
       const u = mkUser(b.name, b.password, 'admin'); db.users.push(u); save(); return login(res, u);
+    }
+    if (p === '/api/forgot' && m === 'POST') {
+      const ip = ipOf(req), now = Date.now(), a = askRst[ip] = (askRst[ip] || []).filter(t => now - t < 900000);
+      if (a.length >= 5) return send(res, 429, { error: 'Too many requests. Try again in 15 minutes.' });
+      a.push(now);
+      const b = await readBody(req), who = cut(b.who, 120).trim().toLowerCase();
+      send(res, 200, { ok: true });                    // always the same answer, so nobody can find out which names exist
+      if (DEMO || !who) return;
+      const u = db.users.find(x => x.name.trim().toLowerCase() === who || (x.email && x.email.toLowerCase() === who)), mc = mailer(), base = baseUrl();
+      if (!u || !u.email || !mc || !base || (u.reset && now - (u.reset.at || 0) < 60000)) return;
+      const token = crypto.randomBytes(32).toString('base64url');
+      u.reset = { h: th(token), exp: now + RESET_MS, at: now }; save(); audit(u.name, 'Asked for a password reset email', res.info.ip);
+      sendRecovery(mc, u.email, 'Reset your MediaHub password', `Hi ${u.name},\n\nSomeone asked to reset the MediaHub password for this profile. To choose a new password, open this link within 30 minutes:\n\n${base}/#reset=${token}\n\nIf this was not you, ignore this message. Nothing changes until the link is used.\n`)
+        .catch(e => audit(u.name, 'Could not send the reset email', cut(e.message, 120)));
+      return;
+    }
+    if (p === '/api/reset' && m === 'POST') {
+      if (DEMO) return send(res, 403, { error: 'This is turned off in the demo' });
+      const ip = ipOf(req), now = Date.now(), fl = failsRst[ip] || { n: 0, t: 0 }; if (now - fl.t > 600000) fl.n = 0;
+      if (fl.n >= 10) return send(res, 429, { error: 'Too many attempts. Try again in 10 minutes.' });
+      const b = await readBody(req), t = th(b.token || ''), u = db.users.find(x => x.reset && same(x.reset.h, t));
+      if (!u || u.reset.exp < now) { fl.n++; fl.t = now; failsRst[ip] = fl; return send(res, 400, { error: 'This reset link is not valid or has expired. Ask for a new one.' }); }
+      if ((b.password || '').length < 8) return send(res, 400, { error: 'Password must be 8+ characters' });
+      u.salt = uid(); u.hash = hash(b.password, u.salt); delete u.reset; save();
+      for (const [k, v] of [...sessions]) if (v.uid === u.id) sessions.delete(k);
+      saveSess(); audit(u.name, 'Reset the password by email', res.info.ip);
+      return send(res, 200, { ok: true, twofa: !!(u.totp && u.totp.on) });
     }
     if (p === '/api/login' && m === 'POST') {
       const ip = ipOf(req), fl = fails[ip] || { n: 0, t: 0 };
@@ -490,28 +614,13 @@ http.createServer(async (req, res) => {
       const hh = th(pubm[1]), x = db.statusLinks.find(l => same(l.hash, hh));
       if (!x) { fl.n++; fl.t = Date.now(); failsPub[ip] = fl; return send(res, 404, { error: 'This link is not valid' }); }
       const c = pubCache[hh]; if (c && Date.now() - c.t < 3000) return send(res, 200, c.d);
-      const out = { name: x.name, at: Date.now() }, qs = db.services.filter(s => s.type === 'qbittorrent');
-      if (x.scopes.apps) out.apps = db.services.map(s => ({ name: s.name, type: s.type, ok: health[s.id] ? health[s.id].ok : null, bars: uptBars(s.id), pct: uptPct(s.id) }));
-      if (x.scopes.watching) { out.watching = { count: 0, kbps: 0, items: [] }; for (const s of db.services.filter(y => y.type === 'plex')) { try {
-        const l = (await plexSessions(s)).filter(y => ['playing', 'buffering', 'paused'].includes(y.state)); out.watching.count += l.length; out.watching.kbps += l.reduce((a, y) => a + y.kbps, 0);
-        out.watching.items.push(...l.slice(0, 6).map(y => ({ title: y.title, sub: y.sub, state: y.state, progress: y.progress }))); } catch {} } }
-      if (x.scopes.traffic || x.scopes.downloads) for (const q of qs.slice(0, 1)) { try {
-        const [ti, l] = await Promise.all([qb(q, '/api/v2/transfer/info'), x.scopes.downloads ? qb(q, '/api/v2/torrents/info') : Promise.resolve([])]);
-        if (x.scopes.traffic) out.traffic = { dl: ti.dl_info_speed || 0, ul: ti.up_info_speed || 0 };
-        if (x.scopes.downloads) out.downloads = l.filter(y => y.progress < 1).slice(0, 10).map(y => ({ name: y.name, progress: y.progress, state: y.state }));
-      } catch {} }
-      if (x.scopes.upcoming) { out.upcoming = []; const today = new Date().toISOString().slice(0, 10), end = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
-        for (const s of db.services.filter(y => y.type === 'sonarr' || y.type === 'radarr')) { try {
-          const cal = await ext(s, `/api/v3/calendar?start=${today}&end=${end}${s.type === 'sonarr' ? '&includeSeries=true' : ''}`);
-          for (const e of cal) out.upcoming.push({ title: s.type === 'sonarr' ? (e.series || {}).title : e.title, sub: s.type === 'sonarr' ? `S${String(e.seasonNumber).padStart(2, '0')}E${String(e.episodeNumber).padStart(2, '0')}` : 'Movie', date: e.airDateUtc || e.digitalRelease || e.physicalRelease || e.inCinemas });
-        } catch {} }
-        out.upcoming.sort((a, b) => String(a.date).localeCompare(String(b.date))); out.upcoming = out.upcoming.slice(0, 12); }
+      const out = await statusData(x);
       pubCache[hh] = { t: Date.now(), d: out }; x.used = (x.used || 0) + 1; x.lastUsed = Date.now();
       return send(res, 200, out);
     }
     if (p === '/api/logout') { sessions.delete(th(token)); saveSess(); return send(res, 200, {}, { 'Set-Cookie': 'sid=; Path=/; Max-Age=0' }); }
     if (!me) return send(res, 401, { error: 'Sign in first' });
-    if (DEMO && m !== 'GET' && /^\/api\/(users|password|2fa|backups?|restore|alerts|statuslinks|services|weekly|throttle|me\/notify)/.test(p)) return send(res, 403, { error: 'This is turned off in the demo' });
+    if (DEMO && m !== 'GET' && /^\/api\/(users|password|2fa|backups?|restore|alerts|statuslinks|signin|services|weekly|throttle|me\/notify|me\/email)/.test(p)) return send(res, 403, { error: 'This is turned off in the demo' });
 
     if (p === '/api/2fa/start' && m === 'POST') {
       if (me.totp && me.totp.on) return send(res, 400, { error: 'Two-step sign-in is already on' });
@@ -533,14 +642,24 @@ http.createServer(async (req, res) => {
       if (!ok) return send(res, 400, { error: 'That code is not right' });
       me.totp = undefined; save(); audit(me.name, 'Turned off two-step sign-in', ''); return send(res, 200, {});
     }
+    if (p === '/api/me/email' && m === 'PUT') {
+      const b = await readBody(req), e = cut(b.email, 120).trim();
+      if (hash(b.password || '', me.salt) !== me.hash) return send(res, 400, { error: 'Your current password is wrong' });
+      if (e && !require('./lib/smtp').ADDR.test(e)) return send(res, 400, { error: 'Enter a valid email address' });
+      if (e && db.users.some(u => u.id !== me.id && u.email && u.email.toLowerCase() === e.toLowerCase())) return send(res, 400, { error: 'That email is already used by another profile' });
+      me.email = e; delete me.reset; save(); audit(me.name, e ? 'Set a recovery email' : 'Removed the recovery email', ''); return send(res, 200, { email: me.email });
+    }
     if (p === '/api/password' && m === 'POST') {
       const b = await readBody(req);
       if (hash(b.old || '', me.salt) !== me.hash) return send(res, 400, { error: 'Your current password is wrong' });
       if ((b.new || '').length < 8) return send(res, 400, { error: 'New password must be 8+ characters' });
-      me.salt = uid(); me.hash = hash(b.new, me.salt); save();
+      me.salt = uid(); me.hash = hash(b.new, me.salt); delete me.reset; save();
       for (const [k, v] of sessions) if (v.uid === me.id && k !== th(token)) sessions.delete(k);
       saveSess();
       return send(res, 200, {});
+    }
+    if (me.role === 'admin' && !process.env.PUBLIC_URL && !db.settings.publicUrl && !DEMO && req.headers.host) {
+      const host = (TRUST && req.headers['x-forwarded-host']) || req.headers.host; db.settings.publicUrl = (res.secure ? 'https://' : 'http://') + String(host).split(',')[0].trim(); save();
     }
     const allowed = s => me.role === 'admin' || me.access.includes(s.id);
     const can = k => me.role === 'admin' || !me.perms || me.perms[k] !== false;
@@ -856,12 +975,30 @@ http.createServer(async (req, res) => {
       return send(res, 200, d.map(x => {
         const st = x.statistics || {}, img = (x.images || []).find(i => i.coverType === 'poster') || {}, tv = s.type === 'sonarr', rt = x.ratings || {};
         const rating = tv ? +rt.value || 0 : +((rt.imdb || {}).value || (rt.tmdb || {}).value || rt.value) || 0;
-        return { id: x.id, title: x.title, year: x.year, poster: img.remoteUrl || x.remotePoster, overview: (x.overview || '').slice(0, 600),
+        return { id: x.id, title: x.title, year: x.year, poster: img.remoteUrl || x.remotePoster, fanart: mediaUrl(s, x, 'fanart').url, overview: (x.overview || '').slice(0, 600),
           size: tv ? st.sizeOnDisk || 0 : x.sizeOnDisk || 0, missing: tv ? Math.max(0, (st.episodeCount || 0) - (st.episodeFileCount || 0)) : (x.monitored && !x.hasFile ? 1 : 0),
           monitored: !!x.monitored, status: x.status || '', genres: (x.genres || []).slice(0, 6), maker: (tv ? x.network : x.studio) || '', profile: prof[x.qualityProfileId] || '',
           added: x.added || '', rating, runtime: x.runtime || 0, cert: x.certification || '',
           seasons: tv ? st.seasonCount || 0 : 0, have: tv ? st.episodeFileCount || 0 : (x.hasFile ? 1 : 0), total: tv ? st.episodeCount || 0 : 1, next: tv ? x.nextAiring || '' : '' };
       }));
+    }
+    if (p === '/api/artwork' && m === 'GET') {
+      const svcs = db.services.filter(arr);
+      const all = (await Promise.all(svcs.map(s => artItems(s).catch(() => [])))).flat().map(({ fl, ...x }) => x);
+      wpKick();
+      const newest = [...all].sort((a, b) => String(b.added).localeCompare(String(a.added))), top = [...all].sort((a, b) => b.rating - a.rating);
+      const hero = [], seen = new Set(), add = x => { const k = x.sid + ':' + x.id; if (!seen.has(k) && x.fanart && x.overview && hero.length < 8) { seen.add(k); hero.push(x); } };
+      newest.slice(0, 40).forEach(x => hero.length < 4 && add(x)); top.slice(0, 40).forEach(add); newest.forEach(add);
+      return send(res, 200, { hero, recent: newest.filter(x => x.poster).slice(0, 24), top: top.filter(x => x.poster).slice(0, 24),
+        wall: shuffled(all.filter(x => x.poster)).slice(0, 40), shows: all.filter(x => x.tv).length, movies: all.filter(x => !x.tv).length });
+    }
+    if (p === '/api/artimg' && m === 'GET') {
+      const q = new URL(req.url, 'http://x').searchParams, s = arr(db.services.find(x => x.id === q.get('sid'))), pth = q.get('p') || '';
+      if (!s || !/^\/MediaCover\/[\w./%-]+$/.test(pth) || pth.includes('..')) return send(res, 404, { error: 'Not found' });
+      const x = await fetch(s.url.replace(/\/+$/, '') + pth, { signal: AbortSignal.timeout(15000), headers: { 'X-Api-Key': s.apiKey } });
+      const b = Buffer.from(await x.arrayBuffer()), k = imgKind(b);
+      if (!x.ok || !k || b.length > 9e6) return send(res, 404, { error: 'Not found' });
+      res.writeHead(200, { 'Content-Type': WPM[k], 'Cache-Control': 'private, max-age=86400', 'X-Content-Type-Options': 'nosniff' }); return res.end(b);
     }
     if ((r = p.match(/^\/api\/series\/(\w+)\/(\d+)$/)) && m === 'GET') {
       const s = arr(db.services.find(x => x.id === r[1])); if (!s || s.type !== 'sonarr') return send(res, 404, { error: 'Not found' });
@@ -1268,7 +1405,7 @@ http.createServer(async (req, res) => {
       const u = db.users.find(x => x.id === r[1]), b = await readBody(req);
       if (!u) return send(res, 404, { error: 'Not found' });
       if ((b.password || '').length < 8) return send(res, 400, { error: 'Password must be 8+ characters' });
-      u.salt = uid(); u.hash = hash(b.password, u.salt); save(); audit(me.name, 'Reset a password', u.name);
+      u.salt = uid(); u.hash = hash(b.password, u.salt); delete u.reset; save(); audit(me.name, 'Reset a password', u.name);
       for (const [k, v] of sessions) if (v.uid === u.id && k !== th(token)) sessions.delete(k);
       saveSess(); return send(res, 200, {});
     }
@@ -1312,11 +1449,51 @@ http.createServer(async (req, res) => {
       const results = await Promise.all(list.map(async c => { try { await channels.send(c, 'MediaHub test', 'Alerts are working.'); return { id: c.id, ok: true }; } catch (e) { return { id: c.id, ok: false, error: String(e.message).slice(0, 200) }; } }));
       return send(res, 200, { results });
     }
-    if (p === '/api/statuslinks' && m === 'GET') return send(res, 200, db.statusLinks.map(x => ({ id: x.id, name: x.name, scopes: x.scopes, at: x.at, used: x.used || 0, lastUsed: x.lastUsed || 0 })));
+    const SCOPES = ['apps', 'traffic', 'downloads', 'upcoming', 'watching'], LOOKS = ['auto', 'dark', 'light'];
+    const linkScopes = b => Object.fromEntries(SCOPES.map(k => [k, k === 'apps' ? b[k] !== false : !!b[k]]));
+    if (p === '/api/signin' && m === 'GET') {
+      const mc = mailer();
+      return send(res, 200, { mail: !!mc, mailFrom: mc ? mc.from : '', publicUrl: baseUrl(), urlFromEnv: !!process.env.PUBLIC_URL, loginArt: wpMode(), cached: wpList().filter(f => LIBWP.test(f)).length, own: wpList().filter(f => !LIBWP.test(f)).length });
+    }
+    if (p === '/api/signin' && m === 'PUT') {
+      const b = await readBody(req);
+      if (b.loginArt != null) { db.settings.loginArt = b.loginArt === 'scenes' ? 'scenes' : 'library'; if (wpMode() === 'library') wpKick(); }
+      if (b.publicUrl != null && !process.env.PUBLIC_URL) {
+        const v = cut(b.publicUrl, 200).trim().replace(/\/+$/, '');
+        if (v && !/^https?:\/\/[^\s/]+$/i.test(v)) return send(res, 400, { error: 'Enter the address like https://media.example.com or http://192.168.1.10:5080' });
+        db.settings.publicUrl = v;
+      }
+      save(); audit(me.name, 'Changed sign-in options', ''); return send(res, 200, {});
+    }
+    if (p === '/api/signin/test' && m === 'POST') {
+      const mc = mailer(); if (!mc) return send(res, 400, { error: 'Add an email alert channel first (Settings, then Alerts)' });
+      if (!me.email) return send(res, 400, { error: 'Save your own email address first (Settings, then Account)' });
+      await sendRecovery(mc, me.email, 'MediaHub test email', 'Password recovery emails will arrive like this one.'); return send(res, 200, {});
+    }
+    if (p === '/api/statuslinks' && m === 'GET') return send(res, 200, db.statusLinks.map(x => ({ id: x.id, name: x.name, scopes: x.scopes, note: x.note || '', look: x.look || 'auto', at: x.at, used: x.used || 0, lastUsed: x.lastUsed || 0 })));
+    if (p === '/api/statuslinks/preview' && m === 'GET') {
+      const q = new URL(req.url, 'http://x').searchParams, sc = Object.fromEntries(SCOPES.map(k => [k, q.get(k) === '1']));
+      return send(res, 200, await statusData({ name: cut(q.get('name'), 60).trim() || 'Status page', note: cut(q.get('note'), 160).trim(), look: LOOKS.includes(q.get('look')) ? q.get('look') : 'auto', scopes: sc }));
+    }
     if (p === '/api/statuslinks' && m === 'POST') {
       const b = await readBody(req), token = crypto.randomBytes(24).toString('base64url');
-      const x = { id: uid(), name: cut(b.name, 60).trim() || 'Status page', hash: th(token), at: Date.now(), used: 0, scopes: { apps: b.apps !== false, traffic: !!b.traffic, downloads: !!b.downloads, upcoming: !!b.upcoming, watching: !!b.watching } };
+      const x = { id: uid(), name: cut(b.name, 60).trim() || 'Status page', note: cut(b.note, 160).trim(), look: LOOKS.includes(b.look) ? b.look : 'auto', hash: th(token), at: Date.now(), used: 0, scopes: linkScopes(b) };
       db.statusLinks.push(x); save(); audit(me.name, 'Created a status link', x.name); return send(res, 200, { id: x.id, token });
+    }
+    if ((r = p.match(/^\/api\/statuslinks\/(\w+)$/)) && m === 'PUT') {
+      const x = db.statusLinks.find(l => l.id === r[1]); if (!x) return send(res, 404, { error: 'Not found' });
+      const b = await readBody(req);
+      if (b.name != null) x.name = cut(b.name, 60).trim() || x.name;
+      if (b.note != null) x.note = cut(b.note, 160).trim();
+      if (LOOKS.includes(b.look)) x.look = b.look;
+      if (b.scopes && typeof b.scopes === 'object') x.scopes = linkScopes(b.scopes);
+      delete pubCache[x.hash]; save(); audit(me.name, 'Changed a status link', x.name);
+      return send(res, 200, { id: x.id, name: x.name, scopes: x.scopes, note: x.note || '', look: x.look || 'auto' });
+    }
+    if ((r = p.match(/^\/api\/statuslinks\/(\w+)\/regenerate$/)) && m === 'POST') {
+      const x = db.statusLinks.find(l => l.id === r[1]); if (!x) return send(res, 404, { error: 'Not found' });
+      const token = crypto.randomBytes(24).toString('base64url'); delete pubCache[x.hash]; x.hash = th(token); x.used = 0; x.lastUsed = 0;
+      save(); audit(me.name, 'Made a new address for a status link', x.name); return send(res, 200, { id: x.id, token });
     }
     if ((r = p.match(/^\/api\/statuslinks\/(\w+)$/)) && m === 'DELETE') {
       const x = db.statusLinks.find(l => l.id === r[1]); if (!x) return send(res, 404, { error: 'Not found' });
@@ -1432,7 +1609,7 @@ http.createServer(async (req, res) => {
       const b = await readBody(req);
       if (!b.name || (b.password || '').length < 8) return send(res, 400, { error: 'Enter a name and a password of 8+ characters' });
       if (db.users.some(u => u.name.toLowerCase() === b.name.toLowerCase())) return send(res, 400, { error: 'That name is taken' });
-      const u = mkUser(b.name, b.password, b.role === 'admin' ? 'admin' : 'user'); db.users.push(u); save(); audit(me.name, 'Added a profile', u.name); return send(res, 200, pubUser(u));
+      const u = mkUser(b.name, b.password, b.role === 'admin' ? 'admin' : 'user'); if (b.email && require('./lib/smtp').ADDR.test(String(b.email).trim())) u.email = cut(b.email, 120).trim(); db.users.push(u); save(); audit(me.name, 'Added a profile', u.name); return send(res, 200, pubUser(u));
     }
     if ((r = p.match(/^\/api\/users\/(\w+)\/access$/)) && m === 'PUT') {
       const u = db.users.find(x => x.id === r[1]); if (!u) return send(res, 404, { error: 'Not found' });
@@ -1451,3 +1628,5 @@ setInterval(() => monitor().catch(() => {}), MON_MS);
 setInterval(() => { for (const k in fails) if (Date.now() - fails[k].t > 600000) delete fails[k]; }, 600000).unref();
 for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { console.log('MediaHub stopping'); process.exit(0); });
 setTimeout(() => monitor().catch(() => {}), Math.min(3000, MON_MS));
+setTimeout(() => wpSync(), +process.env.WP_DELAY_MS || 20000).unref();
+setInterval(() => wpSync(), 6 * 3600e3).unref();

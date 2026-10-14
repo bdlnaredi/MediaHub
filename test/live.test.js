@@ -102,6 +102,30 @@ test('status page: who is watching (no names), uptime history, and the uptime li
     const l2 = (await a.post('/api/statuslinks', { name: 'Plain', apps: true })).data;
     assert.ok(!('watching' in (await anon.get('/api/public/' + l2.token)).data), 'not shared unless chosen');
     assert.equal((await anon.get('/api/uptime')).status, 401);
-    const page = await (await fetch(s.base + '/s/' + link.token)).text(); assert.match(page, /Watching now/);
+    const page = await (await fetch(s.base + '/s/' + link.token)).text(); assert.match(page, /statuskit\.js/);
+    assert.match(await (await fetch(s.base + '/statuskit.js')).text(), /Watching now/);
+  } finally { await w.stop(); }
+});
+
+test('status pages: edit, note and look, new address kills the old one, preview, admin only, and wallpapers', async () => {
+  const w = await world();
+  try {
+    const { a, s } = w, anon = client(s.base);
+    const c = (await a.post('/api/statuslinks', { name: 'Hall', apps: true, note: 'Back at 6', look: 'light' })).data;
+    let pub = (await anon.get('/api/public/' + c.token)).data;
+    assert.equal(pub.note, 'Back at 6'); assert.equal(pub.look, 'light');
+    assert.ok(!('traffic' in pub));
+    await a.put('/api/statuslinks/' + c.id, { name: 'Hall 2', look: 'bogus', scopes: { apps: true, traffic: true } });
+    pub = (await anon.get('/api/public/' + c.token)).data;
+    assert.equal(pub.name, 'Hall 2'); assert.equal(pub.look, 'light', 'unknown looks are ignored'); assert.ok('traffic' in pub);
+    const pv = await a.get('/api/statuslinks/preview?apps=1&note=hi&look=dark'); assert.equal(pv.status, 200); assert.equal(pv.data.note, 'hi');
+    assert.equal((await anon.get('/api/statuslinks/preview?apps=1')).status, 401);
+    const rg = (await a.post('/api/statuslinks/' + c.id + '/regenerate', {})).data;
+    assert.equal((await anon.get('/api/public/' + c.token)).status, 404, 'old address stops working');
+    assert.equal((await anon.get('/api/public/' + rg.token)).status, 200);
+    assert.equal((await a.post('/api/statuslinks/nope/regenerate', {})).status, 404);
+    assert.ok(Array.isArray((await anon.get('/api/wallpapers')).data));
+    for (const bad of ['/wallpapers/..%2Fdb.json', '/wallpapers/x.txt'])
+      { const r = await fetch(s.base + bad); assert.ok(r.status !== 200 || !/statusLinks|hash/.test(await r.text()), bad); assert.notEqual(r.headers.get('content-type'), 'application/json', bad); }
   } finally { await w.stop(); }
 });
