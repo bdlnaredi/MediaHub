@@ -8,13 +8,13 @@
 
 One friendly web page for the apps on your home media server. See what is downloading, add shows and movies, approve requests from family, check on your server, and get a phone message when something needs you. It runs as a single small Docker container with **no dependencies** to install.
 
-> **Early release (0.10).** It is used daily on the author's server, but it has been built against the documented APIs of the apps below, and some behavior can differ between app versions. See the [compatibility table](#compatibility) for what has been checked against a real app. Bug reports with the app version are very welcome.
+> **Early release (0.11).** It is used daily on the author's server, but it has been built against the documented APIs of the apps below, and some behavior can differ between app versions. See the [compatibility table](#compatibility) for what has been checked against a real app. Bug reports with the app version are very welcome.
 
 ![Dashboard](docs/screenshots/dashboard.png)
 
 ## What it does
 
-- **Dashboard:** live download speed and graph, server CPU and memory, which apps are online, what is coming up, what is downloading, who is watching on Plex, and a "needs attention" list. Each person can hide and reorder sections.
+- **Dashboard:** updates by itself every two seconds (a "Live" badge shows the connection). Live tiles for download and upload speed with graphs, who is watching on Plex (poster, progress, direct play or transcoding, quality, bandwidth, and an end-stream button for admins), server CPU, memory and array space, Usenet speed and requests waiting. It also lists what is downloading, how long each app has been online over the last 48 hours, what is coming up, and a "needs attention" list. Each person can hide and reorder sections.
 - **Downloads (qBittorrent):** filters, search, select several, pause and resume, categories and tags, file selection, speed limits and schedule, history, seeding rules, and a chip showing which show or movie a download belongs to.
 - **RSS (qBittorrent):** read feeds, mark as read, download one or many articles, and manage auto-download rules with a preview.
 - **Sonarr and Radarr:** search and add, a library browser with many filters and sorts, a show window with seasons and episodes where you can monitor or unmonitor any of them, a Wanted list, upcoming releases as a list or a month calendar, and automatic or interactive searches.
@@ -28,9 +28,9 @@ One friendly web page for the apps on your home media server. See what is downlo
 - **Slow downloads while Plex streams:** qBittorrent's alternative speed limits switch on while someone is watching, and back when they stop.
 - **Profiles:** per-person app access and permissions (for example "view only"), two-step sign-in, signed-in devices, and an activity log.
 - **Alerts:** messages through ntfy, Telegram, Discord, Pushover, Gotify, a webhook or email, for finished downloads, apps going offline, a full array, the VPN dropping, new requests and problem reports, plus an optional weekly summary.
-- **Status pages:** a private read-only link for a wall tablet that shows only the sections you pick, without signing in.
+- **Status pages:** a private read-only link for a wall tablet that refreshes by itself and shows only the sections you pick, without signing in: an all-clear banner, 48-hour uptime bars per app, speed graph, and optionally how many people are watching (titles only, never names).
 - **Backups:** an encrypted backup file, plus automatic daily copies inside the data folder.
-- **Also:** Plex (who is watching, recently added), Tautulli stats, Unraid (CPU, memory, array, disks, shares, containers), quick search (`Ctrl+K`), light and dark themes, five languages, and install-to-home-screen on a phone.
+- **Also:** Plex (who is watching, recently added), Tautulli stats with poster grids and charts (plays per day, busiest hours, devices, top viewers), Unraid (CPU, memory, array, disks, shares, containers), quick search (`Ctrl+K`), light and dark themes, five languages, and install-to-home-screen on a phone.
 
 | Downloads | Library |
 | --- | --- |
@@ -41,6 +41,8 @@ One friendly web page for the apps on your home media server. See what is downlo
 | ![Requests](docs/screenshots/requests.png) | ![Music and books](docs/screenshots/music-books.png) |
 | **RSS** | **Calendar** |
 | ![RSS](docs/screenshots/rss.png) | ![Calendar](docs/screenshots/calendar.png) |
+| **Stats** | **Status page** |
+| ![Stats](docs/screenshots/stats.png) | ![Status page](docs/screenshots/status-page.png) |
 
 *Screenshots use the built-in demo data.*
 
@@ -167,6 +169,8 @@ Do not forward the port straight to the internet over plain HTTP. Good options:
 
 When you use a proxy or tunnel, set `TRUST_PROXY=true`. If sign-in says "Blocked a request from another website", the proxy is changing the `Host` header: either pass the original host through or add your address to `ALLOWED_ORIGINS`.
 
+The live dashboard uses one long-lived connection (`/api/live`). MediaHub already asks proxies not to buffer it. If the "Live" badge keeps saying "Reconnecting" behind Nginx, add `proxy_buffering off;` for that path. The page keeps working either way, only a little slower.
+
 ## Safety and your data
 
 - Passwords are hashed. The keys and passwords of your other apps are encrypted on disk with a key stored beside them in `secret.key`.
@@ -176,7 +180,7 @@ When you use a proxy or tunnel, set `TRUST_PROXY=true`. If sign-in says "Blocked
 - Status page links use a long secret in the address, show only what you chose, can be removed at any time, and are rate limited against guessing.
 - Saves are written atomically, and an automatic copy (`db.json.bak`) is kept. A damaged database is never silently replaced.
 
-Everything lives in your data folder: `db.json`, `db.json.bak`, `secret.key`, `sessions.json` and a `backups` folder when automatic backups are on. **Back up that whole folder**, or use **Settings, then Backup** for a passphrase-protected file. Keep backups private, because they contain the keys of your other apps. See [SECURITY.md](SECURITY.md).
+Everything lives in your data folder: `db.json`, `db.json.bak`, `secret.key`, `sessions.json`, `uptime.json` and a `backups` folder when automatic backups are on. **Back up that whole folder**, or use **Settings, then Backup** for a passphrase-protected file. Keep backups private, because they contain the keys of your other apps. See [SECURITY.md](SECURITY.md).
 
 ## Updating
 

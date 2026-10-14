@@ -2,6 +2,28 @@
 
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.11.0] - 2026-10-14
+
+### Added
+- **Live dashboard.** One shared live stream (server-sent events) now updates the dashboard about every two seconds instead of each part asking on its own timer. A "Live" badge shows the connection, and the page falls back to asking by hand if the stream is blocked, for example by a proxy that buffers responses.
+- New dashboard tiles: download and upload speed with graphs (the recent history is kept on the server, so a fresh page opens already filled in), who is watching, server CPU and memory, array space, Usenet speed, and requests waiting. Tiles open the matching page, and numbers glide instead of jumping.
+- **Who is watching** now shows the poster, a progress bar that moves smoothly between updates, direct play, direct stream or transcoding, resolution, bandwidth, and whether the viewer is at home or remote.
+- **Uptime history.** Each app shows a 48-hour uptime bar and percentage on the dashboard and on status pages. It is kept in `uptime.json` in the data folder.
+- **Stats page** with posters (most watched movies and shows), a plays-per-day chart, busiest hours, devices, viewer avatars, total plays and time watched, and recent plays with posters. Every chart has a "View as table" view and hover details.
+- Status pages refresh every four seconds, show an all-clear banner, uptime bars and a speed graph, and can optionally show how many people are watching (titles only, never names or devices).
+- The demo now includes pretend Unraid and richer Tautulli and Plex data.
+
+### Changed
+- The Dashboard sections are now: needs attention, live tiles, who is watching, downloading now, Usenet, apps, and coming up. If you had customised the order, it is reset to the new defaults for sections that no longer exist.
+- New logo and icons.
+
+### Fixed
+- Image requests for Plex and Tautulli posters now refuse paths that try to climb out of the library folder.
+- Two graphs on one page no longer share the same element id.
+
+### Notes
+- The new Plex session details and Tautulli chart data follow the documented APIs and were tested against built-in pretend apps. They have not yet been checked against a real Plex or Tautulli. Please report anything that looks wrong, with your app versions.
+
 ## [0.10.0] - 2026-10-14
 
 The default port is now **5080** (was 8080). If you published 8080 before, either change the mapping to `5080:5080` or set `PORT=8080` and map `8080:8080`.

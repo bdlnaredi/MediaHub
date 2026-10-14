@@ -3,7 +3,7 @@ const DATA = process.env.DATA_DIR || '/data', FILE = path.join(DATA, 'db.json');
 fs.mkdirSync(DATA, { recursive: true });
 const totp = require('./lib/totp'), channels = require('./lib/channels');
 const PORT = +process.env.PORT || 5080, DEMO = /^(1|true|yes)$/i.test(process.env.DEMO || ''), DAY = 864e5;
-const demo = DEMO ? require('./lib/demo').create({ streams: 1 }) : null;
+const demo = DEMO ? require('./lib/demo').create({ streams: 2 }) : null;
 const VERSION = (() => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'))).version; } catch { return 'dev'; } })();
 const TRUST = /^(1|true|yes)$/i.test(process.env.TRUST_PROXY || ''), SETUP_TOKEN = process.env.SETUP_TOKEN || '';
 const same = (a, b) => { const x = Buffer.from(String(a || '')), y = Buffer.from(String(b || '')); return x.length === y.length && crypto.timingSafeEqual(x, y); };
@@ -66,7 +66,7 @@ if (DEMO) {
   const base = 'http://127.0.0.1:' + PORT + '/__demo/', mk = (n, k) => ({ id: crypto.randomBytes(6).toString('hex'), type: k, name: n, url: base + k, apiKey: 'demo', user: 'demo', pass: 'demo' });
   const salt = a => crypto.randomBytes(6).toString('hex'), mkU = (name, pw, role, extra = {}) => { const sl = salt(); return { id: crypto.randomBytes(6).toString('hex'), name, role, salt: sl, hash: crypto.scryptSync(pw, sl, 32).toString('hex'), access: [], ...extra }; };
   db = defaults({ users: [mkU('demo', 'demo-mediahub', 'admin'), mkU('guest', 'guest-mediahub', 'user')], alerts: { channels: [], reports: true }, requests: [],
-    services: [['Sonarr', 'sonarr'], ['Radarr', 'radarr'], ['qBittorrent', 'qbittorrent'], ['Plex', 'plex'], ['Seerr', 'seerr'], ['Prowlarr', 'prowlarr'], ['Lidarr', 'lidarr'], ['Readarr', 'readarr'], ['Bazarr', 'bazarr'], ['SABnzbd', 'sabnzbd'], ['Tautulli', 'tautulli']].map(x => mk(x[0], x[1])) });
+    services: [['Sonarr', 'sonarr'], ['Radarr', 'radarr'], ['qBittorrent', 'qbittorrent'], ['Plex', 'plex'], ['Seerr', 'seerr'], ['Prowlarr', 'prowlarr'], ['Lidarr', 'lidarr'], ['Readarr', 'readarr'], ['Bazarr', 'bazarr'], ['SABnzbd', 'sabnzbd'], ['Tautulli', 'tautulli'], ['Unraid', 'unraid']].map(x => mk(x[0], x[1])) });
   db.users[1].access = db.services.map(x => x.id);
   db.requests.push({ id: 'r1', sid: db.services.find(x => x.type === 'seerr').id, uid: db.users[1].id, user: 'guest', mediaType: 'movie', mediaId: 801, title: 'Hidden Harbor', year: '2024', poster: '', status: 'pending', at: Date.now() - 3600e3 * 5 });
 }
@@ -167,6 +167,96 @@ const login = (res, user) => {
 const tickets = new Map(), pending2fa = new Map(), fails2 = {}, failsPub = {}, pubCache = {}, qbListCache = {}, grabCache = new Map(), vpnCache = {}, mon = { idle: {}, up: {}, done: {}, seeded: {}, disk: {}, vpn: {}, share: {}, reqT: 0, n: 0, busy: false };
 let homeIp = { v: '', t: 0 };
 const cut = (v, n = 200) => String(v == null ? '' : v).slice(0, n);
+
+// ---- Live data: one shared snapshot, pushed to every open dashboard over server-sent events ----
+const pad2 = n => String(n || 0).padStart(2, '0');
+function plexMap(x) {
+  const ep = x.type === 'episode', md = (x.Media || [])[0] || {}, ts = x.TranscodeSession, ss = x.Session || {}, pl = x.Player || {};
+  const dec = ts ? (ts.videoDecision === 'transcode' || ts.audioDecision === 'transcode' ? 'transcode' : 'stream') : 'direct';
+  const rs = String(md.videoResolution || ''), res = /^\d+$/.test(rs) ? rs + 'p' : rs.toUpperCase();
+  return { id: ss.id || '', sid: ss.id || '', user: (x.User || {}).title || '', player: pl.title || '', device: pl.product || pl.platform || '', state: pl.state || '',
+    title: ep ? x.grandparentTitle : x.title, sub: ep ? `S${pad2(x.parentIndex)}E${pad2(x.index)} ${x.title}` : String(x.year || ''), kind: ep ? 'episode' : x.type === 'track' ? 'track' : 'movie',
+    progress: x.duration ? Math.min(1, (x.viewOffset || 0) / x.duration) : 0, offset: x.viewOffset || 0, duration: x.duration || 0,
+    thumb: x.grandparentThumb || x.parentThumb || x.thumb || '', decision: dec, res, kbps: +ss.bandwidth || 0, where: ss.location || '' };
+}
+const plexSessions = async s => (((await plexGet(s, '/status/sessions')).MediaContainer || {}).Metadata || []).map(plexMap);
+const sabGet = async (s, q) => {
+  const x = await fetch(`${s.url.replace(/\/+$/, '')}/api?output=json&apikey=${encodeURIComponent(s.apiKey)}&${q}`, { signal: AbortSignal.timeout(8000) });
+  if (!x.ok) throw new Error('SABnzbd returned ' + x.status); return x.json();
+};
+const live = { snap: null, busy: false, timer: null, hist: {}, arr: {}, okAt: {} }, liveClients = new Set(), HISTN = 120, DL_STATES = /^(downloading|forcedDL|metaDL|forcedMetaDL)$/;
+const quick = (pr, ms = 3500) => Promise.race([pr, new Promise((_, no) => setTimeout(() => no(new Error('slow')), ms))]);
+async function liveBuild() {
+  const out = { t: Date.now(), qb: {}, unraid: {}, plex: {}, sab: {}, health: {} }, prev = live.snap;
+  await Promise.all(db.services.map(async s => {
+    if (health[s.id]) out.health[s.id] = health[s.id].ok;
+    const slot = { qbittorrent: 'qb', unraid: 'unraid', plex: 'plex', sabnzbd: 'sab' }[s.type]; if (!slot) return;
+    try {
+      if (s.type === 'qbittorrent') {
+        const [ti, l] = await quick(Promise.all([qb(s, '/api/v2/transfer/info'), qb(s, '/api/v2/torrents/info?filter=downloading')]));
+        const h = live.hist[s.id] || (live.hist[s.id] = { dl: [], ul: [] });
+        h.dl.push(ti.dl_info_speed || 0); h.ul.push(ti.up_info_speed || 0); if (h.dl.length > HISTN) { h.dl.shift(); h.ul.shift(); }
+        const act = (Array.isArray(l) ? l : []).filter(x => DL_STATES.test(x.state));
+        out.qb[s.id] = { dl: ti.dl_info_speed || 0, ul: ti.up_info_speed || 0, active: act.length, conn: ti.connection_status || '',
+          top: act.sort((a, b) => b.dlspeed - a.dlspeed).slice(0, 6).map(x => ({ hash: x.hash, name: x.name, progress: x.progress, speed: x.dlspeed, eta: x.eta, size: x.size })) };
+      } else if (s.type === 'unraid') {
+        const d = await quick(gql(s, '{ metrics { cpu { percentTotal } memory { percentTotal } } }')), o = { cpu: d.metrics.cpu.percentTotal, mem: d.metrics.memory.percentTotal };
+        let a = live.arr[s.id];
+        if (!a || Date.now() - a.t > 30000) { a = live.arr[s.id] = { t: Date.now() }; try { const k = (await quick(gql(s, '{ array { capacity { kilobytes { used total } } } }'))).array.capacity.kilobytes; a.used = +k.used * 1024; a.total = +k.total * 1024; } catch {} }
+        if (a.total) { o.used = a.used; o.total = a.total; }
+        out.unraid[s.id] = o;
+      } else if (s.type === 'plex') out.plex[s.id] = await quick(plexSessions(s));
+      else {
+        const d = (await quick(sabGet(s, 'mode=queue&limit=5'))).queue || {};
+        out.sab[s.id] = { speed: (+d.kbpersec || 0) * 1024, paused: !!d.paused, slots: +d.noofslots_total || +d.noofslots || 0, left: d.sizeleft || '', timeleft: d.timeleft || '',
+          jobs: (d.slots || []).slice(0, 4).map(j => ({ name: j.filename, pct: +j.percentage || 0 })) };
+      }
+      live.okAt[s.id] = out.t;
+    } catch {
+      const pv = prev && prev[slot][s.id]; if (pv && out.t - (live.okAt[s.id] || 0) < 15000) out[slot][s.id] = pv;
+    }
+  }));
+  return out;
+}
+function liveView(u, snap, first) {
+  const o = { t: snap.t, qb: {}, unraid: {}, plex: {}, sab: {}, health: {} }; if (first) o.hist = {};
+  for (const s of db.services) {
+    if (u.role !== 'admin' && !(u.access || []).includes(s.id)) continue;
+    for (const k of ['qb', 'unraid', 'plex', 'sab']) if (snap[k][s.id]) o[k][s.id] = snap[k][s.id];
+    if (s.id in snap.health) o.health[s.id] = snap.health[s.id];
+    if (first && live.hist[s.id]) o.hist[s.id] = live.hist[s.id];
+  }
+  return o;
+}
+function liveSend(c) {
+  const u = db.users.find(x => x.id === c.uid);
+  if (!u || !sessions.has(c.th)) { try { c.res.end(); } catch {} liveStop(c); return; }
+  if (c.res.writableLength > 65536 || !live.snap) return;
+  c.res.write(`data: ${JSON.stringify(liveView(u, live.snap, !c.sent))}\n\n`); c.sent = true;
+}
+async function liveTick() {
+  if (live.busy || !liveClients.size) return; live.busy = true;
+  try { live.snap = await liveBuild(); for (const c of [...liveClients]) liveSend(c); } catch {} finally { live.busy = false; }
+}
+function liveStop(c) { liveClients.delete(c); if (!liveClients.size && live.timer) { clearInterval(live.timer); live.timer = null; } }
+function liveAdd(c) {
+  liveClients.add(c); if (!live.timer) live.timer = setInterval(liveTick, +process.env.LIVE_MS || 2000);
+  if (live.snap && Date.now() - live.snap.t < 5000) liveSend(c); else liveTick();
+}
+
+// ---- Uptime history (hourly buckets, kept for 48 hours) ----
+const UPF = path.join(DATA, 'uptime.json'), UPB = 3600000, UPN = 48; let uptime = {}; try { uptime = JSON.parse(fs.readFileSync(UPF, 'utf8')); } catch {}
+function uptNote(id, ok) {
+  const b = Math.floor(Date.now() / UPB) * UPB, a = uptime[id] || (uptime[id] = []); let e = a[a.length - 1];
+  if (!e || e.b !== b) { e = { b, ok: 0, n: 0 }; a.push(e); while (a.length > UPN) a.shift(); }
+  e.n++; if (ok) e.ok++;
+}
+const uptBars = id => { const now = Math.floor(Date.now() / UPB) * UPB, m = new Map((uptime[id] || []).map(e => [e.b, e]));
+  return Array.from({ length: UPN }, (_, i) => { const e = m.get(now - (UPN - 1 - i) * UPB); return e && e.n ? +(e.ok / e.n).toFixed(3) : null; }); };
+const uptPct = id => { const a = uptime[id] || [], n = a.reduce((s, e) => s + e.n, 0); return n ? +(a.reduce((s, e) => s + e.ok, 0) / n * 100).toFixed(1) : null; };
+function uptSave() { if (DEMO) return; try { fs.writeFileSync(UPF + '.tmp', JSON.stringify(uptime)); fs.renameSync(UPF + '.tmp', UPF); } catch {} }
+if (DEMO) for (const x of db.services) uptime[x.id] = Array.from({ length: UPN }, (_, i) => ({ b: Math.floor(Date.now() / UPB) * UPB - (UPN - 1 - i) * UPB, n: 12, ok: (x.type === 'prowlarr' && i > 30 && i < 34) || (x.type === 'readarr' && i === 12) ? 5 : 12 }));
+if (DEMO) db.statusLinks.push({ id: 'demo-link', name: 'Living room tablet', hash: th('demo-status-page-token-0001'), at: Date.now(), used: 0, scopes: { apps: true, traffic: true, downloads: true, upcoming: true, watching: true } });
 async function qbUpload(s, fields, files) {
   await qb(s, '/api/v2/app/version');
   const u = s.url.replace(/\/+$/, ''), fd = new FormData();
@@ -285,6 +375,7 @@ async function monitor() {
     await Promise.all(db.services.map(async s => {
       let ok = false; try { ok = await test(s); } catch {}
       health[s.id] = { ok, t: Date.now() };
+      uptNote(s.id, ok);
       if (!a.offline) return;
       const st = mon.up[s.id] || (mon.up[s.id] = { ok: true, n: 0 });
       if (ok) { if (!st.ok) await notify('App back online', s.name + ' is reachable again').catch(() => {}); st.ok = true; st.n = 0; }
@@ -320,6 +411,7 @@ async function monitor() {
     const bc = db.settings.backup || {};
     if (bc.on && new Date(bc.last || 0).toDateString() !== new Date().toDateString() && new Date().getHours() >= (bc.hour ?? 3)) await safe(async () => { backupNow(); });
     for (const [k, v] of tickets) if (v.exp < Date.now()) tickets.delete(k);
+    if (mon.n % 10 === 0) uptSave();
     if (++mon.n % 10 === 0) await safe(refreshRequests);
   } finally { mon.busy = false; }
 }
@@ -399,7 +491,10 @@ http.createServer(async (req, res) => {
       if (!x) { fl.n++; fl.t = Date.now(); failsPub[ip] = fl; return send(res, 404, { error: 'This link is not valid' }); }
       const c = pubCache[hh]; if (c && Date.now() - c.t < 3000) return send(res, 200, c.d);
       const out = { name: x.name, at: Date.now() }, qs = db.services.filter(s => s.type === 'qbittorrent');
-      if (x.scopes.apps) out.apps = db.services.map(s => ({ name: s.name, type: s.type, ok: health[s.id] ? health[s.id].ok : null }));
+      if (x.scopes.apps) out.apps = db.services.map(s => ({ name: s.name, type: s.type, ok: health[s.id] ? health[s.id].ok : null, bars: uptBars(s.id), pct: uptPct(s.id) }));
+      if (x.scopes.watching) { out.watching = { count: 0, kbps: 0, items: [] }; for (const s of db.services.filter(y => y.type === 'plex')) { try {
+        const l = (await plexSessions(s)).filter(y => ['playing', 'buffering', 'paused'].includes(y.state)); out.watching.count += l.length; out.watching.kbps += l.reduce((a, y) => a + y.kbps, 0);
+        out.watching.items.push(...l.slice(0, 6).map(y => ({ title: y.title, sub: y.sub, state: y.state, progress: y.progress }))); } catch {} } }
       if (x.scopes.traffic || x.scopes.downloads) for (const q of qs.slice(0, 1)) { try {
         const [ti, l] = await Promise.all([qb(q, '/api/v2/transfer/info'), x.scopes.downloads ? qb(q, '/api/v2/torrents/info') : Promise.resolve([])]);
         if (x.scopes.traffic) out.traffic = { dl: ti.dl_info_speed || 0, ul: ti.up_info_speed || 0 };
@@ -450,6 +545,18 @@ http.createServer(async (req, res) => {
     const allowed = s => me.role === 'admin' || me.access.includes(s.id);
     const can = k => me.role === 'admin' || !me.perms || me.perms[k] !== false;
     const deny = (k, what) => can(k) ? false : (send(res, 403, { error: `Your profile cannot ${what}.` }), true);
+    if (p === '/api/live' && m === 'GET') {
+      if (liveClients.size >= 60) return send(res, 503, { error: 'Too many open live views' });
+      res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
+      res.write('retry: 3000\n\n');
+      const c = { res, uid: me.id, th: th(token), sent: false };
+      req.on('close', () => liveStop(c)); liveAdd(c);
+      return;
+    }
+    if (p === '/api/uptime' && m === 'GET') {
+      const o = {}; for (const s of db.services.filter(allowed)) o[s.id] = { bars: uptBars(s.id), pct: uptPct(s.id) };
+      return send(res, 200, o);
+    }
     if (p === '/api/services' && m === 'GET') return send(res, 200, db.services.filter(allowed).map(pubSvc));
     let r;
     if ((r = p.match(/^\/api\/status\/(\w+)$/))) {
@@ -793,17 +900,16 @@ http.createServer(async (req, res) => {
     };
     if ((r = p.match(/^\/api\/plex\/(\w+)\/now$/))) {
       const s = svcOf(r[1], 'plex'); if (!s) return send(res, 404, { error: 'Not found' });
-      const [a, b] = await Promise.all([plex(s, '/status/sessions').then(x => x.json()), plex(s, '/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=14').then(x => x.json())]);
-      const pad = n => String(n || 0).padStart(2, '0'), th2 = x => x.grandparentThumb || x.parentThumb || x.thumb || '';
-      const nm = x => x.type === 'episode' ? { title: x.grandparentTitle, sub: `S${pad(x.parentIndex)}E${pad(x.index)} ${x.title}` } : { title: x.title, sub: String(x.year || '') };
+      const [sessions, b] = await Promise.all([plexSessions(s), plex(s, '/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=14').then(x => x.json())]);
+      const th2 = x => x.grandparentThumb || x.parentThumb || x.thumb || '';
+      const nm = x => x.type === 'episode' ? { title: x.grandparentTitle, sub: `S${pad2(x.parentIndex)}E${pad2(x.index)} ${x.title}` } : { title: x.title, sub: String(x.year || '') };
       return send(res, 200, {
-        sessions: ((a.MediaContainer || {}).Metadata || []).map(x => ({ ...nm(x), sid: (x.Session || {}).id, user: (x.User || {}).title, player: (x.Player || {}).title, state: (x.Player || {}).state,
-          progress: x.duration ? (x.viewOffset || 0) / x.duration : 0, thumb: th2(x) })),
+        sessions,
         recent: ((b.MediaContainer || {}).Metadata || []).map(x => ({ ...nm(x), thumb: th2(x) })) });
     }
     if ((r = p.match(/^\/api\/plex\/(\w+)\/img$/))) {
       const s = svcOf(r[1], 'plex'), pth = new URL(req.url, 'http://x').searchParams.get('p') || '';
-      if (!s || !/^\/library\/[\w\/.-]+$/.test(pth)) return send(res, 400, { error: 'Bad request' });
+      if (!s || !/^\/library\/[\w\/.-]+$/.test(pth) || pth.includes('..')) return send(res, 400, { error: 'Bad request' });
       const x = await plex(s, pth);
       res.writeHead(200, { 'Content-Type': x.headers.get('content-type') || 'image/jpeg', 'Cache-Control': 'private, max-age=3600' });
       return res.end(Buffer.from(await x.arrayBuffer()));
@@ -814,10 +920,7 @@ http.createServer(async (req, res) => {
       if (!x.ok || !d || !d.response || d.response.result !== 'success') throw new Error((d && d.response && d.response.message) || 'Tautulli returned ' + x.status);
       return d.response.data;
     };
-    const sab = async (s, q) => {
-      const x = await fetch(`${s.url.replace(/\/+$/, '')}/api?output=json&apikey=${encodeURIComponent(s.apiKey)}&${q}`, { signal: AbortSignal.timeout(8000) });
-      if (!x.ok) throw new Error('SABnzbd returned ' + x.status); return x.json();
-    };
+    const sab = sabGet;
     if (p === '/api/attention' && m === 'GET') {
       const items = [], add = (level, text, tab) => items.push({ level, text, tab }), mine = db.services.filter(allowed), plural = (n, a, b) => n === 1 ? a : b;
       for (const s of mine) { const h = health[s.id]; if (h && !h.ok) add('bad', `${s.name} is not responding`, 'st:apps'); }
@@ -879,11 +982,26 @@ http.createServer(async (req, res) => {
     if ((r = p.match(/^\/api\/tautulli\/(\w+)\/stats$/))) {
       const s = svcOf(r[1], 'tautulli'); if (!s) return send(res, 404, { error: 'Not found' });
       const days = [7, 30, 90].includes(+new URL(req.url, 'http://x').searchParams.get('days')) ? +new URL(req.url, 'http://x').searchParams.get('days') : 30;
-      const [home, hist] = await Promise.all([taut(s, 'get_home_stats', `&time_range=${days}&stats_count=5`), taut(s, 'get_history', '&length=15')]);
+      const soft = pr => pr.catch(() => null), img = x => { const v = x && (x.grandparent_thumb || x.thumb); return /^\/library\/[\w\/.-]+$/.test(v || '') && !v.includes('..') ? v : ''; };
+      const [home, hist, byDate, byDur, byHour, byPlat] = await Promise.all([taut(s, 'get_home_stats', `&time_range=${days}&stats_count=10`), taut(s, 'get_history', '&length=14'),
+        soft(taut(s, 'get_plays_by_date', `&time_range=${days}&y_axis=plays`)), soft(taut(s, 'get_plays_by_date', `&time_range=${days}&y_axis=duration`)),
+        soft(taut(s, 'get_plays_by_hourofday', `&time_range=${days}&y_axis=plays`)), soft(taut(s, 'get_plays_by_top_10_platforms', `&time_range=${days}&y_axis=plays`))]);
       const pick = id => ((home || []).find(x => x.stat_id === id) || {}).rows || [];
-      return send(res, 200, { days, movies: pick('top_movies').map(x => ({ title: x.title, plays: x.total_plays })), tv: pick('top_tv').map(x => ({ title: x.title, plays: x.total_plays })),
-        users: pick('top_users').map(x => ({ title: x.friendly_name || x.user, plays: x.total_plays })),
-        history: ((hist || {}).data || []).map(x => ({ user: x.friendly_name || x.user, title: x.full_title || x.title, type: x.media_type, at: (x.date || 0) * 1000, player: x.player, pct: x.percent_complete })) });
+      const chart = (c, n = 6) => c && Array.isArray(c.categories) ? { categories: c.categories.map(x => cut(x, 40)), series: (c.series || []).slice(0, n).map(z => ({ name: cut(z.name, 30), data: (z.data || []).map(v => +v || 0) })) } : null;
+      const sum = c => c ? c.series.reduce((a, z) => a + z.data.reduce((q, v) => q + v, 0), 0) : 0, dur = chart(byDur), plays = chart(byDate);
+      return send(res, 200, { days, movies: pick('top_movies').map(x => ({ title: x.title, plays: x.total_plays, thumb: img(x), year: x.year || '' })),
+        tv: pick('top_tv').map(x => ({ title: x.title, plays: x.total_plays, thumb: img(x) })), users: pick('top_users').map(x => ({ title: x.friendly_name || x.user, plays: x.total_plays, seconds: x.total_duration || 0 })),
+        totals: { plays: sum(plays), seconds: sum(dur) }, byDate: plays, byHour: chart(byHour), byPlatform: chart(byPlat),
+        history: ((hist || {}).data || []).map(x => ({ user: x.friendly_name || x.user, title: x.full_title || x.title, type: x.media_type, at: (x.date || 0) * 1000, player: x.player, pct: x.percent_complete, thumb: img(x) })) });
+    }
+    if ((r = p.match(/^\/api\/tautulli\/(\w+)\/img$/))) {
+      const s = svcOf(r[1], 'tautulli'), pth = new URL(req.url, 'http://x').searchParams.get('p') || '';
+      if (!s || !/^\/library\/[\w\/.-]+$/.test(pth) || pth.includes('..')) return send(res, 400, { error: 'Bad request' });
+      const x = await fetch(`${s.url.replace(/\/+$/, '')}/api/v2?apikey=${encodeURIComponent(s.apiKey)}&cmd=pms_image_proxy&img=${encodeURIComponent(pth)}&width=300&height=450&fallback=poster`, { signal: AbortSignal.timeout(10000) });
+      const ct = x.headers.get('content-type') || '';
+      if (!x.ok || !/^image\//.test(ct)) return send(res, 404, { error: 'No image' });
+      res.writeHead(200, { 'Content-Type': ct, 'Cache-Control': 'private, max-age=86400' });
+      return res.end(Buffer.from(await x.arrayBuffer()));
     }
     if ((r = p.match(/^\/api\/sab\/(\w+)\/queue$/))) {
       const s = svcOf(r[1], 'sabnzbd'); if (!s) return send(res, 404, { error: 'Not found' });
@@ -1197,7 +1315,7 @@ http.createServer(async (req, res) => {
     if (p === '/api/statuslinks' && m === 'GET') return send(res, 200, db.statusLinks.map(x => ({ id: x.id, name: x.name, scopes: x.scopes, at: x.at, used: x.used || 0, lastUsed: x.lastUsed || 0 })));
     if (p === '/api/statuslinks' && m === 'POST') {
       const b = await readBody(req), token = crypto.randomBytes(24).toString('base64url');
-      const x = { id: uid(), name: cut(b.name, 60).trim() || 'Status page', hash: th(token), at: Date.now(), used: 0, scopes: { apps: b.apps !== false, traffic: !!b.traffic, downloads: !!b.downloads, upcoming: !!b.upcoming } };
+      const x = { id: uid(), name: cut(b.name, 60).trim() || 'Status page', hash: th(token), at: Date.now(), used: 0, scopes: { apps: b.apps !== false, traffic: !!b.traffic, downloads: !!b.downloads, upcoming: !!b.upcoming, watching: !!b.watching } };
       db.statusLinks.push(x); save(); audit(me.name, 'Created a status link', x.name); return send(res, 200, { id: x.id, token });
     }
     if ((r = p.match(/^\/api\/statuslinks\/(\w+)$/)) && m === 'DELETE') {

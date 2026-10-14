@@ -71,7 +71,7 @@ form{display:grid;gap:10px;margin-bottom:20px}
 label.chk{display:inline-flex;gap:8px;align-items:center;margin-right:12px}label.chk input,.chk input{width:auto}
 .hero{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:16px}
 .meter{margin-bottom:16px}.meter progress{margin-top:7px}
-.srow{display:grid;grid-template-columns:12px 1fr auto 110px auto;gap:14px;align-items:center;padding:13px 0;border-bottom:1px solid var(--line)}
+.srow{display:grid;grid-template-columns:12px 1fr auto 110px 200px auto;gap:14px;align-items:center;padding:13px 0;border-bottom:1px solid var(--line)}
 .srow:last-child{border-bottom:0}
 .strip{display:flex;gap:14px;overflow-x:auto;padding-bottom:10px}
 .pc{flex:none;width:138px;text-align:left;padding:0;background:none;border:0;color:inherit;display:block}
@@ -151,7 +151,7 @@ input[type=checkbox]{accent-color:var(--accent);width:18px;height:18px;padding:0
  .brand{padding:0 6px 8px}.brand #rl{display:none}.nav{flex-direction:row;overflow-x:auto;gap:4px;flex:none}
  .nv{width:auto;white-space:nowrap;padding:8px 12px}.nv.on,.nv.on:hover:not(:disabled){box-shadow:inset 0 -3px 0 var(--accent);border-radius:10px 10px 0 0}
  .who{display:none}.mob{display:flex}main{padding:20px 14px 48px}
- .hero{grid-template-columns:1fr}.srow{grid-template-columns:12px 1fr auto auto}.srow .mute:nth-of-type(1){display:none}
+ .hero{grid-template-columns:1fr}.ubw{display:none}.srow{grid-template-columns:12px 1fr auto auto}.srow .mute:nth-of-type(1){display:none}
  .ov{align-items:flex-end;padding:0}.dlg{width:100%!important;max-width:none;border-radius:20px 20px 0 0;max-height:92vh}
  #toasts{right:12px;left:12px;width:auto;bottom:12px}
 }
@@ -167,6 +167,42 @@ input[type=checkbox]{accent-color:var(--accent);width:18px;height:18px;padding:0
 
 .skip{position:absolute;left:-999px;top:8px;z-index:100;background:var(--accent);color:var(--onacc);padding:8px 14px;border-radius:8px;font-weight:600}.skip:focus{left:8px}
 #m:focus{outline:none}
+
+/* live dashboard, stats, charts */
+@media(max-width:560px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.tile{padding:13px 14px}.tile .tv{font-size:24px}.npg{grid-template-columns:1fr}}
+:root{--c1:#3987e5;--c2:#d95926;--c3:#199e70;--c4:#c98500}
+:root[data-theme=light]{--c1:#2a78d6;--c2:#eb6834;--c3:#1baf7a;--c4:#eda100}
+@media (prefers-color-scheme:light){:root:not([data-theme=dark]){--c1:#2a78d6;--c2:#eb6834;--c3:#1baf7a;--c4:#eda100}}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-bottom:8px}
+.tile{background:var(--s1);border:1px solid var(--line);border-radius:var(--r1);padding:16px 18px;min-width:0;transition:border-color .15s,transform .15s}
+.tile[data-go]{cursor:pointer}.tile[data-go]:hover{border-color:var(--accent);transform:translateY(-1px)}
+.tile .tl{color:var(--mute);font-size:13px;font-weight:560;margin-bottom:4px}
+.tile .tv{display:block;font-size:30px;line-height:1.15;letter-spacing:-.02em}
+.tile .spark{margin:8px -4px 0;height:54px}.tile .meter{margin-bottom:12px}
+progress.hot::-webkit-progress-value{background:var(--bad)}progress.hot::-moz-progress-bar{background:var(--bad)}
+.live{display:inline-flex;align-items:center;gap:7px;padding:4px 12px;border-radius:99px;background:var(--s2);color:var(--mute);font-size:13px;font-weight:600;margin:4px 10px 0 0}
+.live i{width:8px;height:8px;border-radius:50%;background:var(--mute)}
+.live.on{color:var(--ok-t)}.live.on i{background:var(--ok);animation:pulse 2s ease-out infinite}
+.live.off{color:var(--warn-t)}.live.off i{background:var(--warn)}
+@keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--ok) 55%,transparent)}100%{box-shadow:0 0 0 9px transparent}}
+@media (prefers-reduced-motion:reduce){.live.on i{animation:none}.tile,.tile[data-go]:hover{transition:none;transform:none}}
+.npg{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px}
+.np{display:flex;gap:14px;align-items:flex-start;background:var(--s1);border:1px solid var(--line);border-radius:var(--r1);padding:14px}
+.npi{flex:none;width:76px;aspect-ratio:2/3;border-radius:8px;overflow:hidden;background:var(--s2)}.npi img{width:100%;height:100%;object-fit:cover;display:block}
+.npb{flex:1;min-width:0}.npb b{word-break:break-word}
+.ubw{display:inline-flex;align-items:center;min-width:0}.ub{display:block;max-width:100%}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:16px}
+.pgc{min-width:0}.pgc b{display:block;font-size:14px;line-height:1.3;word-break:break-word}
+.pgc .pw{margin-bottom:8px}
+.rk{position:absolute;left:8px;top:8px;background:var(--accent);color:var(--onacc);font-weight:750;font-size:13px;min-width:26px;height:26px;border-radius:8px;display:grid;place-items:center}
+.pph{position:absolute;inset:0;display:grid;place-items:center;font-size:28px;font-weight:700;color:var(--mute)}
+.hth{flex:none;width:40px;aspect-ratio:2/3;border-radius:6px;overflow:hidden;background:var(--s2)}.hth img{width:100%;height:100%;object-fit:cover;display:block}
+.hb{height:6px;border-radius:99px;background:var(--s2);margin-top:6px;overflow:hidden}.hb i{display:block;height:100%;border-radius:99px;background:var(--c1)}
+.ch{display:block;overflow:visible}.ax{fill:var(--mute);font-size:11px}
+.lgd{display:flex;gap:16px;margin-bottom:8px;font-size:13px;color:var(--mute)}.lgd i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px}
+.tbv{margin-top:10px}.tbv summary{cursor:pointer;color:var(--link);font-size:13px}
+.tb{border-collapse:collapse;width:100%;font-size:13px;margin-top:8px}.tb th,.tb td{text-align:left;padding:5px 12px 5px 0;border-bottom:1px solid var(--line)}
+.tip{position:fixed;z-index:30;pointer-events:none;background:var(--text);color:var(--bg);padding:5px 10px;border-radius:8px;font-size:13px;max-width:260px}
 </style></head><body>
 <div id="app"></div><div id="toasts" aria-live="polite"></div>
 <script>
@@ -223,13 +259,15 @@ function appearance(){
   const o=modal(`<div class="row"><h2 style="margin:0;flex:1">Appearance</h2><button data-x>Close</button></div>${appearHtml()}`);
   o.querySelector('[data-x]').onclick=o.close;bindAppear(o);
 }
+let TRN=0;
 function trace(series,h,label){
+  const gid='tg'+(++TRN);
   const W=300,max=Math.max(1,...series.flatMap(s=>s.v))*1.15;
   const x=(v,i)=>(W-(v.length-1-i)*W/(HIST-1)).toFixed(1),y=n=>(h-4-Math.min(n,max)/max*(h-10)).toFixed(1);
   const line=v=>v.map((n,i)=>`${i?'L':'M'}${x(v,i)},${y(n)}`).join('');
   const grid=[.25,.5,.75].map(f=>`<line x1="0" x2="${W}" y1="${(h*f).toFixed(1)}" y2="${(h*f).toFixed(1)}" style="stroke:var(--line)" stroke-width="1" vector-effect="non-scaling-stroke" stroke-dasharray="3 5"/>`).join('');
-  return `<svg viewBox="0 0 ${W} ${h}" width="100%" height="${h}" preserveAspectRatio="none" role="img" aria-label="${label}"><defs><linearGradient id="tg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" style="stop-color:var(--accent);stop-opacity:.32"/><stop offset="1" style="stop-color:var(--accent);stop-opacity:0"/></linearGradient></defs>${grid}`+
-    series.map((s,i)=>s.v.length<2?'':(i===0?`<path d="${line(s.v)}L${W},${h}L${x(s.v,0)},${h}Z" fill="url(#tg)"/>`:'')+`<path d="${line(s.v)}" fill="none" style="stroke:${s.c}" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`).join('')+'</svg>';
+  return `<svg viewBox="0 0 ${W} ${h}" width="100%" height="${h}" preserveAspectRatio="none" role="img" aria-label="${label}"><defs><linearGradient id="${gid}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" style="stop-color:var(--accent);stop-opacity:.32"/><stop offset="1" style="stop-color:var(--accent);stop-opacity:0"/></linearGradient></defs>${grid}`+
+    series.map((s,i)=>s.v.length<2?'':(i===0?`<path d="${line(s.v)}L${W},${h}L${x(s.v,0)},${h}Z" fill="url(#${gid})"/>`:'')+`<path d="${line(s.v)}" fill="none" style="stroke:${s.c}" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`).join('')+'</svg>';
 }
 const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const TYPES={sonarr:'Sonarr',radarr:'Radarr',prowlarr:'Prowlarr',jackett:'Jackett',qbittorrent:'qBittorrent',seerr:'Seerr',unraid:'Unraid',plex:'Plex',tautulli:'Tautulli',sabnzbd:'SABnzbd',bazarr:'Bazarr',lidarr:'Lidarr',readarr:'Readarr'};
@@ -321,12 +359,12 @@ function render(){
     <div class="who"><span class="av">${esc((me.name[0]||'?').toUpperCase())}</span><span class="nm">${esc(me.name)}</span><button class="ghost" id="ap" aria-label="Appearance" title="Appearance">${ic('pal')}</button><button id="out" class="ghost" aria-label="Sign out" title="Sign out">${ic('out')}</button></div></nav>
     <main>${DEMO?'<div class="demo" role="note">Demo mode: the apps here are pretend and nothing is saved. Risky settings are locked.</div>':''}<div class="ph">${pg[0]?`<h1>${pg[0]}</h1><p class="mute">${pg[1]}</p>`:''}</div><div id="m" tabindex="-1"></div></main></div>`;
   document.querySelectorAll('.nv[data-t]').forEach(b=>b.onclick=()=>{tab=b.dataset.t;render()});
-  const so=async()=>{await api('/api/logout','POST');me=null;start()};$('#out').onclick=so;$('#out2').onclick=so;
+  const so=async()=>{liveStop();await api('/api/logout','POST');me=null;start()};$('#out').onclick=so;$('#out2').onclick=so;
   $('#ap').onclick=appearance;$('#ap2').onclick=appearance;$('#rl').onclick=()=>{UI.rail=!UI.rail;saveUI()};$('#qs').onclick=quick;
   const pt=PICK[tab];
   if(pt&&ofType(pt).length>1){const cur=first(pt);document.querySelector('.ph').insertAdjacentHTML('beforeend',`<label class="pick mute">App <select id="pk2" aria-label="Which app">${ofType(pt).map(s=>`<option value="${s.id}" ${s.id===cur.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select></label>`);
     $('#pk2').onchange=e=>{UI['pick_'+pt]=e.target.value;saveUI();render()}}
-  [].concat(timer||[]).forEach(clearInterval);liveFns=[];
+  [].concat(timer||[]).forEach(clearInterval);liveFns=[];LIVE.subs.clear();if(tab!=='dash')liveStop();
   const on=document.querySelector('.nv.on');if(on&&on.scrollIntoView)on.scrollIntoView({inline:'center',block:'nearest'});
   ({dash:dashView,find:findView,rq:rqView,lib:libView,wt:wtView,dl:dlView,rss:rssView,up:upView,idx:idxView,mb:mbView,sub:subView,nzb:nzbView,hl:hlView,ur:urView,stats:statsView,set:setView})[tab]();
 }
@@ -356,7 +394,7 @@ function quick(){
 }
 document.addEventListener('keydown',e=>{if(!me)return;const t=(e.target&&e.target.tagName)||'';
   if((e.key==='k'&&(e.ctrlKey||e.metaKey))||(e.key==='/'&&!/^(INPUT|TEXTAREA|SELECT)$/.test(t)&&!document.querySelector('.ov'))){e.preventDefault();quick()}});
-const DSEC=[['attn','Needs attention'],['hero','Speed and server'],['plex','Plex activity'],['sab','Usenet'],['apps','Apps'],['up','Coming up and downloading']];
+const DSEC=[['attn','Needs attention'],['tiles','Live tiles'],['plex','Who is watching'],['dl','Downloading now'],['sab','Usenet'],['apps','Apps'],['up','Coming up']];
 const dashLayout=()=>{const d=me.dash||{},o=(d.order||[]).filter(k=>DSEC.some(s=>s[0]===k));return{order:[...o,...DSEC.map(s=>s[0]).filter(k=>!o.includes(k))],hidden:d.hidden||[]}};
 function dashCustomize(){
   const L=dashLayout();let order=[...L.order];const hidden=new Set(L.hidden);
@@ -370,65 +408,132 @@ function dashCustomize(){
   o.querySelector('#dr').onclick=()=>{order=DSEC.map(s=>s[0]);hidden.clear();draw()};
   o.querySelector('#ds').onclick=async()=>{try{await api('/api/me/dash','PUT',{order,hidden:[...hidden]});me.dash={order,hidden:[...hidden]};o.close();toast('Saved','ok');render()}catch(x){toast(x.message,'bad')}};
 }
+// ---------- Live data (server-sent events) and the dashboard
+const LIVE={d:null,at:0,es:null,ok:false,subs:new Set(),hist:{}};
+function liveStart(){
+  if((LIVE.es&&LIVE.es.readyState!==2)||!window.EventSource)return;
+  const es=LIVE.es=new EventSource('/api/live');
+  es.onmessage=e=>{let d;try{d=JSON.parse(e.data)}catch{return}
+    if(d.hist)LIVE.hist=d.hist;LIVE.d=d;LIVE.at=Date.now();LIVE.ok=true;LIVE.subs.forEach(f=>{try{f(d)}catch{}})};
+  es.onerror=()=>{LIVE.ok=false;LIVE.subs.forEach(f=>{try{f(null)}catch{}})};
+}
+function liveStop(){if(LIVE.es){LIVE.es.close();LIVE.es=null}LIVE.ok=false;LIVE.d=null;LIVE.subs.clear()}
+const fmtBig=b=>b>=1e12?(b/1e12).toFixed(1)+' TB':b>=1e9?Math.round(b/1e9)+' GB':fmt(b);
+const spd=b=>b>=1e6?(b/1e6).toFixed(1)+' MB/s':b>=1e3?Math.round(b/1e3)+' KB/s':'0 KB/s';
+const clock=ms=>{const s=Math.max(0,Math.floor(ms/1000)),h=Math.floor(s/3600),m=Math.floor(s%3600/60);return (h?h+':'+String(m).padStart(2,'0'):m)+':'+String(s%60).padStart(2,'0')};
+const reduceMotion=()=>window.matchMedia&&matchMedia('(prefers-reduced-motion:reduce)').matches;
+function tw(el,to,f){
+  if(!el)return;const from=el._v==null?to:el._v;el._v=to;cancelAnimationFrame(el._r);
+  if(from===to||reduceMotion()||document.hidden){el.textContent=f(to);return}
+  const t0=performance.now(),st=n=>{const k=Math.min(1,(n-t0)/450),e=1-Math.pow(1-k,3);el.textContent=f(from+(to-from)*e);if(k<1)el._r=requestAnimationFrame(st)};el._r=requestAnimationFrame(st);
+}
+function upBars(u){
+  if(!u||!u.bars)return '';
+  const w=3,g=1,n=u.bars.length;
+  return `<svg class="ub" viewBox="0 0 ${n*(w+g)} 16" width="${n*(w+g)}" height="16" role="img" aria-label="Uptime over the last 48 hours: ${u.pct==null?'no data yet':u.pct+'%'}"><title>${u.pct==null?'No history yet':u.pct+'% online in the last 48 hours'}</title>${u.bars.map((v,i)=>`<rect x="${i*(w+g)}" y="0" width="${w}" height="16" rx="1" style="fill:${v==null?'var(--line)':v>=.99?'var(--ok)':v>=.5?'var(--warn)':'var(--bad)'}"/>`).join('')}</svg>`;
+}
 function dashView(){
   const hr=new Date().getHours(),g=T(hr<12?'Good morning':hr<18?'Good afternoon':'Good evening');
-  const q=first('qbittorrent'),u=first('unraid'),pl=first('plex'),sb=first('sabnzbd'),arrOn=services.some(s=>s.type==='sonarr'||s.type==='radarr');
+  const q=first('qbittorrent'),u=first('unraid'),sb=first('sabnzbd'),plx=ofType('plex'),sk=first('seerr'),arrOn=services.some(s=>s.type==='sonarr'||s.type==='radarr');
   dlH.length=ulH.length=cpuH.length=0;
   const fd=s=>new Date(s).toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'});
   const L=dashLayout(),set=(i,v)=>{const e=$(i);if(e)e.textContent=v};
+  const tile=(id,label,body,go)=>`<div class="tile" id="${id}" ${go?`data-go="${go}" tabindex="0" role="link"`:''}><div class="tl">${label}</div>${body}</div>`;
+  const tiles=[];
+  if(q){tiles.push(tile('tl-dl','Downloading',`<b class="tv" id="v-dl" style="color:var(--link)">–</b><div class="mute" id="v-dls">Waiting for data</div><div class="spark" id="g-dl"></div><span class="pill" id="vp" style="margin-top:8px">VPN</span>`,'dl'));
+    tiles.push(tile('tl-ul','Uploading',`<b class="tv" id="v-ul" style="color:var(--ok-t)">–</b><div class="mute" id="v-uls"></div><div class="spark" id="g-ul"></div>`,'dl'))}
+  if(plx.length)tiles.push(tile('tl-w','Watching now',`<b class="tv" id="v-w">–</b><div class="mute" id="v-ws"></div>`));
+  if(u){tiles.push(tile('tl-sv','Server',`<div class="meter"><div class="row"><span>CPU</span><b id="s4" style="margin-left:auto">–</b></div><progress id="p4" max="100" value="0" aria-label="CPU use"></progress></div>
+      <div class="meter" style="margin:0"><div class="row"><span>Memory</span><b id="s5" style="margin-left:auto">–</b></div><progress id="p5" max="100" value="0" aria-label="Memory use"></progress></div>`,'ur'));
+    tiles.push(tile('tl-ar','Array',`<b class="tv" id="v-ar">–</b><div class="mute" id="v-ars"></div><progress id="p-ar" max="100" value="0" aria-label="Array used" style="margin-top:8px"></progress>`,'ur'))}
+  if(sb)tiles.push(tile('tl-sb','Usenet',`<b class="tv" id="v-sb" style="color:var(--link)">–</b><div class="mute" id="v-sbs"></div>`,'nzb'));
+  if(sk&&me.role==='admin')tiles.push(tile('tl-rq','Requests waiting',`<b class="tv" id="v-rq">–</b><div class="mute" id="v-rqs"></div>`,'rq'));
   const S={
     attn:services.length?'<div id="attn"></div>':'',
-    hero:q||u?`<div class="hero" style="margin-bottom:8px">${q?`<div class="panel"><div class="row" style="gap:28px;align-items:flex-end">
-      <div><div class="mute">Downloading</div><b id="s1" style="font-size:34px;letter-spacing:-.02em;color:var(--link)">–</b></div>
-      <div><div class="mute">Uploading</div><b id="s2" style="font-size:22px;color:var(--ok-t)">–</b></div><span class="mute" id="s3" style="margin-left:auto"></span><span class="pill" id="vp">VPN</span></div>
-      <div id="gr" style="margin-top:12px"></div></div>`:''}
-      ${u?`<div class="panel"><div style="font-weight:650;margin-bottom:14px">Server</div>
-      <div class="meter"><div class="row"><span>CPU</span><b id="s4" style="margin-left:auto">–</b></div><progress id="p4" max="100" value="0"></progress></div>
-      <div class="meter"><div class="row"><span>Memory</span><b id="s5" style="margin-left:auto">–</b></div><progress id="p5" max="100" value="0"></progress></div></div>`:''}</div>`:'',
-    plex:pl?'<div id="plx"></div>':'',sab:sb?'<div id="sab"></div>':'',
+    tiles:tiles.length?`<div class="tiles">${tiles.join('')}</div>`:'',
+    plex:plx.length?'<div id="np"></div><div id="plx"></div>':'',
+    dl:q?'<div id="dlnow"></div>':arrOn?'<h2 class="sec">Downloading now</h2><div id="dq"></div>':'',
+    sab:sb?'<div id="sab"></div>':'',
     apps:services.length?`<h2 class="sec">Apps</h2><div class="panel" style="padding:4px 18px">${services.map(s=>`<div class="srow"><span class="dot" id="d${s.id}"></span><b>${esc(s.name)}</b>
-      <span class="mute">${esc(TYPES[s.type]||s.type)}</span><span class="mute" id="t${s.id}">Checking</span><a href="${esc(s.url)}" target="_blank" rel="noopener" aria-label="Open ${esc(s.name)}">Open</a></div>`).join('')}</div>`:'',
-    up:arrOn?`<h2 class="sec">Coming up</h2><div class="strip" id="up"><span class="mute">Loading</span></div><h2 class="sec">Downloading now</h2><div id="dq"></div>`:''};
+      <span class="mute">${esc(TYPES[s.type]||s.type)}</span><span class="mute" id="t${s.id}">Checking</span><span id="ub${s.id}" class="ubw"></span><a href="${esc(s.url)}" target="_blank" rel="noopener" aria-label="Open ${esc(s.name)}">Open</a></div>`).join('')}</div>`:'',
+    up:arrOn?`<h2 class="sec">Coming up</h2><div class="strip" id="up"><span class="mute">Loading</span></div>`:''};
   $('#m').innerHTML=`<div class="row" style="align-items:flex-start;margin-bottom:22px"><div class="grow"><h1 style="margin:0;font-size:30px">${g}, ${esc(me.name)}</h1>
-    <p class="mute" style="margin:4px 0 0">${new Date().toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'})}</p></div><button id="cz">${ic('set')}Customize</button></div>
+    <p class="mute" style="margin:4px 0 0">${new Date().toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'})}</p></div><span class="live" id="lv" role="status"><i></i><span>Connecting</span></span><button id="cz">${ic('set')}Customize</button></div>
     ${services.length?'':`<div class="panel"><b>Nothing connected yet</b><p class="mute">${me.role==='admin'?'Connect Sonarr, Radarr, qBittorrent or any other app to see it here.':'Ask the admin which apps you can use.'}</p>${me.role==='admin'?'<button class="primary" id="go">Connect an app</button>':''}</div>`}
     ${L.order.filter(k=>!L.hidden.includes(k)).map(k=>S[k]).join('')}`;
   $('#cz').onclick=dashCustomize;
   const go=$('#go');if(go)go.onclick=()=>goto('st:apps');
-  const checks=()=>services.forEach(async s=>{let ok=false;try{ok=(await api('/api/status/'+s.id)).ok}catch{}
-    const d=$('#d'+s.id);if(!d)return;d.className='dot '+(ok?'ok':'bad');$('#t'+s.id).textContent=ok?'Online':'Not reachable'});
+  document.querySelectorAll('.tile[data-go]').forEach(t=>{const f=()=>goto(t.dataset.go);t.onclick=f;t.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();f()}}});
+  const pill=on=>{const l=$('#lv');if(!l)return;l.className='live '+(on?'on':'off');l.lastChild.textContent=on?T('Live'):T('Reconnecting')};
+  const checks=()=>services.forEach(async s=>{let ok=false;try{ok=(await api('/api/status/'+s.id)).ok}catch{}setHealth(s.id,ok)});
+  const setHealth=(id,ok)=>{const d=$('#d'+id);if(!d)return;d.className='dot '+(ok?'ok':'bad');set('#t'+id,ok?T('Online'):T('Not reachable'))};
+  const upt=()=>api('/api/uptime').then(o=>{if(tab!=='dash')return;for(const id in o){const e=$('#ub'+id);if(e)e.innerHTML=upBars(o[id])}}).catch(()=>{});
   const attn=async()=>{try{const l=await api('/api/attention'),el=$('#attn');if(!el||tab!=='dash')return;
-    el.innerHTML=l.length?`<div class="panel" style="margin-bottom:16px"><div style="font-weight:650;margin-bottom:6px">Needs attention</div>${l.map((i,n)=>`<div class="row" style="padding:7px 0"><span class="dot ${i.level==='bad'?'bad':'warn'}" style="margin:0"></span><span class="grow">${esc(i.text)}</span><button data-g="${n}">View</button></div>`).join('')}</div>`
+    el.innerHTML=l.length?`<div class="panel" style="margin-bottom:16px"><div style="font-weight:650;margin-bottom:6px">Needs attention</div>${l.map((i,n)=>`<div class="row" style="padding:7px 0"><span class="dot ${i.level==='bad'?'bad':'warn'}" style="margin:0"></span><span class="grow">${esc(i.text)}</span><button data-g="${n}">Open</button></div>`).join('')}</div>`
       :`<div class="panel row" style="margin-bottom:16px;padding:12px 18px"><span class="dot ok" style="margin:0"></span><span>Everything looks fine</span></div>`;
     el.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>goto(l[b.dataset.g].tab))}catch{}};
-  const sabLoad=async()=>{if(!sb)return;try{const d=await api(`/api/sab/${sb.id}/queue`),el=$('#sab');if(!el||tab!=='dash')return;
-    el.innerHTML=`<h2 class="sec">Usenet</h2><div class="panel"><div class="row" style="gap:28px"><div><div class="mute">SABnzbd</div><b style="font-size:24px;color:var(--link)">${fmt(d.speed)}/s</b></div><div><div class="mute">In queue</div><b style="font-size:22px">${d.slots}</b></div>
-      <span class="mute">${esc(d.timeleft||'')}${d.paused?' (paused)':''}</span><span class="grow"></span>${can('control')?`<button data-sp="${d.paused?'resume':'pause'}">${ic(d.paused?'play':'pause')}${d.paused?'Resume':'Pause'}</button>`:''}</div>
-      ${d.jobs.map(j=>`<div class="box"><b>${esc(j.name)}</b><div class="mute">${esc(j.size)}, ${esc(j.left||'')}</div><progress value="${j.pct}" max="100" style="margin-top:6px"></progress></div>`).join('')}</div>`;
-    const b=el.querySelector('[data-sp]');if(b)b.onclick=async()=>{try{await api(`/api/sab/${sb.id}/act`,'POST',{op:b.dataset.sp});sabLoad()}catch(x){toast(x.message,'bad')}}}catch{}};
-  let b1=0,b2=0;
-  const stat=async()=>{
-    if(q&&!b1){b1=1;try{const d=await api(`/api/qb/${q.id}/list`);if(tab!=='dash')return;hp(dlH,d.dl);hp(ulH,d.ul);
-      const act=d.torrents.filter(x=>/^(downloading|forcedDL|metaDL|forcedMetaDL)$/.test(x.state)).length;
-      set('#s1',fmt(d.dl)+'/s');set('#s2',fmt(d.ul)+'/s');set('#s3',`${act} active of ${d.torrents.length} torrents`);
-      const gr=$('#gr');if(gr)gr.innerHTML=trace([{v:dlH,c:'var(--accent)'},{v:ulH,c:'var(--ok-t)'}],96,'Download and upload speed over the last two minutes')}
-      catch{}finally{b1=0}}
-    if(u&&!b2){b2=1;try{const d=await api(`/api/unraid/${u.id}?fast=1`);if(tab!=='dash')return;
-      for(const [k,v] of [[4,d.cpu],[5,d.mem]]){set('#s'+k,v==null?'n/a':v.toFixed(0)+'%');const pr=$('#p'+k);if(pr)pr.value=v||0}}
-      catch{}finally{b2=0}}
+  // --- one place that draws everything from a live snapshot
+  const np={},seen={};
+  const apply=d=>{
+    if(!d||tab!=='dash')return;
+    if(q&&d.qb&&d.qb[q.id]){const x=d.qb[q.id];hp(dlH,x.dl);hp(ulH,x.ul);
+      tw($('#v-dl'),x.dl,spd);tw($('#v-ul'),x.ul,spd);set('#v-dls',`${x.active} downloading`);set('#v-uls',x.conn&&x.conn!=='connected'?T('Not connected'):'');
+      const a=$('#g-dl'),b=$('#g-ul');if(a)a.innerHTML=trace([{v:dlH,c:'var(--accent)'}],54,'Download speed over the last two minutes');if(b)b.innerHTML=trace([{v:ulH,c:'var(--ok-t)'}],54,'Upload speed over the last two minutes');
+      const el=$('#dlnow');if(el){const h=x.top.length?`<h2 class="sec">Downloading now</h2><div class="panel" style="padding:4px 18px">${x.top.map(t=>`<div class="box" data-go="dl" style="cursor:pointer"><div class="row"><b class="grow" style="word-break:break-word;font-weight:600">${esc(t.name)}</b><span class="mute">${spd(t.speed)}${t.eta>0&&t.eta<8640000?', '+fmtEta(t.eta):''}</span></div><progress value="${t.progress}" max="1" style="margin-top:8px" aria-label="Progress"></progress></div>`).join('')}</div>`:'';
+        if(seen.dl!==h){seen.dl=h;el.innerHTML=h;el.querySelectorAll('[data-go]').forEach(r=>r.onclick=()=>goto('dl'))}}}
+    if(u&&d.unraid&&d.unraid[u.id]){const x=d.unraid[u.id];
+      for(const [k,v] of [[4,x.cpu],[5,x.mem]]){set('#s'+k,v==null?'n/a':v.toFixed(0)+'%');const pr=$('#p'+k);if(pr)pr.value=v||0}
+      if(x.total){const pc=x.used/x.total*100;set('#v-ar',pc.toFixed(0)+'%');set('#v-ars',`${fmtBig(x.total-x.used)} free of ${fmtBig(x.total)}`);const pr=$('#p-ar');if(pr){pr.value=pc;pr.className=pc>=90?'hot':''}}}
+    if(sb&&d.sab&&d.sab[sb.id]){const x=d.sab[sb.id];tw($('#v-sb'),x.speed,spd);set('#v-sbs',x.paused?T('Paused'):`${x.slots} in queue${x.timeleft&&x.timeleft!=='0:00:00'?', '+x.timeleft+' left':''}`);
+      const el=$('#sab');if(el){const h=`<h2 class="sec">Usenet</h2><div class="panel"><div class="row" style="gap:28px"><div><div class="mute">SABnzbd</div><b style="font-size:24px;color:var(--link)">${spd(x.speed)}</b></div><div><div class="mute">In queue</div><b style="font-size:24px">${x.slots}</b></div>
+        <span class="mute">${esc(x.timeleft||'')}${x.paused?' (paused)':''}</span><span class="grow"></span>${can('control')?`<button data-sp="${x.paused?'resume':'pause'}">${ic(x.paused?'play':'pause')}${x.paused?'Resume':'Pause'}</button>`:''}</div>
+        ${x.jobs.map(j=>`<div class="box"><b>${esc(j.name)}</b><progress value="${j.pct}" max="100" style="margin-top:6px"></progress></div>`).join('')}</div>`;
+        if(seen.sab!==h){seen.sab=h;el.innerHTML=h;const b=el.querySelector('[data-sp]');if(b)b.onclick=async()=>{try{await api(`/api/sab/${sb.id}/act`,'POST',{op:b.dataset.sp});toast(b.dataset.sp==='pause'?'Paused':'Resumed','ok')}catch(e){toast(e.message,'bad')}}}}}
+    for(const id in (d.health||{}))setHealth(id,d.health[id]);
+    if(plx.length&&d.plex){
+      const all=[];for(const s of plx)for(const x of (d.plex[s.id]||[]))all.push({...x,svc:s.id});
+      const playing=all.filter(x=>x.state==='playing'||x.state==='buffering'),kb=all.reduce((a,x)=>a+(x.kbps||0),0),tc=all.filter(x=>x.decision==='transcode').length;
+      tw($('#v-w'),playing.length,n=>String(Math.round(n)));set('#v-ws',all.length?`${kb?(kb/1000).toFixed(1)+' Mbps, ':''}${tc?tc+' transcoding':'no transcoding'}${all.length>playing.length?', '+(all.length-playing.length)+' paused':''}`:T('Nobody is watching'));
+      const sig=JSON.stringify(all.map(x=>[x.svc,x.id,x.state,x.decision,x.res,Math.round((x.kbps||0)/100),x.title,x.sub]));
+      for(const x of all)np[x.svc+x.id]={off:x.offset,dur:x.duration,state:x.state,at:Date.now()};
+      const el=$('#np');if(el&&seen.np!==sig){seen.np=sig;
+        const dc={direct:['Direct play','ok'],stream:['Direct stream','acc'],transcode:['Transcoding','warn']};
+        el.innerHTML=all.length?`<h2 class="sec">Watching now</h2><div class="npg">${all.map(x=>`<div class="np" data-k="${esc(x.svc+x.id)}"><div class="npi">${x.thumb?`<img src="/api/plex/${x.svc}/img?p=${encodeURIComponent(x.thumb)}" alt="" loading="lazy">`:''}</div>
+          <div class="npb"><div><b>${esc(x.title)}</b> <span class="mute">${esc(x.sub)}</span></div><div class="mute">${esc(x.user||'Someone')} on ${esc(x.player||x.device||'a device')}${x.where?', '+(x.where==='lan'?T('home network'):T('remote')):''}</div>
+          <div class="row" style="gap:6px;margin:8px 0"><span class="pill ${dc[x.decision][1]}">${T(dc[x.decision][0])}</span>${x.res?`<span class="pill">${esc(x.res)}</span>`:''}${x.kbps?`<span class="pill">${(x.kbps/1000).toFixed(1)} Mbps</span>`:''}${x.state!=='playing'?`<span class="pill">${esc(x.state==='paused'?T('Paused'):x.state==='buffering'?T('Buffering'):x.state)}</span>`:''}</div>
+          <progress class="npp" value="${x.progress}" max="1" aria-label="Playback position"></progress><div class="mute npt">${clock(x.offset)} / ${clock(x.duration)}</div></div>
+          ${me.role==='admin'&&x.id?`<button data-end="${esc(x.id)}" data-svc="${x.svc}">End stream</button>`:''}</div>`).join('')}</div>`:'';
+        el.querySelectorAll('[data-end]').forEach(b=>b.onclick=async()=>{const why=prompt('Message shown to the viewer:','Stopped by the server owner');if(why===null)return;
+          try{await api(`/api/plex/${b.dataset.svc}/terminate`,'POST',{session:b.dataset.end,reason:why});toast('Stream ended','ok')}catch(x){toast(x.message,'bad')}})}}
   };
-  if(arrOn)api('/api/upcoming').then(d=>{if(tab!=='dash'||!$('#up'))return;
-    $('#up').innerHTML=d.calendar.slice(0,14).map((x,i)=>`<button class="pc" data-c="${i}"><div class="pw">${x.poster?`<img src="${esc(x.poster)}" alt="" loading="lazy">`:''}<span class="bd">${fd(x.date)}</span></div><b>${esc(x.title)}</b><div class="mute">${esc(x.sub)}</div></button>`).join('')||'<span class="mute">Nothing scheduled in the next 14 days.</span>';
+  // smooth playback position between updates
+  const glide=()=>{document.querySelectorAll('.np[data-k]').forEach(c=>{const n=np[c.dataset.k];if(!n||!n.dur)return;
+    const off=n.off+(n.state==='playing'?Date.now()-n.at:0),pg=c.querySelector('.npp'),tx=c.querySelector('.npt');if(pg)pg.value=Math.min(1,off/n.dur);if(tx)tx.textContent=clock(off)+' / '+clock(n.dur)})};
+  // fallback when the live stream is not available: ask for the same data by hand
+  const fallback=async()=>{if(LIVE.ok&&Date.now()-LIVE.at<6000)return;const d={qb:{},unraid:{},plex:{},sab:{},health:{}};
+    await Promise.all([
+      q?api(`/api/qb/${q.id}/list`).then(x=>{const a=x.torrents.filter(t=>/^(downloading|forcedDL|metaDL|forcedMetaDL)$/.test(t.state));d.qb[q.id]={dl:x.dl,ul:x.ul,active:a.length,conn:'connected',top:a.sort((m,n)=>n.dlspeed-m.dlspeed).slice(0,6).map(t=>({name:t.name,progress:t.progress,speed:t.dlspeed,eta:t.eta}))}}).catch(()=>{}):0,
+      u?api(`/api/unraid/${u.id}?fast=1`).then(x=>{d.unraid[u.id]={cpu:x.cpu,mem:x.mem}}).catch(()=>{}):0,
+      ...plx.map(s=>api(`/api/plex/${s.id}/now`).then(x=>{d.plex[s.id]=x.sessions}).catch(()=>{}))]);
+    apply(d)};
+  const rq=async()=>{if(!sk||me.role!=='admin')return;try{const l=await api('/api/requests'),n=l.filter(x=>x.status==='pending').length;tw($('#v-rq'),n,v=>String(Math.round(v)));set('#v-rqs',n?T('Waiting for your approval'):T('All caught up'))}catch{}};
+  if(arrOn)api('/api/upcoming').then(d=>{if(tab!=='dash')return;
+    if($('#up'))$('#up').innerHTML=d.calendar.slice(0,14).map((x,i)=>`<button class="pc" data-c="${i}"><div class="pw">${x.poster?`<img src="${esc(x.poster)}" alt="" loading="lazy">`:''}<span class="bd">${fd(x.date)}</span></div><b>${esc(x.title)}</b><div class="mute">${esc(x.sub)}</div></button>`).join('')||'<p class="mute">Nothing in the next two weeks.</p>';
     document.querySelectorAll('.pc[data-c]').forEach(c=>c.onclick=()=>showDetail(d.calendar[c.dataset.c]));
-    $('#dq').innerHTML=d.queue.slice(0,5).map((x,i)=>`<div class="box" data-q="${i}" tabindex="0" role="button"><b>${esc(x.title)}</b>
+    if($('#dq')){$('#dq').innerHTML=d.queue.slice(0,5).map((x,i)=>`<div class="box" data-q="${i}" tabindex="0" role="button"><b>${esc(x.title)}</b>
       <div class="mute">${esc(x.sub)}${x.timeleft?' &nbsp;'+esc(x.timeleft)+' left':''}</div><progress value="${x.progress}" max="1" style="margin-top:8px"></progress></div>`).join('')||'<p class="mute">Nothing is downloading right now.</p>';
-    document.querySelectorAll('[data-q]').forEach(c=>{const f=()=>{const x=d.queue[c.dataset.q];
-      showDetail({title:x.title,sub:x.sub,poster:x.poster,overview:x.overview,about:x.about,meta:[x.status,x.timeleft?x.timeleft+' left':'',x.meta].filter(Boolean).join(', ')})};
-      c.onclick=f;c.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();f()}}});
+      document.querySelectorAll('[data-q]').forEach(c=>{const f=()=>{const x=d.queue[c.dataset.q];
+        showDetail({title:x.title,sub:x.sub,poster:x.poster,overview:x.overview,about:x.about,meta:[x.status,x.timeleft?x.timeleft+' left':'',x.meta].filter(Boolean).join(', ')})};
+        c.onclick=f;c.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();f()}}})}
   }).catch(()=>{});
-  const slow=()=>{if(q)vpnPill(q,'#vp');if(pl)loadPlex(pl)};
-  stat();checks();slow();attn();sabLoad();
-  timer=[tick(stat,3000),tick(checks,30000),tick(slow,30000),tick(attn,60000),tick(sabLoad,5000)];
+  const slow=()=>{if(q)vpnPill(q,'#vp');if(plx[0])loadPlex(plx[0])};
+  // start: show the last picture straight away, then follow the live stream
+  for(const id in LIVE.hist){if(q&&id===q.id){dlH.push(...LIVE.hist[id].dl.slice(-HIST));ulH.push(...LIVE.hist[id].ul.slice(-HIST))}}
+  if(LIVE.d&&Date.now()-LIVE.at<10000)apply(LIVE.d);
+  const sub=d=>{if(d){pill(true);apply(d)}else pill(false)};
+  LIVE.subs.clear();LIVE.subs.add(sub);liveStart();pill(LIVE.ok);
+  checks();upt();slow();attn();rq();
+  timer=[tick(fallback,4000),setInterval(glide,1000),tick(slow,60000),tick(attn,60000),tick(rq,60000),tick(upt,300000),tick(()=>{if(!LIVE.ok)checks()},30000)];
 }
 const ST_SECTIONS=[['acct','Account',false],['look','Appearance',false],['apps','Apps',true],['users','Users',true],['alerts','Alerts',true],['links','Status pages',true],['rules','Download rules',true],['backup','Backup',true],['audit','Activity',true]];
 function setView(){
@@ -1014,15 +1119,52 @@ async function wtView(){
   load();
 }
 let stDays=30;
+// ---------- Stats (Tautulli): posters and charts
+const SCOL=['var(--c1)','var(--c2)','var(--c3)','var(--c4)'];
+const catLabel=c=>/^\d{4}-\d{2}-\d{2}$/.test(c)?new Date(c+'T00:00').toLocaleDateString(undefined,{day:'numeric',month:'short'}):/^\d{1,2}$/.test(c)?c+':00':c;
+let TIP=null;
+const tipEl=()=>TIP||(TIP=document.body.appendChild(Object.assign(document.createElement('div'),{className:'tip',hidden:true})));
+function stackChart(c,label,H,W=720){
+  if(!c||!c.categories||!c.categories.length||!c.series.length)return '<p class="mute">No plays in this period.</p>';
+  let o=2;const col=c.series.map(se=>{const k=se.name.toLowerCase();return SCOL[k==='tv'?0:k==='movies'?1:Math.min(o++,3)]});
+  const n=c.categories.length,pl=34,pb=22,iw=W-pl,ih=H-pb-8,tot=c.categories.map((_,i)=>c.series.reduce((a,s)=>a+(s.data[i]||0),0)),mx=Math.max(1,...tot);
+  const pw=10**Math.floor(Math.log10(mx)),top=Math.max(2,Math.ceil(mx/pw)*pw),bw=iw/n,gap=Math.min(3,bw*.25),step=Math.ceil(n/8);
+  const y=v=>8+ih-(v/top)*ih;
+  let s=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${esc(label)}" class="ch">`;
+  for(const f of [0,.5,1]){const v=top*f;s+=`<line x1="${pl}" x2="${W}" y1="${y(v)}" y2="${y(v)}" style="stroke:var(--line)" stroke-width="1" ${f?'stroke-dasharray="3 5"':''}/><text x="${pl-6}" y="${y(v)+4}" text-anchor="end" class="ax">${Math.round(v)}</text>`}
+  c.categories.forEach((cat,i)=>{let acc=0;const x=pl+i*bw+gap/2,w=Math.max(1,bw-gap);
+    c.series.forEach((se,k)=>{const v=se.data[i]||0;if(!v)return;const h=v/top*ih;s+=`<rect x="${x.toFixed(1)}" y="${(y(0)-acc-h).toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="2" style="fill:${col[k]};stroke:var(--s1)" stroke-width="1.5"/>`;acc+=h});
+    if(i%step===0)s+=`<text x="${(x+w/2).toFixed(1)}" y="${H-5}" text-anchor="middle" class="ax">${esc(catLabel(cat))}</text>`;
+    s+=`<rect x="${(pl+i*bw).toFixed(1)}" y="0" width="${bw.toFixed(1)}" height="${H-pb}" fill="transparent" data-tip="${esc(catLabel(cat)+': '+c.series.map(se=>(se.data[i]||0)+' '+se.name).join(', '))}"/>`});
+  s+='</svg>';
+  const lg=c.series.length>1?`<div class="lgd">${c.series.map((se,k)=>`<span><i style="background:${col[k]}"></i>${esc(se.name)}</span>`).join('')}</div>`:'';
+  const tb=`<details class="tbv"><summary>View as table</summary><div style="overflow:auto"><table class="tb"><thead><tr><th>Period</th>${c.series.map(se=>`<th>${esc(se.name)}</th>`).join('')}</tr></thead><tbody>${c.categories.map((cat,i)=>`<tr><td>${esc(catLabel(cat))}</td>${c.series.map(se=>`<td>${se.data[i]||0}</td>`).join('')}</tr>`).join('')}</tbody></table></div></details>`;
+  return lg+s+tb;
+}
+const initials=n=>String(n||'?').trim().split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase();
+const hrs=s=>s>=3600?(s/3600).toFixed(s>=36000?0:1)+' h':Math.round(s/60)+' min';
 async function statsView(){
   const s=first('tautulli');if(!s)return noSvc('Tautulli');
-  $('#m').innerHTML=`<div class="row" style="margin-bottom:14px"><div class="seg" id="sd">${[7,30,90].map(n=>`<button data-k="${n}" class="${stDays===n?'on':''}">Last ${n} days</button>`).join('')}</div></div><div id="sb2">${skel(5)}</div>`;
+  if(TIP)TIP.hidden=true;
+  $('#m').innerHTML=`<div class="row" style="margin-bottom:14px"><div class="seg" id="sd">${[7,30,90].map(n=>`<button data-k="${n}" class="${stDays===n?'on':''}">Last ${n} days</button>`).join('')}</div></div><div id="sb2">${skel(5)}</div>`
   $('#sd').onclick=e=>{const b=e.target.closest('[data-k]');if(!b)return;stDays=+b.dataset.k;statsView()};
   try{const d=await api(`/api/tautulli/${s.id}/stats?days=${stDays}`);if(tab!=='stats')return;
-    const list=(t,l)=>`<div class="panel"><h3 style="margin-top:0">${t}</h3>${l.length?l.map(x=>{const mx=Math.max(...l.map(y=>y.plays||0),1);return `<div style="margin:10px 0"><div class="row"><span class="grow" style="word-break:break-word">${esc(x.title)}</span><b>${x.plays}</b></div><progress value="${x.plays||0}" max="${mx}" style="margin-top:4px"></progress></div>`}).join(''):'<p class="mute">Nothing yet.</p>'}</div>`;
-    $('#sb2').innerHTML=`<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr))">${list('Most watched movies',d.movies)}${list('Most watched shows',d.tv)}${list('Most active viewers',d.users)}</div>
-      <h2 class="sec">Recent plays</h2>${d.history.map(x=>`<div class="box row"><div class="grow" style="min-width:0"><b style="word-break:break-word;font-weight:560">${esc(x.title)}</b><div class="mute">${esc(x.user||'')}${x.player?' on '+esc(x.player):''}, ${esc(ago(x.at))}</div></div>${x.pct!=null?`<span class="pill ${x.pct>=90?'ok':''}">${Math.round(x.pct)}% watched</span>`:''}</div>`).join('')||'<p class="mute">No plays yet.</p>'}`}
-  catch(x){$('#sb2').innerHTML=`<div class="err">${esc(x.message)}</div>`}
+    const img=t=>t?`/api/tautulli/${s.id}/img?p=${encodeURIComponent(t)}`:'';
+    const grid=(t,l)=>`<h2 class="sec">${t}</h2>${l.length?`<div class="pgrid">${l.map((x,i)=>`<div class="pgc"><div class="pw">${x.thumb?`<img src="${img(x.thumb)}" alt="" loading="lazy">`:`<span class="pph">${esc(initials(x.title))}</span>`}<span class="rk">${i+1}</span><span class="bd">${x.plays} ${x.plays===1?'play':'plays'}</span></div><b>${esc(x.title)}</b></div>`).join('')}</div>`:'<p class="mute">Nothing watched in this period.</p>'}`;
+    const plat=d.byPlatform?d.byPlatform.categories.map((n,i)=>({n,v:d.byPlatform.series.reduce((a,z)=>a+(z.data[i]||0),0)})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v).slice(0,6):[];
+    const pm=Math.max(1,...plat.map(x=>x.v)),um=Math.max(1,...d.users.map(x=>x.plays||0)),top=d.users[0],tp=plat[0];
+    const tl=(l,v,sub)=>`<div class="tile"><div class="tl">${l}</div><b class="tv" style="word-break:break-word">${esc(v)}</b><div class="mute">${esc(sub||'')}</div></div>`;
+    $('#sb2').innerHTML=`<div class="tiles">${tl('Plays',String(d.totals.plays||'–'),'In this period')}${tl('Time watched',d.totals.seconds?hrs(d.totals.seconds):'–',d.totals.plays&&d.totals.seconds?'About '+hrs(d.totals.seconds/d.totals.plays)+' per play':'')}${tl('Most active viewer',top?top.title:'–',top?top.plays+' plays':'')}${tl('Top device',tp?tp.n:'–',tp?tp.v+' plays':'')}</div>
+      <h2 class="sec">Plays per day</h2><div class="panel">${stackChart(d.byDate,'Plays per day, by type',210)}</div>
+      <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));margin-top:0"><div><h2 class="sec">Busiest hours</h2><div class="panel">${stackChart(d.byHour,'Plays by hour of the day',200,400)}</div></div>
+      <div><h2 class="sec">Devices</h2><div class="panel">${plat.length?plat.map(x=>`<div style="margin:12px 0"><div class="row"><span class="grow" style="word-break:break-word">${esc(x.n)}</span><b>${x.v}</b></div><div class="hb"><i style="width:${x.v/pm*100}%"></i></div></div>`).join(''):'<p class="mute">No data.</p>'}</div></div></div>
+      ${grid('Most watched movies',d.movies)}${grid('Most watched shows',d.tv)}
+      <h2 class="sec">Most active viewers</h2><div class="panel">${d.users.map(x=>`<div class="row" style="margin:10px 0;flex-wrap:nowrap"><span class="av" aria-hidden="true">${esc(initials(x.title))}</span><div class="grow"><div class="row"><b class="grow">${esc(x.title)}</b><span class="mute">${x.plays} plays${x.seconds?', '+hrs(x.seconds):''}</span></div><div class="hb"><i style="width:${(x.plays||0)/um*100}%"></i></div></div></div>`).join('')||'<p class="mute">No viewers yet.</p>'}</div>
+      <h2 class="sec">Recent plays</h2><div class="panel" style="padding:4px 18px">${d.history.map(x=>`<div class="box row" style="flex-wrap:nowrap"><div class="hth">${x.thumb?`<img src="${img(x.thumb)}" alt="" loading="lazy">`:''}</div><div class="grow" style="min-width:0"><b style="word-break:break-word;font-weight:560">${esc(x.title)}</b><div class="mute">${esc(x.user||'')}${x.player?' on '+esc(x.player):''}${x.at?', '+ago(x.at):''}</div></div>${x.pct!=null?`<span class="pill ${x.pct>=90?'ok':''}">${Math.round(x.pct)}%</span>`:''}</div>`).join('')||'<p class="mute">No plays yet.</p>'}</div>`;
+    const root=$('#sb2'),tip=tipEl();
+    root.onmousemove=e=>{const t=e.target.closest('[data-tip]');if(!t){tip.hidden=true;return}tip.textContent=t.dataset.tip;tip.hidden=false;tip.style.left=Math.max(8,Math.min(innerWidth-tip.offsetWidth-8,e.clientX+14))+'px';tip.style.top=(e.clientY+16)+'px'};
+    root.onmouseleave=()=>{tip.hidden=true};
+  }catch(x){$('#sb2').innerHTML=`<div class="err">${esc(x.message)}</div>`}
 }
 const libMeta=(x,tv)=>[fmt(x.size)+' on disk',x.missing?(tv?x.missing+' episodes missing':'file missing'):'',x.profile,LSTAT[x.status],(x.genres||[]).join(', '),x.maker,x.rating?'rating '+x.rating.toFixed(1):''].filter(Boolean).join(', ');
 function openLibItem(s,x,cb){
@@ -1238,12 +1380,7 @@ async function vpnPill(s,sel){
 async function loadPlex(s){
   try{const d=await api(`/api/plex/${s.id}/now`),el=$('#plx');if(!el||tab!=='dash')return;
     const img=t=>t?`/api/plex/${s.id}/img?p=${encodeURIComponent(t)}`:'';
-    el.innerHTML=(d.sessions.length?`<h2 class="sec">Watching now</h2>${d.sessions.map(x=>`<div class="box row">${x.thumb?`<img src="${img(x.thumb)}" alt="" style="width:46px;border-radius:6px">`:''}
-      <div style="flex:1;min-width:0"><b>${esc(x.title)}</b> <span class="mute">${esc(x.sub)}</span><div class="mute">${esc(x.user||'Someone')} on ${esc(x.player||'a device')}, ${esc(x.state||'')}</div>
-      <progress value="${x.progress}" max="1" style="margin-top:6px"></progress></div>${me.role==='admin'&&x.sid?`<button data-end="${esc(x.sid)}">End stream</button>`:''}</div>`).join('')}`:'')
-      +(d.recent.length?`<h2 class="sec">Recently added to Plex</h2><div class="strip">${d.recent.map(x=>`<div class="pc" style="cursor:default"><div class="pw">${x.thumb?`<img src="${img(x.thumb)}" alt="" loading="lazy">`:''}</div><b>${esc(x.title)}</b><div class="mute">${esc(x.sub)}</div></div>`).join('')}</div>`:'');
-    el.querySelectorAll('[data-end]').forEach(b=>b.onclick=async()=>{const why=prompt('Message shown to the viewer:','Stopped by the server owner');if(why===null)return;
-      try{await api(`/api/plex/${s.id}/terminate`,'POST',{session:b.dataset.end,reason:why});toast('Stream ended','ok');loadPlex(s)}catch(x){toast(x.message,'bad')}});
+    el.innerHTML=d.recent.length?`<h2 class="sec">Recently added to Plex</h2><div class="strip">${d.recent.map(x=>`<div class="pc" style="cursor:default"><div class="pw">${x.thumb?`<img src="${img(x.thumb)}" alt="" loading="lazy">`:''}</div><b>${esc(x.title)}</b><div class="mute">${esc(x.sub)}</div></div>`).join('')}</div>`:'';
   }catch{}
 }
 function rqView(){
@@ -1451,11 +1588,11 @@ async function linksView(){
   $('#m').innerHTML=`<div class="panel" style="max-width:640px"><h3 style="margin-top:0">Read-only status pages</h3>
     <p class="mute">A private web address that shows a live, read-only view without signing in, for example on a wall tablet. Anyone with the address can see it, so share it carefully. You can remove it at any time.</p>
     <form id="lf" style="margin:0"><input name="name" placeholder="Name, e.g. Living room tablet" required>
-    <div>${[['apps','App status',1],['traffic','Download and upload speed',0],['downloads','Current downloads',0],['upcoming','Upcoming releases',0]].map(([k,n,on])=>`<label class="chk" style="display:flex;margin:6px 0"><input type="checkbox" name="${k}" ${on?'checked':''}>${n}</label>`).join('')}</div>
+    <div>${[['apps','App status',1],['traffic','Download and upload speed',0],['downloads','Current downloads',0],['upcoming','Upcoming releases',0],['watching','Who is watching (titles only, no names)',0]].map(([k,n,on])=>`<label class="chk" style="display:flex;margin:6px 0"><input type="checkbox" name="${k}" ${on?'checked':''}>${n}</label>`).join('')}</div>
     <div class="row"><button class="primary">Create link</button></div><div class="err" id="le"></div></form><div id="lo"></div></div>
-    <div class="panel" style="max-width:640px;margin-top:16px;padding:4px 18px">${l.map(x=>`<div class="srow" style="grid-template-columns:1fr auto" data-l="${x.id}"><div><b>${esc(x.name)}</b> <span class="mute">${['apps','traffic','downloads','upcoming'].filter(k=>x.scopes[k]).join(', ')}</span><div class="mute">Opened ${x.used} times${x.lastUsed?', last '+ago(x.lastUsed):''}</div></div><button class="danger" data-d>Remove</button></div>`).join('')||empty('No links yet','Create one above.')}</div>`;
+    <div class="panel" style="max-width:640px;margin-top:16px;padding:4px 18px">${l.map(x=>`<div class="srow" style="grid-template-columns:1fr auto" data-l="${x.id}"><div><b>${esc(x.name)}</b> <span class="mute">${['apps','traffic','downloads','upcoming','watching'].filter(k=>x.scopes[k]).join(', ')}</span><div class="mute">Opened ${x.used} times${x.lastUsed?', last '+ago(x.lastUsed):''}</div></div><button class="danger" data-d>Remove</button></div>`).join('')||empty('No links yet','Create one above.')}</div>`;
   $('#lf').onsubmit=async e=>{e.preventDefault();const f=e.target.elements;$('#le').textContent='';
-    try{const r=await api('/api/statuslinks','POST',{name:f.name.value,apps:f.apps.checked,traffic:f.traffic.checked,downloads:f.downloads.checked,upcoming:f.upcoming.checked});
+    try{const r=await api('/api/statuslinks','POST',{name:f.name.value,apps:f.apps.checked,traffic:f.traffic.checked,downloads:f.downloads.checked,upcoming:f.upcoming.checked,watching:f.watching.checked});
       const url=location.origin+'/s/'+r.token;
       $('#lo').innerHTML=`<div class="box" style="margin-top:12px"><b>Copy this address now.</b> <span class="mute">For safety it is shown only once.</span><div style="word-break:break-all;margin:8px 0;font-family:ui-monospace,monospace">${esc(url)}</div><button id="lc">Copy address</button></div>`;
       $('#lc').onclick=()=>copyText(url);e.target.reset()}catch(x){$('#le').textContent=x.message}};
