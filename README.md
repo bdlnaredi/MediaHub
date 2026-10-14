@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/logo.png" alt="MediaHub logo" width="160"></p>
+
 # MediaHub
 
 [![CI](https://github.com/bdlnaredi/mediahub/actions/workflows/ci.yml/badge.svg)](https://github.com/bdlnaredi/mediahub/actions/workflows/ci.yml)

@@ -2,7 +2,7 @@
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MediaHub</title>
-<link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#0e131d"><link rel="icon" href="/icon.svg"><link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#0e131d"><link rel="icon" type="image/png" href="/favicon.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <style>
 :root{--bg:#14152a;--s1:#1b1d36;--s2:#242746;--line:#30345a;--text:#ecebf6;--mute:#9a9dba;--accent:#ffb938;--onacc:#1d1400;--ok:#3fd8c4;--bad:#ff6b81;--warn:#ffb938;--ok-t:var(--ok);--bad-t:var(--bad);--warn-t:var(--warn);--panel:var(--s1);--link:color-mix(in srgb,var(--accent) 70%,var(--text));--r1:18px;--r2:12px;color-scheme:dark}
 :root[data-theme=light]{--ok-t:#0a6b60;--bad-t:#b3122f;--warn-t:#7a4a00;--link:color-mix(in srgb,var(--accent) 40%,var(--text));--bg:#f5f4fb;--s1:#fff;--s2:#edebf7;--line:#dcd9ec;--text:#1a1830;--mute:#615f80;--ok:#0e8f80;--bad:#d03352;--warn:#b36b00;color-scheme:light}
@@ -20,7 +20,7 @@ html[data-rail=min]{--rail:70px}
 .side{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;padding:14px 10px;background:var(--s1);border-right:1px solid var(--line)}
 .brand{display:flex;align-items:center;gap:10px;font-weight:720;font-size:17px;letter-spacing:-.02em;padding:2px 6px 16px}
 .brand .t{flex:1}
-.logo{width:30px;height:30px;border-radius:9px;background:var(--accent);color:var(--onacc);display:grid;place-items:center;flex:none}
+.logo{width:30px;height:30px;border-radius:50%;overflow:hidden;display:grid;place-items:center;flex:none}.logo img{width:100%;height:100%;display:block}
 .nav{display:flex;flex-direction:column;gap:2px;flex:1;overflow:auto}
 .nv{display:flex;align-items:center;gap:12px;width:100%;padding:9px 12px;border:0;border-radius:10px;background:none;color:var(--mute);font-weight:520;text-align:left}
 .nv:hover:not(:disabled){background:var(--s2);color:var(--text)}
@@ -254,7 +254,7 @@ async function load(){
 }
 function authView(setup,needCode){
   $('#app').innerHTML=`<form class="login box" id="f">
-    <span class="logo" style="width:38px;height:38px;margin-bottom:6px">${LOGO}</span><h2>${setup?'Create the admin account':'Sign in to MediaHub'}</h2>
+    <span class="logo" style="width:72px;height:72px;margin-bottom:8px">${LOGO}</span><h2>${setup?'Create the admin account':'Sign in to MediaHub'}</h2>
     ${setup&&needCode?'<input name="token" placeholder="Setup code (SETUP_TOKEN from your container settings)" autocomplete="off" required>':''}
     <input name="name" placeholder="Name" autocomplete="username" required>
     <input name="password" type="password" placeholder="Password (8+ characters)" autocomplete="${setup?'new-password':'current-password'}" required>
@@ -264,7 +264,7 @@ function authView(setup,needCode){
     catch(x){$('#e').textContent=x.message}};
 }
 function codeView(ticket){
-  $('#app').innerHTML=`<form class="login box" id="f2"><span class="logo" style="width:38px;height:38px;margin-bottom:6px">${LOGO}</span><h2>Two-step sign-in</h2>
+  $('#app').innerHTML=`<form class="login box" id="f2"><span class="logo" style="width:72px;height:72px;margin-bottom:8px">${LOGO}</span><h2>Two-step sign-in</h2>
     <p class="mute" style="margin:0">Enter the 6-digit code from your authenticator app, or one of your recovery codes.</p>
     <input name="code" placeholder="Code" autocomplete="one-time-code" inputmode="text" autofocus required>
     <button class="primary">Verify</button><button type="button" id="bk">Back</button><div class="err" id="e"></div></form>`;
@@ -302,7 +302,7 @@ const ICONS={
  set:'<circle cx="12" cy="12" r="3"/><path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/>',
  hist:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',trash:'<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>'};
 const ic=k=>`<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICONS[k]}</svg>`;
-const LOGO='<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>';
+const LOGO='<img src="/icon-192.png" alt="" width="38" height="38">';
 const PAGES={dash:['',''],find:['Search','Find a show or movie and add it to Sonarr or Radarr.'],rq:['Requests','Ask for something new, or approve what others asked for.'],lib:['Library','Everything in Sonarr and Radarr, and what is still missing.'],
  wt:['Wanted','Episodes and movies you are still missing, or that could be a better quality.'],dl:['Downloads','What qBittorrent is fetching right now.'],rss:['RSS','Feeds and auto-download rules from qBittorrent.'],up:['Upcoming','Releases coming soon, and what is downloading.'],
  idx:['Indexers','Search your Jackett indexers and check how Prowlarr is doing.'],mb:['Music and books','Artists and authors from Lidarr and Readarr.'],sub:['Subtitles','Episodes and movies that are missing subtitles in Bazarr.'],nzb:['Usenet','What SABnzbd is fetching, what finished, and adding NZB files.'],hl:['Health','Problems, disk space and stuck downloads across your apps.'],ur:['Unraid','Server health, disks and containers.'],stats:['Watch stats','Who watches what on Plex.'],set:['Settings','Apps, profiles, alerts, backups and how MediaHub looks.']};
