@@ -214,7 +214,6 @@
   "Signed-in devices": "साइन इन किए हुए डिवाइस",
   "Size": "आकार",
   "Size on disk": "डिस्क पर आकार",
-  "Slow downloads during Plex streams": "Plex स्ट्रीम के दौरान डाउनलोड धीमे करें",
   "Slow downloads while someone streams": "कोई स्ट्रीम करे तो डाउनलोड धीमे करें",
   "Speed": "गति",
   "Speed schedule": "स्पीड शेड्यूल",
@@ -305,5 +304,6 @@
   "Last 7 days": "पिछले 7 दिन",
   "Last 30 days": "पिछले 30 दिन",
   "Weekly newsletter": "साप्ताहिक न्यूज़लेटर",
-  "Send the weekly newsletter": "साप्ताहिक न्यूज़लेटर भेजें"
+  "Send the weekly newsletter": "साप्ताहिक न्यूज़लेटर भेजें",
+  "Slow downloads during Plex or Jellyfin streams": "Plex या Jellyfin स्ट्रीम के दौरान डाउनलोड धीमे करें"
 }

@@ -14,7 +14,7 @@ One friendly web page for the apps on your home media server. See what is downlo
 
 ## What it does
 
-- **Dashboard:** updates by itself every two seconds (a "Live" badge shows the connection). Live tiles for download and upload speed with graphs, who is watching on Plex (poster, progress, direct play or transcoding, quality, bandwidth, and an end-stream button for admins), server CPU, memory and array space, Usenet speed and requests waiting. It also lists what is downloading, how long each app has been online over the last 48 hours, what is coming up, and a "needs attention" list. Each person can hide and reorder sections.
+- **Dashboard:** updates by itself every second (a "Live" badge shows the connection). Live tiles for download and upload speed with graphs, who is watching on Plex or Jellyfin (poster, progress, direct play or transcoding, quality, bandwidth, and an end-stream button for admins), server CPU, memory and array space, Usenet speed and requests waiting. It also lists what is downloading, how long each app has been online over the last 48 hours, what is coming up, and a "needs attention" list. Each person can hide and reorder sections.
 - **Downloads (qBittorrent):** filters, search, select several, pause and resume, categories and tags, file selection, speed limits and schedule, history, seeding rules, and a chip showing which show or movie a download belongs to.
 - **RSS (qBittorrent):** read feeds, mark as read, download one or many articles, and manage auto-download rules with a preview.
 - **Sonarr and Radarr:** search and add, a library browser with many filters and sorts, a show window with seasons and episodes where you can monitor or unmonitor any of them, a Wanted list, upcoming releases as a list or a month calendar, and automatic or interactive searches.
@@ -25,7 +25,7 @@ One friendly web page for the apps on your home media server. See what is downlo
 - **Usenet (SABnzbd):** the queue, history with retry, and adding an NZB file or address.
 - **Indexers:** Jackett search, and Prowlarr indexer health with a test button.
 - **Health:** one page with warnings from Sonarr, Radarr, Lidarr, Readarr and Prowlarr, stuck downloads, missing counts and disk space.
-- **Slow downloads while Plex streams:** qBittorrent's alternative speed limits switch on while someone is watching, and back when they stop.
+- **Slow downloads while Plex or Jellyfin streams:** qBittorrent's alternative speed limits switch on while someone is watching, and back when they stop.
 - **Profiles:** per-person app access and permissions (for example "view only"), two-step sign-in, signed-in devices, and an activity log.
 - **Alerts:** messages through ntfy, Telegram, Discord, Pushover, Gotify, a webhook or email, for finished downloads, apps going offline, a full array, the VPN dropping, new requests and problem reports, plus an optional weekly newsletter. The newsletter (new in the library with posters, coming up, numbers) goes to every channel; email gets an HTML version.
 - **Artwork-first UI** built from your own library: a featured hero with backdrops, poster rows, a moving poster wall, a blurred backdrop glowing behind every page, posters that lean toward the pointer, and a phone layout with a bottom dock. Everything honours "reduce motion".
@@ -33,7 +33,7 @@ One friendly web page for the apps on your home media server. See what is downlo
 - **Forgot password.** Profiles can save a recovery email. MediaHub sends a single-use link (valid 30 minutes, signs the profile out everywhere) through the email alert channel you already set up.
 - **Status pages:** a private read-only link for a wall tablet that refreshes by itself and shows only the sections you pick, without signing in: an all-clear banner, 48-hour uptime bars per app, speed graph, and optionally how many people are watching (titles only, never names).
 - **Backups:** an encrypted backup file, plus automatic daily copies inside the data folder.
-- **Also:** Plex (who is watching, recently added), Tautulli stats with poster grids and charts (plays per day, busiest hours, devices, top viewers), Unraid (CPU, memory, array, disks, shares, containers), quick search (`Ctrl+K`), light and dark themes, five languages, and install-to-home-screen on a phone.
+- **Also:** Plex and Jellyfin (who is watching, recently added, end a stream), Tautulli stats with poster grids and charts (plays per day, busiest hours, devices, top viewers), Unraid (CPU, memory, array, disks, shares, containers), quick search (`Ctrl+K`), light and dark themes, five languages, and install-to-home-screen on a phone.
 
 | Downloads | Library |
 | --- | --- |
@@ -116,6 +116,7 @@ If the port can be reached by anyone besides you, set `SETUP_TOKEN` first (see b
 | `TRUST_PROXY` | off | Set to `true` **only** if MediaHub is behind a reverse proxy or tunnel you control. It makes MediaHub believe the proxy's client address and HTTPS headers. Leave it off otherwise. |
 | `DEMO` | off | Set to `1` to run the demo described above instead of your real data. |
 | `PUBLIC_URL` | learned from the admin | The address people open from password emails, for example `https://media.example.com`. If unset, MediaHub remembers the address the first admin used, and it can be changed in Settings, then Account. |
+| `ICON_BASE` | the public dashboard-icons set | Where app logos are loaded from, by your browser, not the server. Set it empty to use only the drawn icons (nothing is requested from the internet), or to a folder of your own that holds `sonarr.svg`, `radarr.svg` and so on. |
 | `ALLOWED_ORIGINS` | empty | Comma-separated extra web addresses allowed to sign in, if a proxy changes the `Host` header, for example `https://media.example.com`. |
 
 ## Connecting your apps
@@ -127,6 +128,7 @@ If the port can be reached by anyone besides you, set `SETUP_TOKEN` first (see b
 | Jackett / Prowlarr | `:9117` / `:9696` | API key. |
 | Seerr (Overseerr / Jellyseerr) | `:5055` | API key (Settings, General). |
 | Plex | `:32400` | Your Plex token. |
+| Jellyfin | `:8096` | An API key (Dashboard, then API Keys). |
 | Tautulli | `:8181` | API key (Settings, Web Interface). |
 | SABnzbd | `:8080` | API key (Config, General). |
 | Unraid (7.2 or newer) | your Unraid web address | An API key from Settings, Management Access, API Keys. |
@@ -149,6 +151,7 @@ Some features depend on fields that differ between app versions (for example Unr
 | Seerr / Overseerr / Jellyseerr | v1 API | Author's server for search and requests. Season choice and problem reports: test fakes. |
 | Unraid 7.2 | GraphQL API | Author's server. |
 | Plex | Local server API with a token | Test fakes. |
+| Jellyfin | Local server API with an API key | Test fakes only. |
 | Tautulli | v2 API | Test fakes. |
 | SABnzbd | JSON API (3.x and 4.x) | Test fakes. |
 | Prowlarr | v1 API | Test fakes. |

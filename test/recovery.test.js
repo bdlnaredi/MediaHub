@@ -122,3 +122,34 @@ test('library artwork: feed for the dashboard, backdrops cached for the sign-in 
       assert.equal((await a.get('/api/artimg?sid=' + sid + '&p=' + encodeURIComponent(bad))).status, 404, bad);
   } finally { await s.stop(); srv.close(); }
 });
+
+test('sign-in pictures: works with a URL base, covers that only accept the key in the address, a late-starting app, and reports what went wrong', async () => {
+  // A stricter pretend Sonarr: lives under /sonarr, answers 401 to the header on covers, and is "down" for the first few requests.
+  const jpg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(6000, 7)]);
+  let up = false;
+  const series = Array.from({ length: 8 }, (_, i) => ({ id: i + 1, title: 'Show ' + i, year: 2020, images: [{ coverType: 'poster', url: `/sonarr/MediaCover/${i + 1}/poster.jpg?lastWrite=1` }, { coverType: 'fanart', url: `/sonarr/MediaCover/${i + 1}/fanart.jpg?lastWrite=1`, remoteUrl: 'http://not-https.invalid/x.jpg' }], statistics: {} }));
+  const srv = http.createServer((req, res) => {
+    const u = new URL(req.url, 'http://x');
+    if (!up) { res.writeHead(503); return res.end('{}'); }
+    if (u.pathname === '/sonarr/api/v3/series') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify(series)); }
+    if (/^\/sonarr\/MediaCover\/\d+\/fanart\.jpg$/.test(u.pathname) && u.searchParams.get('apikey') === 'k') { res.writeHead(200, { 'Content-Type': 'image/jpeg' }); return res.end(jpg); }
+    res.writeHead(401); res.end();
+  }).listen(0);
+  await new Promise(r => srv.once('listening', r));
+  const s = await boot({ WP_DELAY_MS: '200' }), a = client(s.base);
+  try {
+    await setup(a);
+    assert.equal((await a.post('/api/services', { type: 'sonarr', name: 'Sonarr', url: `http://127.0.0.1:${srv.address().port}/sonarr`, apiKey: 'k' })).status, 200);
+    await sleep(900);
+    const bad = (await a.post('/api/signin/refresh')).data;
+    assert.equal(bad.ok, false); assert.ok(bad.errors.length && /Sonarr/.test(bad.errors[0]), 'says which app failed: ' + JSON.stringify(bad.errors));
+    assert.ok(!JSON.stringify(bad).includes('apikey'), 'the key never appears in messages');
+    up = true;
+    const good = (await a.post('/api/signin/refresh')).data;
+    assert.equal(good.ok, true, JSON.stringify(good)); assert.ok(good.count >= 4, 'count ' + good.count);
+    const list = (await client(s.base).get('/api/wallpapers')).data;
+    assert.ok(list.length >= 4); assert.equal((await fetch(s.base + '/wallpapers/' + list[0])).status, 200);
+    const info = (await a.get('/api/signin')).data; assert.equal(info.cached, list.length); assert.ok(info.wp.at > 0);
+    assert.equal((await client(s.base).post('/api/signin/refresh')).status, 401, 'signed-out people cannot trigger it');
+  } finally { await s.stop(); srv.close(); }
+});

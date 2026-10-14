@@ -66,7 +66,7 @@ if (DEMO) {
   const base = 'http://127.0.0.1:' + PORT + '/__demo/', mk = (n, k) => ({ id: crypto.randomBytes(6).toString('hex'), type: k, name: n, url: base + k, apiKey: 'demo', user: 'demo', pass: 'demo' });
   const salt = a => crypto.randomBytes(6).toString('hex'), mkU = (name, pw, role, extra = {}) => { const sl = salt(); return { id: crypto.randomBytes(6).toString('hex'), name, role, salt: sl, hash: crypto.scryptSync(pw, sl, 32).toString('hex'), access: [], ...extra }; };
   db = defaults({ users: [mkU('demo', 'demo-mediahub', 'admin'), mkU('guest', 'guest-mediahub', 'user')], alerts: { channels: [], reports: true }, requests: [],
-    services: [['Sonarr', 'sonarr'], ['Radarr', 'radarr'], ['qBittorrent', 'qbittorrent'], ['Plex', 'plex'], ['Seerr', 'seerr'], ['Prowlarr', 'prowlarr'], ['Lidarr', 'lidarr'], ['Readarr', 'readarr'], ['Bazarr', 'bazarr'], ['SABnzbd', 'sabnzbd'], ['Tautulli', 'tautulli'], ['Unraid', 'unraid']].map(x => mk(x[0], x[1])) });
+    services: [['Sonarr', 'sonarr'], ['Radarr', 'radarr'], ['qBittorrent', 'qbittorrent'], ['Plex', 'plex'], ['Jellyfin', 'jellyfin'], ['Seerr', 'seerr'], ['Prowlarr', 'prowlarr'], ['Lidarr', 'lidarr'], ['Readarr', 'readarr'], ['Bazarr', 'bazarr'], ['SABnzbd', 'sabnzbd'], ['Tautulli', 'tautulli'], ['Unraid', 'unraid']].map(x => mk(x[0], x[1])) });
   db.users[1].access = db.services.map(x => x.id);
   db.requests.push({ id: 'r1', sid: db.services.find(x => x.type === 'seerr').id, uid: db.users[1].id, user: 'guest', mediaType: 'movie', mediaId: 801, title: 'Hidden Harbor', year: '2024', poster: '', status: 'pending', at: Date.now() - 3600e3 * 5 });
 }
@@ -86,7 +86,7 @@ async function pushTo(url, title, body) {
   return true;
 }
 const notifyUser = (u, title, body) => u && u.notify ? pushTo(u.notify, title, body) : Promise.resolve(false);
-const KINDS = ['sonarr', 'radarr', 'prowlarr', 'jackett', 'qbittorrent', 'seerr', 'unraid', 'plex', 'tautulli', 'sabnzbd', 'bazarr', 'lidarr', 'readarr'];
+const KINDS = ['sonarr', 'radarr', 'prowlarr', 'jackett', 'qbittorrent', 'seerr', 'unraid', 'plex', 'jellyfin', 'tautulli', 'sabnzbd', 'bazarr', 'lidarr', 'readarr'];
 const SESSF = path.join(DATA, 'sessions.json'), th = t => crypto.createHash('sha256').update(String(t || '')).digest('hex');
 let sessions; try { sessions = new Map(Object.entries(JSON.parse(fs.readFileSync(SESSF))).map(([k, v]) => [k, typeof v === 'string' ? { uid: v, at: 0, seen: 0, ua: '', ip: '' } : v])); } catch { sessions = new Map(); }
 const saveSess = () => DEMO || fs.writeFileSync(SESSF, JSON.stringify(Object.fromEntries(sessions)), { mode: 0o600 });
@@ -114,6 +114,7 @@ async function test(s) {
   }
   if (s.type === 'jackett')
     return (await fetch(u + '/api/v2.0/indexers/all/results/torznab/api?t=caps&apikey=' + encodeURIComponent(s.apiKey || ''), t)).ok;
+  if (s.type === 'jellyfin') return (await fetch(u + (s.apiKey ? '/System/Info' : '/System/Info/Public'), { ...t, headers: { 'X-Emby-Token': s.apiKey || '' } })).ok;
   if (s.type === 'plex') return (await fetch(u + '/library/sections', { ...t, headers: { 'X-Plex-Token': s.apiKey || '' } })).ok;
   if (s.type === 'sabnzbd') { const r = await fetch(`${u}/api?mode=version&output=json&apikey=${encodeURIComponent(s.apiKey || '')}`, t); return r.ok && !!((await r.json().catch(() => ({}))).version); }
   if (s.type === 'tautulli') { const r = await fetch(`${u}/api/v2?apikey=${encodeURIComponent(s.apiKey || '')}&cmd=arnold`, t); return r.ok && ((await r.json().catch(() => ({}))).response || {}).result === 'success'; }
@@ -179,43 +180,66 @@ function plexMap(x) {
     progress: x.duration ? Math.min(1, (x.viewOffset || 0) / x.duration) : 0, offset: x.viewOffset || 0, duration: x.duration || 0,
     thumb: x.grandparentThumb || x.parentThumb || x.thumb || '', decision: dec, res, kbps: +ss.bandwidth || 0, where: ss.location || '' };
 }
+// Jellyfin (and Emby) report sessions in their own shape; this turns one into the same shape Plex sessions use, so every page treats them alike.
+const jfTicks = t => Math.round((+t || 0) / 1e4);
+function jfMap(x) {
+  const n = x.NowPlayingItem, ps = x.PlayState || {}, ti = x.TranscodingInfo, ep = n.Type === 'Episode', dur = jfTicks(n.RunTimeTicks), off = jfTicks(ps.PositionTicks);
+  const h = (ti && ti.Height) || ((n.MediaStreams || []).find(m => m.Type === 'Video') || {}).Height || 0, res = h >= 2000 ? '4K' : h >= 1000 ? '1080p' : h >= 700 ? '720p' : h ? 'SD' : '';
+  return { id: x.Id, sid: x.Id, user: cut(x.UserName, 60), player: cut(x.DeviceName, 60), device: cut(x.Client, 60), state: ps.IsPaused ? 'paused' : 'playing',
+    title: cut(ep ? n.SeriesName : n.Name, 120), sub: ep ? `S${pad2(n.ParentIndexNumber)}E${pad2(n.IndexNumber)} ${cut(n.Name, 100)}` : String(n.ProductionYear || ''),
+    kind: ep ? 'episode' : n.Type === 'Audio' ? 'track' : 'movie', progress: dur ? Math.min(1, off / dur) : 0, offset: off, duration: dur, thumb: (ep && n.SeriesId) || n.Id || '',
+    decision: ps.PlayMethod === 'Transcode' ? 'transcode' : ps.PlayMethod === 'DirectStream' ? 'stream' : 'direct', res,
+    kbps: Math.round(((ti && ti.Bitrate) || n.Bitrate || 0) / 1000), where: x.RemoteEndPoint && !/^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|127\.|::1|fe80|fd)/i.test(x.RemoteEndPoint) ? 'wan' : 'lan' };
+}
+const jfGet = async (s, pth, opt = {}) => {
+  const x = await fetch(s.url.replace(/\/+$/, '') + pth, { signal: AbortSignal.timeout(8000), ...opt, headers: { 'X-Emby-Token': s.apiKey || '', Accept: 'application/json', ...(opt.headers || {}) } });
+  if (!x.ok) throw new Error('Jellyfin returned ' + x.status); return x;
+};
+const jfSessions = async s => ((await (await jfGet(s, '/Sessions')).json()) || []).filter(x => x && x.NowPlayingItem).map(jfMap);
+const isMS = s => s.type === 'plex' || s.type === 'jellyfin';
+const mediaSessions = s => s.type === 'jellyfin' ? jfSessions(s) : plexSessions(s);
 const plexSessions = async s => (((await plexGet(s, '/status/sessions')).MediaContainer || {}).Metadata || []).map(plexMap);
 const sabGet = async (s, q) => {
   const x = await fetch(`${s.url.replace(/\/+$/, '')}/api?output=json&apikey=${encodeURIComponent(s.apiKey)}&${q}`, { signal: AbortSignal.timeout(8000) });
   if (!x.ok) throw new Error('SABnzbd returned ' + x.status); return x.json();
 };
-const live = { snap: null, busy: false, timer: null, hist: {}, arr: {}, okAt: {} }, liveClients = new Set(), HISTN = 120, DL_STATES = /^(downloading|forcedDL|metaDL|forcedMetaDL)$/;
+const live = { snap: null, busy: false, timer: null, hist: {}, arr: {}, okAt: {}, run: {}, cur: { qb: {}, unraid: {}, plex: {}, sab: {} } }, liveClients = new Set(), HISTN = 120, DL_STATES = /^(downloading|forcedDL|metaDL|forcedMetaDL)$/;
 const quick = (pr, ms = 3500) => Promise.race([pr, new Promise((_, no) => setTimeout(() => no(new Error('slow')), ms))]);
-async function liveBuild() {
-  const out = { t: Date.now(), qb: {}, unraid: {}, plex: {}, sab: {}, health: {} }, prev = live.snap;
-  await Promise.all(db.services.map(async s => {
-    if (health[s.id]) out.health[s.id] = health[s.id].ok;
-    const slot = { qbittorrent: 'qb', unraid: 'unraid', plex: 'plex', sabnzbd: 'sab' }[s.type]; if (!slot) return;
-    try {
+// Every app is polled on its own, so a slow one never holds the others back; the snapshot is just whatever each one last answered.
+async function liveSvc(s, slot) {
+  const cur = live.cur;
+  try {
       if (s.type === 'qbittorrent') {
         const [ti, l] = await quick(Promise.all([qb(s, '/api/v2/transfer/info'), qb(s, '/api/v2/torrents/info?filter=downloading')]));
         const h = live.hist[s.id] || (live.hist[s.id] = { dl: [], ul: [] });
         h.dl.push(ti.dl_info_speed || 0); h.ul.push(ti.up_info_speed || 0); if (h.dl.length > HISTN) { h.dl.shift(); h.ul.shift(); }
         const act = (Array.isArray(l) ? l : []).filter(x => DL_STATES.test(x.state));
-        out.qb[s.id] = { dl: ti.dl_info_speed || 0, ul: ti.up_info_speed || 0, active: act.length, conn: ti.connection_status || '',
+        cur.qb[s.id] = { dl: ti.dl_info_speed || 0, ul: ti.up_info_speed || 0, active: act.length, conn: ti.connection_status || '',
           top: act.sort((a, b) => b.dlspeed - a.dlspeed).slice(0, 6).map(x => ({ hash: x.hash, name: x.name, progress: x.progress, speed: x.dlspeed, eta: x.eta, size: x.size })) };
       } else if (s.type === 'unraid') {
         const d = await quick(gql(s, '{ metrics { cpu { percentTotal } memory { percentTotal } } }')), o = { cpu: d.metrics.cpu.percentTotal, mem: d.metrics.memory.percentTotal };
         let a = live.arr[s.id];
         if (!a || Date.now() - a.t > 30000) { a = live.arr[s.id] = { t: Date.now() }; try { const k = (await quick(gql(s, '{ array { capacity { kilobytes { used total } } } }'))).array.capacity.kilobytes; a.used = +k.used * 1024; a.total = +k.total * 1024; } catch {} }
         if (a.total) { o.used = a.used; o.total = a.total; }
-        out.unraid[s.id] = o;
-      } else if (s.type === 'plex') out.plex[s.id] = await quick(plexSessions(s));
+        cur.unraid[s.id] = o;
+      } else if (isMS(s)) cur.plex[s.id] = await quick(mediaSessions(s));
       else {
         const d = (await quick(sabGet(s, 'mode=queue&limit=5'))).queue || {};
-        out.sab[s.id] = { speed: (+d.kbpersec || 0) * 1024, paused: !!d.paused, slots: +d.noofslots_total || +d.noofslots || 0, left: d.sizeleft || '', timeleft: d.timeleft || '',
+        cur.sab[s.id] = { speed: (+d.kbpersec || 0) * 1024, paused: !!d.paused, slots: +d.noofslots_total || +d.noofslots || 0, left: d.sizeleft || '', timeleft: d.timeleft || '',
           jobs: (d.slots || []).slice(0, 4).map(j => ({ name: j.filename, pct: +j.percentage || 0 })) };
       }
-      live.okAt[s.id] = out.t;
-    } catch {
-      const pv = prev && prev[slot][s.id]; if (pv && out.t - (live.okAt[s.id] || 0) < 15000) out[slot][s.id] = pv;
-    }
-  }));
+      live.okAt[s.id] = Date.now();
+  } catch { if (Date.now() - (live.okAt[s.id] || 0) > 15000) delete cur[slot][s.id]; }
+}
+async function liveBuild() {
+  const jobs = [];
+  for (const s of db.services) {
+    const slot = { qbittorrent: 'qb', unraid: 'unraid', plex: 'plex', jellyfin: 'plex', sabnzbd: 'sab' }[s.type]; if (!slot) continue;
+    if (!live.run[s.id]) jobs.push(live.run[s.id] = liveSvc(s, slot).finally(() => { delete live.run[s.id]; }));
+  }
+  if (jobs.length) await Promise.race([Promise.all(jobs), new Promise(r => setTimeout(r, 800))]);
+  const out = { t: Date.now(), qb: { ...live.cur.qb }, unraid: { ...live.cur.unraid }, plex: { ...live.cur.plex }, sab: { ...live.cur.sab }, health: {} };
+  for (const s of db.services) if (health[s.id]) out.health[s.id] = health[s.id].ok;
   return out;
 }
 function liveView(u, snap, first) {
@@ -240,8 +264,8 @@ async function liveTick() {
 }
 function liveStop(c) { liveClients.delete(c); if (!liveClients.size && live.timer) { clearInterval(live.timer); live.timer = null; } }
 function liveAdd(c) {
-  liveClients.add(c); if (!live.timer) live.timer = setInterval(liveTick, +process.env.LIVE_MS || 2000);
-  if (live.snap && Date.now() - live.snap.t < 5000) liveSend(c); else liveTick();
+  liveClients.add(c); if (!live.timer) live.timer = setInterval(liveTick, +process.env.LIVE_MS || 1000);
+  if (live.snap && Date.now() - live.snap.t < 3000) liveSend(c); else liveTick();
 }
 
 // ---- Uptime history (hourly buckets, kept for 48 hours) ----
@@ -298,7 +322,7 @@ const plexGet = async (s, pth) => {
   const x = await fetch(s.url.replace(/\/+$/, '') + pth, { signal: AbortSignal.timeout(8000), headers: { 'X-Plex-Token': s.apiKey, Accept: 'application/json' } });
   if (!x.ok) throw new Error('Plex returned ' + x.status); return x.json();
 };
-const streamsOf = async s => (((await plexGet(s, '/status/sessions')).MediaContainer || {}).Metadata || []).filter(x => ['playing', 'buffering'].includes((x.Player || {}).state));
+const streamsOf = async s => (await mediaSessions(s)).filter(x => ['playing', 'buffering'].includes(x.state));
 const bz = async (s, pth, opt = {}) => {
   const x = await fetch(s.url.replace(/\/+$/, '') + pth, { signal: AbortSignal.timeout(60000), ...opt, headers: { 'X-API-KEY': s.apiKey, ...(opt.headers || {}) } });
   const t = await x.text(); let d = null; try { d = JSON.parse(t); } catch {}
@@ -432,7 +456,7 @@ async function monitor() {
     });
     const th0 = db.settings.throttle || {}, held = th0.held || {};
     if (th0.on || Object.keys(held).length) await safe(async () => {
-      let streams = 0; if (th0.on) for (const pl of db.services.filter(x => x.type === 'plex')) streams += (await streamsOf(pl)).length;
+      let streams = 0; if (th0.on) for (const pl of db.services.filter(isMS)) streams += (await streamsOf(pl)).length;
       for (const s of db.services.filter(x => x.type === 'qbittorrent')) {
         const slow = Number(await qb(s, '/api/v2/transfer/speedLimitsMode')) === 1, ours = !!held[s.id];
         if (th0.on && streams > 0) { mon.idle[s.id] = 0; if (!slow && !ours) { await qb(s, '/api/v2/transfer/toggleSpeedLimitsMode', {}); db.settings.throttle.held = { ...held, [s.id]: 1 }; held[s.id] = 1; save(); audit('MediaHub', 'Slowed downloads', `${streams} stream${streams === 1 ? '' : 's'} playing`); } }
@@ -460,8 +484,8 @@ async function monitor() {
 async function statusData(x) {
   const out = { name: x.name, at: Date.now(), note: x.note || '', look: x.look || 'auto' }, qs = db.services.filter(s => s.type === 'qbittorrent');
   if (x.scopes.apps) out.apps = db.services.map(s => ({ name: s.name, type: s.type, ok: health[s.id] ? health[s.id].ok : null, bars: uptBars(s.id), pct: uptPct(s.id) }));
-  if (x.scopes.watching) { out.watching = { count: 0, kbps: 0, items: [] }; for (const s of db.services.filter(y => y.type === 'plex')) { try {
-    const l = (await plexSessions(s)).filter(y => ['playing', 'buffering', 'paused'].includes(y.state)); out.watching.count += l.length; out.watching.kbps += l.reduce((a, y) => a + y.kbps, 0);
+  if (x.scopes.watching) { out.watching = { count: 0, kbps: 0, items: [] }; for (const s of db.services.filter(isMS)) { try {
+    const l = (await mediaSessions(s)).filter(y => ['playing', 'buffering', 'paused'].includes(y.state)); out.watching.count += l.length; out.watching.kbps += l.reduce((a, y) => a + y.kbps, 0);
     out.watching.items.push(...l.slice(0, 6).map(y => ({ title: y.title, sub: y.sub, state: y.state, progress: y.progress }))); } catch {} } }
   if (x.scopes.traffic || x.scopes.downloads) for (const q of qs.slice(0, 1)) { try {
     const [ti, l] = await Promise.all([qb(q, '/api/v2/transfer/info'), x.scopes.downloads ? qb(q, '/api/v2/torrents/info') : Promise.resolve([])]);
@@ -486,7 +510,7 @@ const wpMode = () => (db.settings || {}).loginArt === 'scenes' ? 'scenes' : 'lib
 const artCache = new Map();                       // service id -> { at, p }
 const mediaUrl = (s, o, type) => {
   const i = (o.images || []).find(x => x.coverType === type); if (!i) return { url: '', local: '' };
-  const local = i.url && /^\/MediaCover\/[\w./%-]+$/.test(String(i.url).split('?')[0]) && !String(i.url).includes('..') ? String(i.url).split('?')[0] : '';
+  const lm = String(i.url || '').split('?')[0].match(/\/(MediaCover\/[\w./%-]+)$/), local = lm && !lm[1].includes('..') ? '/' + lm[1] : '';
   const remote = i.remoteUrl && /^(https:\/\/|data:image\/)/.test(i.remoteUrl) ? i.remoteUrl : '';
   return { url: remote || (local ? '/api/artimg?sid=' + s.id + '&p=' + encodeURIComponent(local) : ''), local };
 };
@@ -504,39 +528,52 @@ function artItems(s) {
 }
 const shuffled = a => { const b = a.slice(); for (let i = b.length - 1; i > 0; i--) { const j = crypto.randomInt(i + 1); [b[i], b[j]] = [b[j], b[i]]; } return b; };
 const imgKind = b => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff ? 'jpg' : b.length > 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47 ? 'png' : b.length > 12 && b.toString('latin1', 0, 4) === 'RIFF' && b.toString('latin1', 8, 12) === 'WEBP' ? 'webp' : '';
-// Gets one backdrop from the app itself (preferred, no internet needed) or from its public address.
+// Gets one backdrop. Tries the app itself first (no internet needed; the key is sent as a header, then as a query for builds that only accept that), then the public address.
 async function artBytes(s, x) {
-  let target, opt = {};
-  if (x.fl) { target = s.url.replace(/\/+$/, '') + x.fl; opt = { headers: { 'X-Api-Key': s.apiKey } }; }
-  else {
-    let u; try { u = new URL(x.fanart); } catch { throw new Error('skipped'); }
-    if (u.protocol !== 'https:' || /^(localhost$|\[|\d+\.\d+\.\d+\.\d+$)/.test(u.hostname)) throw new Error('skipped');
-    target = u.href;
+  const tries = [];
+  if (x.fl) { const u = s.url.replace(/\/+$/, '') + x.fl; tries.push([u, { headers: { 'X-Api-Key': s.apiKey } }], [u + '?apikey=' + encodeURIComponent(s.apiKey), {}]); }
+  try { const u = new URL(x.fanart); if (u.protocol === 'https:' && !/^(localhost$|\[|\d+\.\d+\.\d+\.\d+$)/.test(u.hostname)) tries.push([u.href, {}]); } catch {}
+  let last = 'no usable address';
+  for (const [target, opt] of tries) {
+    try {
+      const r = await fetch(target, { signal: AbortSignal.timeout(25000), redirect: 'follow', ...opt });
+      if (!r.ok) throw new Error('answered ' + r.status);
+      const b = Buffer.from(await r.arrayBuffer());
+      if (b.length < 4e3 || b.length > 9e6 || !imgKind(b)) throw new Error('not a usable picture');
+      return { b, ext: imgKind(b) };
+    } catch (e) { last = (e.name === 'TimeoutError' ? 'took too long' : e.message === 'fetch failed' ? 'could not connect' + (e.cause && e.cause.code ? ' (' + e.cause.code + ')' : '') : e.message); }
   }
-  const r = await fetch(target, { signal: AbortSignal.timeout(25000), redirect: 'follow', ...opt });
-  if (!r.ok) throw new Error('answered ' + r.status);
-  const b = Buffer.from(await r.arrayBuffer());
-  if (b.length < 4e3 || b.length > 9e6 || !imgKind(b)) throw new Error('not a usable picture');
-  return { b, ext: imgKind(b) };
+  throw new Error(last);
 }
 const LIBWP = /^lib-[0-9a-f]{10}\.(jpg|png|webp)$/;
-let wpBusy = false, wpKicked = 0;
-async function wpSync() {
-  if (DEMO || wpBusy || wpMode() === 'scenes') return; wpBusy = true;
+let wpBusy = false, wpKicked = 0, wpState = { at: 0, running: false, ok: false, count: 0, saved: 0, errors: [] };
+async function wpSync(force) {
+  if (DEMO || wpBusy || (wpMode() === 'scenes' && !force)) return wpState;
+  wpBusy = true; wpState = { ...wpState, running: true };
+  const st = { at: Date.now(), running: false, ok: false, count: 0, saved: 0, errors: [] }, note = m => { if (st.errors.length < 4 && !st.errors.includes(m)) st.errors.push(m); };
   try {
     const svcs = db.services.filter(s => ['sonarr', 'radarr'].includes(s.type)), by = Object.fromEntries(svcs.map(s => [s.id, s]));
-    const items = (await Promise.all(svcs.map(s => artItems(s).catch(() => [])))).flat().filter(x => x.fanart || x.fl);
-    if (!items.length) return;
-    fs.mkdirSync(WPD, { recursive: true });
-    const have = fs.readdirSync(WPD).filter(f => LIBWP.test(f)), keep = new Set();
-    const want = shuffled(items).slice(0, 16);
-    for (const x of want) {
-      const h = th(x.sid + ':' + x.id).slice(0, 10), old = have.find(f => f.startsWith('lib-' + h + '.'));
-      if (old) { keep.add(old); continue; }
-      try { const { b, ext: e } = await artBytes(by[x.sid], x), n = `lib-${h}.${e}`; fs.writeFileSync(path.join(WPD, n), b); keep.add(n); } catch {}
+    if (!svcs.length) note('Add Sonarr or Radarr in Settings, then Apps.');
+    const items = (await Promise.all(svcs.map(s => artItems(s).catch(e => { note(`${s.name}: ${e.message}`); return []; })))).flat().filter(x => x.fanart || x.fl);
+    if (svcs.length && !items.length && !st.errors.length) note('Your library has no backdrops yet.');
+    if (items.length) {
+      fs.mkdirSync(WPD, { recursive: true });
+      const have = fs.readdirSync(WPD).filter(f => LIBWP.test(f)), keep = new Set(), queue = shuffled(items).slice(0, 48); let tried = 0;
+      const worker = async () => {
+        while (queue.length && keep.size < 16 && tried < 40) {
+          const x = queue.shift(), h = th(x.sid + ':' + x.id).slice(0, 10), old = have.find(f => f.startsWith('lib-' + h + '.')); tried++;
+          if (old) { keep.add(old); continue; }
+          try { const { b, ext: e } = await artBytes(by[x.sid], x), n = `lib-${h}.${e}`; fs.writeFileSync(path.join(WPD, n), b); keep.add(n); st.saved++; }
+          catch (e) { note(`${x.title}: ${e.message}`); }
+        }
+      };
+      await Promise.all([worker(), worker(), worker(), worker()]);
+      if (keep.size >= 4) for (const f of have) if (!keep.has(f)) { try { fs.unlinkSync(path.join(WPD, f)); } catch {} }   // rotate: drop old ones only once enough new ones are saved
+      st.count = keep.size;
     }
-    if (keep.size >= 4) for (const f of have) if (!keep.has(f)) { try { fs.unlinkSync(path.join(WPD, f)); } catch {} }   // rotate: drop old ones only once enough new ones are saved
-  } catch {} finally { wpBusy = false; }
+    st.ok = wpList().some(f => LIBWP.test(f));
+  } catch (e) { note(e.message); } finally { wpBusy = false; wpState = st; console.log(`[wallpapers] ${st.ok ? 'ready' : 'no pictures yet'}: saved ${st.saved}, using ${st.count}` + (st.errors.length ? '. ' + st.errors[0] : '')); }
+  return wpState;
 }
 const wpKick = () => { if (Date.now() - wpKicked > 6e4) { wpKicked = Date.now(); wpSync(); } };
 
@@ -581,8 +618,8 @@ http.createServer(async (req, res) => {
     if (me && Date.now() - sess.seen > 60000) sess.seen = Date.now();
     const setup = !db.users.length;
     if (p === '/api/health') return send(res, 200, { ok: true, version: VERSION });
-    if (p === '/api/wallpapers' && m === 'GET') return send(res, 200, wpMode() === 'scenes' ? [] : DEMO ? demo.fanarts() : wpList());
-    if (p === '/api/me') return send(res, 200, { setup, setupCode: setup && !!SETUP_TOKEN, version: VERSION, demo: DEMO, recovery: !DEMO && !!(mailer() && baseUrl()), user: me ? pubUser(me) : null });
+    if (p === '/api/wallpapers' && m === 'GET') { if (!DEMO && wpMode() === 'library' && !wpList().some(f => LIBWP.test(f)) && !wpBusy) wpKick(); return send(res, 200, wpMode() === 'scenes' ? [] : DEMO ? demo.fanarts() : wpList()); }
+    if (p === '/api/me') return send(res, 200, { setup, setupCode: setup && !!SETUP_TOKEN, version: VERSION, demo: DEMO, iconBase: String(process.env.ICON_BASE == null ? 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/' : process.env.ICON_BASE).replace(/[^\w:/.@-]/g, ''), recovery: !DEMO && !!(mailer() && baseUrl()), user: me ? pubUser(me) : null });
 
     if (p === '/api/setup' && m === 'POST') {
       if (!setup) return send(res, 403, { error: 'Already set up' });
@@ -757,7 +794,7 @@ http.createServer(async (req, res) => {
     const adminOnly = () => me.role === 'admin' ? false : (send(res, 403, { error: 'Admins only' }), true);
     if ((r = p.match(/^\/api\/qb\/(\w+)\/list$/))) {
       const s = svcOf(r[1], 'qbittorrent'); if (!s) return send(res, 404, { error: 'Not found' });
-      const hit = qbListCache[s.id]; if (hit && Date.now() - hit.t < 1500) return send(res, 200, hit.d);
+      const hit = qbListCache[s.id]; if (hit && Date.now() - hit.t < 800) return send(res, 200, hit.d);
       const [t, ti, alt] = await Promise.all([qb(s, '/api/v2/torrents/info'), qb(s, '/api/v2/transfer/info'), qb(s, '/api/v2/transfer/speedLimitsMode').catch(() => 0)]);
       const out = { dl: ti.dl_info_speed || 0, ul: ti.up_info_speed || 0, alt: +alt === 1, torrents: t.map(x => ({ hash: x.hash, name: x.name, state: x.state, progress: x.progress,
         dlspeed: x.dlspeed, upspeed: x.upspeed, size: x.size, added: x.added_on, eta: x.eta, ratio: x.ratio, seeds: x.num_seeds, peers: x.num_leechs, category: x.category || '',
@@ -921,7 +958,13 @@ http.createServer(async (req, res) => {
           out.disks = [...tag(a.parities, 'Parity'), ...tag(a.disks, 'Data'), ...tag(a.caches, 'Cache')]; out.parity = a.parityCheckStatus || null;
         }, true),
         part('{ shares { name free used size } }', d => { out.shares = (d.shares || []).map(x => ({ name: x.name, free: +x.free, used: +x.used, size: +x.size })); }, true),
-        part('{ info { os { uptime } cpu { brand cores threads } } }', d => { out.uptime = d.info.os && d.info.os.uptime || ''; out.cpuInfo = d.info.cpu ? { brand: cut(d.info.cpu.brand, 80), cores: d.info.cpu.cores || 0, threads: d.info.cpu.threads || 0 } : null; }, true),
+        (async () => {
+          const cpuOut = d => { out.uptime = d.info.os && d.info.os.uptime || ''; const c = d.info.cpu; if (!c) { out.cpuInfo = null; return; }
+            const nm = String(c.brand || '').replace(/\((R|TM)\)|\u00ae|\u2122/gi, '').replace(/\s+/g, ' ').trim(), mf = String(c.manufacturer || '').replace(/\((R|TM)\)|\u00ae|\u2122/gi, '').replace(/\s+/g, ' ').trim();
+            out.cpuInfo = { brand: cut(mf && !nm.toLowerCase().startsWith(mf.toLowerCase()) ? mf + ' ' + nm : nm, 120), cores: c.cores || 0, threads: c.threads || 0, ghz: +c.speed > 0 ? +(+c.speed).toFixed(1) : 0 }; };
+          await part('{ info { os { uptime } cpu { manufacturer brand cores threads speed } } }', cpuOut, true);
+          if (!out.cpuInfo) { out.notes.pop(); await part('{ info { os { uptime } cpu { brand cores threads } } }', cpuOut, true); }
+        })(),
         part('{ docker { containers { id image status } } }', d => { out.meta = {}; for (const c of d.docker.containers) out.meta[c.id] = { image: cut(c.image, 100), status: cut(c.status, 60) }; }, true),
         part('{ docker { containers { id isUpdateAvailable } } }', d => { out.updates = {}; for (const c of d.docker.containers) if (c.isUpdateAvailable) out.updates[c.id] = true; }, true)
       ]);
@@ -1091,6 +1134,23 @@ http.createServer(async (req, res) => {
       const x = await plex(s, pth);
       res.writeHead(200, { 'Content-Type': x.headers.get('content-type') || 'image/jpeg', 'Cache-Control': 'private, max-age=3600' });
       return res.end(Buffer.from(await x.arrayBuffer()));
+    }
+    if ((r = p.match(/^\/api\/jellyfin\/(\w+)\/now$/))) {
+      const s = svcOf(r[1], 'jellyfin'); if (!s) return send(res, 404, { error: 'Not found' });
+      const [sessions, b] = await Promise.all([jfSessions(s), jfGet(s, '/Items?SortBy=DateCreated&SortOrder=Descending&Recursive=true&IncludeItemTypes=Movie,Series&Limit=14').then(x => x.json())]);
+      return send(res, 200, { sessions, recent: (b.Items || []).map(x => ({ title: cut(x.Name, 120), sub: String(x.ProductionYear || ''), thumb: x.Id })) });
+    }
+    if ((r = p.match(/^\/api\/jellyfin\/(\w+)\/img$/))) {
+      const s = svcOf(r[1], 'jellyfin'), id = new URL(req.url, 'http://x').searchParams.get('p') || '';
+      if (!s || !/^[0-9a-fA-F-]{32,36}$/.test(id)) return send(res, 400, { error: 'Bad request' });
+      const x = await jfGet(s, `/Items/${id}/Images/Primary?maxHeight=450&quality=85`);
+      res.writeHead(200, { 'Content-Type': x.headers.get('content-type') || 'image/jpeg', 'Cache-Control': 'private, max-age=3600' });
+      return res.end(Buffer.from(await x.arrayBuffer()));
+    }
+    if ((r = p.match(/^\/api\/jellyfin\/(\w+)\/terminate$/)) && m === 'POST') {
+      const s = svcOf(r[1], 'jellyfin'), b = await readBody(req); if (!s || !/^[0-9a-fA-F-]{8,64}$/.test(b.session || '')) return send(res, 400, { error: 'Bad request' });
+      await jfGet(s, `/Sessions/${b.session}/Playing/Stop`, { method: 'POST' });
+      audit(me.name, 'Ended a Jellyfin stream', s.name); return send(res, 200, {});
     }
     const taut = async (s, cmd, extra = '') => {
       const x = await fetch(`${s.url.replace(/\/+$/, '')}/api/v2?apikey=${encodeURIComponent(s.apiKey)}&cmd=${cmd}${extra}`, { signal: AbortSignal.timeout(10000) });
@@ -1494,8 +1554,9 @@ http.createServer(async (req, res) => {
     const linkScopes = b => Object.fromEntries(SCOPES.map(k => [k, k === 'apps' ? b[k] !== false : !!b[k]]));
     if (p === '/api/signin' && m === 'GET') {
       const mc = mailer();
-      return send(res, 200, { mail: !!mc, mailFrom: mc ? mc.from : '', publicUrl: baseUrl(), urlFromEnv: !!process.env.PUBLIC_URL, loginArt: wpMode(), cached: wpList().filter(f => LIBWP.test(f)).length, own: wpList().filter(f => !LIBWP.test(f)).length });
+      return send(res, 200, { mail: !!mc, mailFrom: mc ? mc.from : '', publicUrl: baseUrl(), urlFromEnv: !!process.env.PUBLIC_URL, loginArt: wpMode(), cached: wpList().filter(f => LIBWP.test(f)).length, own: wpList().filter(f => !LIBWP.test(f)).length, wp: { at: wpState.at, running: wpBusy, errors: wpState.errors } });
     }
+    if (p === '/api/signin/refresh' && m === 'POST') { const r0 = await wpSync(true); return send(res, 200, { ok: r0.ok, count: r0.count, saved: r0.saved, errors: r0.errors }); }
     if (p === '/api/signin' && m === 'PUT') {
       const b = await readBody(req);
       if (b.loginArt != null) { db.settings.loginArt = b.loginArt === 'scenes' ? 'scenes' : 'library'; if (wpMode() === 'library') wpKick(); }
@@ -1671,3 +1732,4 @@ for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { console.log('Me
 setTimeout(() => monitor().catch(() => {}), Math.min(3000, MON_MS));
 setTimeout(() => wpSync(), +process.env.WP_DELAY_MS || 20000).unref();
 setInterval(() => wpSync(), 6 * 3600e3).unref();
+setInterval(() => { if (!DEMO && wpMode() === 'library' && db.services.some(x => ['sonarr', 'radarr'].includes(x.type)) && !wpList().some(f => LIBWP.test(f)) && Date.now() - wpState.at > 12e4) wpSync(); }, 6e4).unref();   // until the first pictures are saved, try again every couple of minutes

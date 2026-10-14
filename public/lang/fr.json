@@ -214,7 +214,6 @@
   "Signed-in devices": "Appareils connectés",
   "Size": "Taille",
   "Size on disk": "Taille sur disque",
-  "Slow downloads during Plex streams": "Ralentir les téléchargements pendant les lectures Plex",
   "Slow downloads while someone streams": "Ralentir les téléchargements pendant une lecture",
   "Speed": "Vitesse",
   "Speed schedule": "Planning de vitesse",
@@ -305,5 +304,6 @@
   "Last 7 days": "7 derniers jours",
   "Last 30 days": "30 derniers jours",
   "Weekly newsletter": "Lettre d’information hebdomadaire",
-  "Send the weekly newsletter": "Envoyer la lettre d’information hebdomadaire"
+  "Send the weekly newsletter": "Envoyer la lettre d’information hebdomadaire",
+  "Slow downloads during Plex or Jellyfin streams": "Ralentir les téléchargements pendant les lectures Plex ou Jellyfin"
 }

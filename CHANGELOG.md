@@ -2,17 +2,25 @@
 
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/), and versions follow [Semantic Versioning](https://semver.org/).
 
-## [0.14.0] - 2026-10-14
+## [0.14.2] - 2026-10-14
 
 ### Added
 - **Weekly newsletter** (Settings, then Alerts) replaces the weekly summary. It lists what was added to the library (with posters in email), what is coming up, downloads, requests, open problems and apps that are not responding. Email gets a styled HTML version with a plain-text fallback; other channels get plain text. Preview it on the page, send one now, or pick the day and hour.
 - **QR code for two-step sign-in.** Scan it with Aegis, Google Authenticator or 1Password. The typed key is still there under "Can't scan?".
 - **App icons** in front of every app name in Settings, then Apps, and in the dashboard Apps list.
 - **Unraid page rebuilt:** array, CPU and memory rings, disks with temperatures, shares, uptime and CPU model, and containers with image, status, update badge and Start/Stop/Restart/Logs. Newer fields are optional and are left out if your Unraid does not return them.
+- **Jellyfin.** Add it under Settings, then Apps (port 8096, an API key). Who is watching, recently added, ending a stream, slowing downloads during streams, offline alerts and the status page all work with Jellyfin the same way as with Plex.
+- **Real app logos.** Apps, the dashboard and the Unraid containers show each app's own logo, loaded by your browser from the public dashboard-icons set. Without internet, or with `ICON_BASE` empty, the drawn icons stay.
+- Settings, then Account: the sign-in pictures now say how many are saved, what went wrong if none are, and have a **Get pictures now** button.
 
 ### Changed
 - Settings, then Account: the sign-in picture and password-email panels now show a three-step checklist of what is missing and plain choices for the sign-in page pictures.
 - The poster strip on the dashboard moved from the bottom to the top.
+- **Live data updates every second** (was every two) on the dashboard, the Unraid page and Downloads. Each app is asked on its own, so one slow app no longer holds the others back.
+- Unraid shows the CPU by its full name (maker and model), with cores, threads and speed, on its own line.
+
+### Fixed
+- **Sign-in pictures from your library** did not always get saved. MediaHub now handles apps served under a sub-path, backdrops that only accept the key in the address, and apps that are slow to start. It downloads four at a time and retries every couple of minutes until the first pictures are saved.
 
 ### Removed
 - The weekly summary message (use the weekly newsletter).

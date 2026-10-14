@@ -360,6 +360,7 @@ html[data-rail=min]{--rail:70px}
 
 /* service icon tiles */
 .si{position:relative;display:inline-grid;place-items:center;width:38px;height:38px;border-radius:12px;color:#fff;flex:none;background:linear-gradient(145deg,var(--a),var(--b));box-shadow:0 8px 16px -8px var(--b),inset 0 1px 0 rgba(255,255,255,.28)}
+.si .lg{position:absolute;inset:0;width:100%;height:100%;padding:18%;box-sizing:border-box;object-fit:contain;opacity:0;transition:opacity .25s}.si.lgon{background:rgba(255,255,255,.94);box-shadow:0 6px 14px -8px rgba(0,0,0,.45),inset 0 0 0 1px rgba(0,0,0,.06)}.si.lgon .lg{opacity:1}.si.lgon .ic{opacity:0}
 .si .ic{width:20px;height:20px}.si b{font-size:17px;font-weight:800}
 .si .dot{position:absolute;right:-3px;bottom:-3px;width:12px;height:12px;margin:0!important;border:2px solid var(--bg)}
 .srow{grid-template-columns:40px 1fr auto 110px 200px auto}
@@ -367,7 +368,7 @@ html[data-rail=min]{--rail:70px}
 
 /* Unraid page */
 .uh{margin-bottom:16px}.uhr{display:flex;align-items:center;gap:16px;flex-wrap:wrap}.uhr .si{width:52px;height:52px;border-radius:16px}.uhr .si .ic{width:26px;height:26px}
-.uhr h2{margin:0 0 6px;font-size:26px;letter-spacing:-.03em}.chips{display:flex;gap:8px;flex-wrap:wrap}
+.cpun{margin:0 0 8px;font-size:13.5px;overflow-wrap:anywhere}.uhr h2{margin:0 0 4px;font-size:26px;letter-spacing:-.03em}.chips{display:flex;gap:8px;flex-wrap:wrap}
 .btn{display:inline-flex;align-items:center;padding:9px 16px;border-radius:12px;background:var(--s2);color:var(--text);text-decoration:none;font-weight:600}.btn:hover{background:var(--line)}
 .ugs3{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:6px}
 .ug{text-align:center;padding:18px 18px 14px}.ug .mute:first-child{text-align:left}.ugr{margin:6px 0}.rg{width:132px;height:132px}.rg .rv2{transition:stroke-dasharray .9s cubic-bezier(.2,.8,.2,1),stroke .4s}.rg .rt{fill:var(--text);font-size:21px;font-weight:700}
@@ -465,13 +466,19 @@ function trace(series,h,label){
     series.map((s,i)=>s.v.length<2?'':(i===0?`<path d="${line(s.v)}L${W},${h}L${x(s.v,0)},${h}Z" fill="url(#${gid})"/>`:'')+`<path d="${line(s.v)}" fill="none" style="stroke:${s.c}" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`).join('')+'</svg>';
 }
 const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const SVC_ICON={sonarr:['tv','#2fb4e6','#16709f'],radarr:['film','#e6a100','#a86400'],prowlarr:['find','#ff8a3d','#bd4a14'],jackett:['idx','#d9822b','#9a4410'],qbittorrent:['dl','#4a8de0','#274ca0'],seerr:['rq','#9a6bff','#5a30c4'],unraid:['ur','#ff7a45','#cf3a14'],plex:['play','#d9960a','#8f5a00'],tautulli:['stats','#c99a1f','#7d5a0e'],sabnzbd:['nzb','#e0a000','#9c6000'],bazarr:['sub','#3fb6cd','#1d7186'],lidarr:['mb','#2fbf71','#127a46'],readarr:['book','#d9534f','#8a2420']};
-const svcGuess=n=>{n=String(n||'').toLowerCase();return Object.keys(SVC_ICON).find(k=>n.includes(k))||(/transmission|deluge|rtorrent/.test(n)?'qbittorrent':/overseerr|jellyseerr/.test(n)?'seerr':/jellyfin|emby/.test(n)?'plex':'')};
+const SVC_ICON={sonarr:['tv','#2fb4e6','#16709f'],radarr:['film','#e6a100','#a86400'],prowlarr:['find','#ff8a3d','#bd4a14'],jackett:['idx','#d9822b','#9a4410'],qbittorrent:['dl','#4a8de0','#274ca0'],seerr:['rq','#9a6bff','#5a30c4'],unraid:['ur','#ff7a45','#cf3a14'],plex:['play','#d9960a','#8f5a00'],jellyfin:['play','#8b5cf6','#3b6fe0'],tautulli:['stats','#c99a1f','#7d5a0e'],sabnzbd:['nzb','#e0a000','#9c6000'],bazarr:['sub','#3fb6cd','#1d7186'],lidarr:['mb','#2fbf71','#127a46'],readarr:['book','#d9534f','#8a2420']};
+const svcGuess=n=>{n=String(n||'').toLowerCase();return Object.keys(SVC_ICON).find(k=>n.includes(k))||(/transmission|deluge|rtorrent/.test(n)?'qbittorrent':/overseerr|jellyseerr/.test(n)?'seerr':/emby/.test(n)?'jellyfin':'')};
 // A small coloured tile with the app's icon; with an id it also carries the online/offline dot.
-const svcIcon=(type,id,name)=>{const k=SVC_ICON[type]?type:svcGuess(name||type),d=SVC_ICON[k];
-  if(!d){const h=[...String(name||type||'?')].reduce((a,c)=>a*31+c.charCodeAt(0)|0,7)%360;return `<span class="si" style="--a:hsl(${h},55%,48%);--b:hsl(${(h+40)%360},60%,30%)"><b>${esc(String(name||type||'?').trim()[0]||'?').toUpperCase()}</b>${id?`<span class="dot" id="d${id}"></span>`:''}</span>`}
-  return `<span class="si" style="--a:${d[1]};--b:${d[2]}">${ic(d[0])}${id?`<span class="dot" id="d${id}"></span>`:''}</span>`};
-const TYPES={sonarr:'Sonarr',radarr:'Radarr',prowlarr:'Prowlarr',jackett:'Jackett',qbittorrent:'qBittorrent',seerr:'Seerr',unraid:'Unraid',plex:'Plex',tautulli:'Tautulli',sabnzbd:'SABnzbd',bazarr:'Bazarr',lidarr:'Lidarr',readarr:'Readarr'};
+// The real logos come from the public dashboard-icons set, loaded by the browser. If they cannot be reached (no internet, or ICON_BASE is empty) the drawn tile above stays.
+let ICONB='';
+const ICON_FILES={seerr:['seerr','jellyseerr','overseerr']};
+const svcIcon=(type,id,name)=>{const k=SVC_ICON[type]?type:svcGuess(name||type),d=SVC_ICON[k],dot=id?`<span class="dot" id="d${id}"></span>`:'';
+  const f=ICONB&&k?(ICON_FILES[k]||[k]):[],lg=f.length?`<img class="lg" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" src="${esc(ICONB+f[0])}.svg" data-alt="${esc(f.slice(1).join(','))}">`:'';
+  if(!d){const h=[...String(name||type||'?')].reduce((a,c)=>a*31+c.charCodeAt(0)|0,7)%360;return `<span class="si" style="--a:hsl(${h},55%,48%);--b:hsl(${(h+40)%360},60%,30%)"><b>${esc(String(name||type||'?').trim()[0]||'?').toUpperCase()}</b>${dot}</span>`}
+  return `<span class="si" style="--a:${d[1]};--b:${d[2]}">${ic(d[0])}${lg}${dot}</span>`};
+document.addEventListener('load',e=>{const i=e.target;if(i.classList&&i.classList.contains('lg'))i.parentNode.classList.add('lgon')},true);
+document.addEventListener('error',e=>{const i=e.target;if(!(i.classList&&i.classList.contains('lg')))return;const n=(i.dataset.alt||'').split(',').filter(Boolean);if(n.length){i.dataset.alt=n.slice(1).join(',');i.src=ICONB+n[0]+'.svg'}else i.remove()},true);
+const TYPES={sonarr:'Sonarr',radarr:'Radarr',prowlarr:'Prowlarr',jackett:'Jackett',qbittorrent:'qBittorrent',seerr:'Seerr',unraid:'Unraid',plex:'Plex',jellyfin:'Jellyfin',tautulli:'Tautulli',sabnzbd:'SABnzbd',bazarr:'Bazarr',lidarr:'Lidarr',readarr:'Readarr'};
 let me=null,tab='dash',services=[],users=[];
 async function api(url,method='GET',body){
   const r=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
@@ -484,7 +491,7 @@ let REC=false;
 async function start(){
   await loadLang();
   const s=await api('/api/me');
-  DEMO=!!s.demo;REC=!!s.recovery;
+  DEMO=!!s.demo;REC=!!s.recovery;ICONB=s.iconBase?s.iconBase.replace(/\/*$/,'/'):'';
   const rt=(location.hash.match(/^#reset=([\w-]{20,80})$/)||[])[1];
   if(rt)return resetView(rt);
   if(!s.user)return authView(s.setup,s.setupCode);
@@ -636,7 +643,7 @@ $('#rl').onclick=()=>{UI.rail=!UI.rail;saveUI()};$('#qs').onclick=quick;
   const pt=PICK[tab];
   if(pt&&ofType(pt).length>1){const cur=first(pt);document.querySelector('.ph').insertAdjacentHTML('beforeend',`<label class="pick mute">App <select id="pk2" aria-label="Which app">${ofType(pt).map(s=>`<option value="${s.id}" ${s.id===cur.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select></label>`);
     $('#pk2').onchange=e=>{UI['pick_'+pt]=e.target.value;saveUI();render()}}
-  [].concat(timer||[]).forEach(clearInterval);liveFns=[];LIVE.subs.clear();if(tab!=='dash')liveStop();
+  [].concat(timer||[]).forEach(clearInterval);liveFns=[];LIVE.subs.clear();if(tab!=='dash'&&tab!=='ur')liveStop();
   const on=document.querySelector('.nv.on');if(on&&on.scrollIntoView)on.scrollIntoView({inline:'center',block:'nearest'});
   ({dash:dashView,find:findView,rq:rqView,lib:libView,wt:wtView,dl:dlView,rss:rssView,up:upView,idx:idxView,mb:mbView,sub:subView,nzb:nzbView,hl:hlView,ur:urView,stats:statsView,set:setView})[tab]();
   if(arrOnce())Cinema.load(api);
@@ -700,7 +707,7 @@ const reduceMotion=()=>window.matchMedia&&matchMedia('(prefers-reduced-motion:re
 function tw(el,to,f){
   if(!el)return;const from=el._v==null?to:el._v;el._v=to;cancelAnimationFrame(el._r);
   if(from===to||reduceMotion()||document.hidden){el.textContent=f(to);return}
-  const t0=performance.now(),st=n=>{const k=Math.min(1,(n-t0)/450),e=1-Math.pow(1-k,3);el.textContent=f(from+(to-from)*e);if(k<1)el._r=requestAnimationFrame(st)};el._r=requestAnimationFrame(st);
+  const t0=performance.now(),st=n=>{const k=Math.min(1,(n-t0)/900),e=1-Math.pow(1-k,3);el.textContent=f(from+(to-from)*e);if(k<1)el._r=requestAnimationFrame(st)};el._r=requestAnimationFrame(st);
 }
 function upBars(u){
   if(!u||!u.bars)return '';
@@ -709,7 +716,7 @@ function upBars(u){
 }
 function dashView(){
   const hr=new Date().getHours(),g=T(hr<12?'Good morning':hr<18?'Good afternoon':'Good evening');
-  const q=first('qbittorrent'),u=first('unraid'),sb=first('sabnzbd'),plx=ofType('plex'),sk=first('seerr'),arrOn=services.some(s=>s.type==='sonarr'||s.type==='radarr');
+  const q=first('qbittorrent'),u=first('unraid'),sb=first('sabnzbd'),plx=services.filter(x=>x.type==='plex'||x.type==='jellyfin'),sk=first('seerr'),arrOn=services.some(s=>s.type==='sonarr'||s.type==='radarr');
   dlH.length=ulH.length=cpuH.length=0;
   const fd=s=>new Date(s).toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'});
   const L=dashLayout(),set=(i,v)=>{const e=$(i);if(e)e.textContent=v};
@@ -785,13 +792,13 @@ function dashView(){
       for(const x of all)np[x.svc+x.id]={off:x.offset,dur:x.duration,state:x.state,at:Date.now()};
       const el=$('#np');if(el&&seen.np!==sig){seen.np=sig;
         const dc={direct:['Direct play','ok'],stream:['Direct stream','acc'],transcode:['Transcoding','warn']};
-        el.innerHTML=all.length?`<h2 class="sec">Watching now</h2><div class="npg">${all.map(x=>`<div class="np" data-k="${esc(x.svc+x.id)}"><div class="npi">${x.thumb?`<img src="/api/plex/${x.svc}/img?p=${encodeURIComponent(x.thumb)}" alt="" loading="lazy">`:''}</div>
+        el.innerHTML=all.length?`<h2 class="sec">Watching now</h2><div class="npg">${all.map(x=>`<div class="np" data-k="${esc(x.svc+x.id)}"><div class="npi">${x.thumb?`<img src="${msBase(x.svc)}/img?p=${encodeURIComponent(x.thumb)}" alt="" loading="lazy">`:''}</div>
           <div class="npb"><div><b>${esc(x.title)}</b> <span class="mute">${esc(x.sub)}</span></div><div class="mute">${esc(x.user||'Someone')} on ${esc(x.player||x.device||'a device')}${x.where?', '+(x.where==='lan'?T('home network'):T('remote')):''}</div>
           <div class="row" style="gap:6px;margin:8px 0"><span class="pill ${dc[x.decision][1]}">${T(dc[x.decision][0])}</span>${x.res?`<span class="pill">${esc(x.res)}</span>`:''}${x.kbps?`<span class="pill">${(x.kbps/1000).toFixed(1)} Mbps</span>`:''}${x.state!=='playing'?`<span class="pill">${esc(x.state==='paused'?T('Paused'):x.state==='buffering'?T('Buffering'):x.state)}</span>`:''}</div>
           <progress class="npp" value="${x.progress}" max="1" aria-label="Playback position"></progress><div class="mute npt">${clock(x.offset)} / ${clock(x.duration)}</div></div>
           ${me.role==='admin'&&x.id?`<button data-end="${esc(x.id)}" data-svc="${x.svc}">End stream</button>`:''}</div>`).join('')}</div>`:'';
         el.querySelectorAll('[data-end]').forEach(b=>b.onclick=async()=>{const why=prompt('Message shown to the viewer:','Stopped by the server owner');if(why===null)return;
-          try{await api(`/api/plex/${b.dataset.svc}/terminate`,'POST',{session:b.dataset.end,reason:why});toast('Stream ended','ok')}catch(x){toast(x.message,'bad')}})}}
+          try{await api(`${msBase(b.dataset.svc)}/terminate`,'POST',{session:b.dataset.end,reason:why});toast('Stream ended','ok')}catch(x){toast(x.message,'bad')}})}}
   };
   // smooth playback position between updates
   const glide=()=>{document.querySelectorAll('.np[data-k]').forEach(c=>{const n=np[c.dataset.k];if(!n||!n.dur)return;
@@ -801,7 +808,7 @@ function dashView(){
     await Promise.all([
       q?api(`/api/qb/${q.id}/list`).then(x=>{const a=x.torrents.filter(t=>/^(downloading|forcedDL|metaDL|forcedMetaDL)$/.test(t.state));d.qb[q.id]={dl:x.dl,ul:x.ul,active:a.length,conn:'connected',top:a.sort((m,n)=>n.dlspeed-m.dlspeed).slice(0,6).map(t=>({name:t.name,progress:t.progress,speed:t.dlspeed,eta:t.eta}))}}).catch(()=>{}):0,
       u?api(`/api/unraid/${u.id}?fast=1`).then(x=>{d.unraid[u.id]={cpu:x.cpu,mem:x.mem}}).catch(()=>{}):0,
-      ...plx.map(s=>api(`/api/plex/${s.id}/now`).then(x=>{d.plex[s.id]=x.sessions}).catch(()=>{}))]);
+      ...plx.map(s=>api(`/api/${s.type}/${s.id}/now`).then(x=>{d.plex[s.id]=x.sessions}).catch(()=>{}))]);
     apply(d)};
   const rq=async()=>{if(!sk||me.role!=='admin')return;try{const l=await api('/api/requests'),n=l.filter(x=>x.status==='pending').length;tw($('#v-rq'),n,v=>String(Math.round(v)));set('#v-rqs',n?T('Waiting for your approval'):T('All caught up'))}catch{}};
   if(arrOn)api('/api/upcoming').then(d=>{if(tab!=='dash')return;
@@ -879,8 +886,11 @@ async function signinPanel(){
       <div class="row"><button class="primary" ${d.urlFromEnv?'disabled':''}>Save address</button><button type="button" id="tm" ${d.mail&&me.email?'':'disabled'} title="${d.mail&&me.email?'':'Needs steps 1 and 2'}">Send me a test email</button></div><div class="err" id="se"></div><div class="okmsg" id="so" role="status"></div></form>
     <hr class="hr"><h3 style="margin:0 0 4px">Sign-in page pictures</h3>
     <p class="mute" style="margin-top:0">Choose what shows behind the sign-in box.</p>
-    <div class="opts" id="sa" role="radiogroup" aria-label="Sign-in page pictures">${[['library','Pictures from my library','Backdrops of your shows and movies, changed every few hours.'+(d.cached||d.own?` Saved now: ${d.cached} from your library${d.own?`, ${d.own} of your own`:''}.`:' They appear a short while after Sonarr or Radarr is connected.'),'Anyone who can open the sign-in page can see the pictures (never the titles).'],['scenes','Built-in scenes','Six painted scenes that come with MediaHub.','Nothing from your library is shown to visitors.']].map(([k,n,t,w])=>`<button type="button" role="radio" aria-checked="${d.loginArt===k}" data-m="${k}" class="opt ${d.loginArt===k?'on':''}"><b>${n}</b><span>${t}</span><small>${w}</small></button>`).join('')}</div>`;
+    <div class="opts" id="sa" role="radiogroup" aria-label="Sign-in page pictures">${[['library','Pictures from my library','Backdrops of your shows and movies, changed every few hours.'+(d.cached||d.own?` Saved now: ${d.cached} from your library${d.own?`, ${d.own} of your own`:''}.`:' They appear a short while after Sonarr or Radarr is connected.'),'Anyone who can open the sign-in page can see the pictures (never the titles).'],['scenes','Built-in scenes','Six painted scenes that come with MediaHub.','Nothing from your library is shown to visitors.']].map(([k,n,t,w])=>`<button type="button" role="radio" aria-checked="${d.loginArt===k}" data-m="${k}" class="opt ${d.loginArt===k?'on':''}"><b>${n}</b><span>${t}</span><small>${w}</small></button>`).join('')}</div>
+    ${d.loginArt==='library'?`<div class="row" style="margin-top:12px;align-items:flex-start"><div class="grow"><div id="wps" role="status"><b>${d.cached?d.cached+' picture'+(d.cached===1?'':'s')+' saved from your library':'No pictures saved yet'}</b>${d.wp&&d.wp.running?' (getting them now…)':''}</div>${d.wp&&d.wp.errors&&d.wp.errors.length&&!d.cached?`<div class="mute" style="font-size:13px;margin-top:4px">What went wrong: ${d.wp.errors.map(esc).join('; ')}</div>`:''}</div><button type="button" id="wpr">Get pictures now</button></div>`:''}`;
   const g=$('#goal');if(g)g.onclick=()=>goto('st:alerts');
+  if($('#wpr'))$('#wpr').onclick=async()=>{const b=$('#wpr');b.disabled=true;$('#wps').textContent='Getting pictures from your library, this can take a minute…';
+    try{const r=await api('/api/signin/refresh','POST');if(tab==='st:account'||$('#wps'))signinPanel();toast(r.ok?'Pictures saved':'No pictures yet','ok')}catch(x){$('#wps').textContent=x.message;b.disabled=false}};
   $('#sa').onclick=async e=>{const b=e.target.closest('[data-m]');if(!b)return;try{await api('/api/signin','PUT',{loginArt:b.dataset.m});toast('Saved','ok');signinPanel()}catch(x){toast(x.message,'bad')}};
   $('#sf').onsubmit=async e=>{e.preventDefault();$('#se').textContent='';$('#so').textContent='';try{await api('/api/signin','PUT',{publicUrl:e.target.url.value.trim()});toast('Saved','ok');signinPanel()}catch(x){$('#se').textContent=x.message}};
   $('#tm').onclick=async()=>{const b=$('#tm');b.disabled=true;$('#se').textContent='';$('#so').textContent='Sending…';try{await api('/api/signin/test','POST');$('#so').textContent='Sent. Check the inbox for '+me.email+' (and the spam folder).'}catch(x){$('#so').textContent='';$('#se').textContent=x.message}b.disabled=false};
@@ -919,7 +929,7 @@ function copyText(t){(navigator.clipboard?navigator.clipboard.writeText(t):Promi
 const APPS={sonarr:{port:8989,key:'In Sonarr: Settings, then General, then API Key.'},radarr:{port:7878,key:'In Radarr: Settings, then General, then API Key.'},prowlarr:{port:9696,key:'In Prowlarr: Settings, then General, then API Key.'},
  jackett:{port:9117,key:'The API key is at the top right of the Jackett page.'},qbittorrent:{port:8080,user:true,key:'Use the same username and password as the qBittorrent web page.'},
  seerr:{port:5055,key:'In Seerr: Settings, then General, then API Key.'},unraid:{port:80,key:'In Unraid: Settings, then Management Access, then API Keys. Allow viewing the system and controlling Docker.'},
- plex:{port:32400,key:'Needs your Plex token. In Plex Web open any item, choose Get Info, then View XML. The token is at the end of the address.'},tautulli:{port:8181,key:'In Tautulli: Settings, then Web Interface, then API Key.'},
+ jellyfin:{port:8096,key:'In Jellyfin open Dashboard, then API Keys, and create a key named MediaHub. Emby works the same way.'},plex:{port:32400,key:'Needs your Plex token. In Plex Web open any item, choose Get Info, then View XML. The token is at the end of the address.'},tautulli:{port:8181,key:'In Tautulli: Settings, then Web Interface, then API Key.'},
  sabnzbd:{port:8080,key:'In SABnzbd: Config, then General, then API Key.'},bazarr:{port:6767,key:'In Bazarr: Settings, then General, then API Key.'},lidarr:{port:8686,key:'In Lidarr: Settings, then General, then API Key.'},readarr:{port:8787,key:'In Readarr: Settings, then General, then API Key.'}};
 function appDialog(existing,done){
   const e0=existing||{type:'sonarr'};
@@ -980,8 +990,8 @@ async function stRules(){
   let thr={on:false,active:false};try{thr=await api('/api/throttle')}catch{}
   $('#m').insertAdjacentHTML('beforeend',`<div class="panel" style="max-width:760px;margin-top:16px"><h3 style="margin-top:0">Slow downloads while someone streams</h3>
     <p class="mute">When someone is watching on Plex, MediaHub turns on qBittorrent's alternative speed limits (set them in Downloads) so playback stays smooth, then puts the normal speed back when the stream ends. If you already switched to the slow limits yourself, MediaHub leaves them alone.</p>
-    ${ofType('plex').length?'':'<p class="mute"><b>Connect Plex first</b> (Settings, then Apps) so MediaHub can see who is streaming.</p>'}
-    <label class="chk"><input type="checkbox" id="th2" ${thr.on?'checked':''} ${ofType('plex').length?'':'disabled'}>Slow downloads during Plex streams</label> <span class="pill ${thr.active?'warn':''}" id="th3">${thr.active?'Slowed right now':''}</span></div>`);
+    ${services.some(x=>x.type==='plex'||x.type==='jellyfin')?'':'<p class="mute"><b>Connect Plex or Jellyfin first</b> (Settings, then Apps) so MediaHub can see who is streaming.</p>'}
+    <label class="chk"><input type="checkbox" id="th2" ${thr.on?'checked':''} ${services.some(x=>x.type==='plex'||x.type==='jellyfin')?'':'disabled'}>Slow downloads during Plex or Jellyfin streams</label> <span class="pill ${thr.active?'warn':''}" id="th3">${thr.active?'Slowed right now':''}</span></div>`);
   $('#th2').onchange=async e=>{try{await api('/api/throttle','PUT',{on:e.target.checked});toast(e.target.checked?'On':'Off','ok')}catch(x){toast(x.message,'bad');e.target.checked=!e.target.checked}};
   const sf=$('#sf').elements;sf.days.value=String(Math.min(2,sch.days||0));sf.action.value=String(sch.action||0);
   $('#sf').onsubmit=async e=>{e.preventDefault();try{await api(`/api/qb/${s.id}/schedule`,'POST',{on:sf.on.checked,from:sf.from.value,to:sf.to.value,days:+sf.days.value,action:+sf.action.value});toast('Schedule saved','ok')}catch(x){toast(x.message,'bad')}};
@@ -1093,6 +1103,7 @@ let timer;
 const fmt=b=>b>=1e9?(b/1e9).toFixed(1)+' GB':b>=1e6?(b/1e6).toFixed(0)+' MB':((b||0)/1e3|0)+' KB';
 const can=k=>me.role==='admin'||!me.perms||me.perms[k]!==false;
 const ofType=t=>services.filter(s=>s.type===t);
+const msBase=id=>'/api/'+((services.find(x=>x.id===id)||{}).type||'plex')+'/'+id;
 const first=t=>{const l=ofType(t);return l.find(s=>s.id===UI['pick_'+t])||l[0]};
 const ago=t=>{const s=(Date.now()-t)/1000;return !t?'a while ago':s<90?'just now':s<5400?Math.round(s/60)+' min ago':s<129600?Math.round(s/3600)+' h ago':Math.round(s/86400)+' days ago'};
 const noSvc=n=>{$('#m').innerHTML=`<div class="panel">Connect ${n} first (Settings, then Apps), or ask the admin for access.</div>`};
@@ -1215,7 +1226,7 @@ function dlView(){
   $('#hs').onclick=()=>histDialog(s);
   if(!can('control'))['#alt','#pa','#ra'].forEach(i=>{$(i).disabled=true});
   if(admin){$('#lm').onclick=()=>limDialog(s);$('#cm').onclick=()=>catDialog(s,()=>meta,loadMeta)}
-  draw();loadMeta();timer=[tick(draw,2000),tick(loadMeta,30000)];
+  draw();loadMeta();timer=[tick(draw,1000),tick(loadMeta,30000)];
 }
 function addDialog(s,meta,done){
   const admin=me.role==='admin';
@@ -1660,17 +1671,19 @@ function urView(){
   let busy=0,fb=0,sig={};
   const run=c=>/run|start|up/i.test(c.state)&&!/exit|stop/i.test(c.state);
   const up=v=>{if(!v)return '';let ms=typeof v==='number'||/^\d+(\.\d+)?$/.test(String(v))?+v*1000:Date.now()-Date.parse(v);if(!(ms>0))return '';const d=Math.floor(ms/864e5),h=Math.floor(ms%864e5/36e5);return d?`${d} day${d===1?'':'s'} ${h} h`:`${h} h ${Math.floor(ms%36e5/6e4)} min`};
-  const live=async()=>{if(busy)return;busy=1;
-    try{const d=await api(`/api/unraid/${s.id}?fast=1`);if(tab!=='ur')return;
-      hp(cpuH,d.cpu);hp(memH,d.mem);ringSet('cpu',d.cpu);ringSet('mem',d.mem);
-      $('#sp-cpu').innerHTML=spark([{v:cpuH,c:'var(--accent)'}],46,'CPU over the last two minutes',100);
-      $('#sp-mem').innerHTML=spark([{v:memH,c:'var(--ok-t)'}],46,'Memory over the last two minutes',100);
-      if(d.errors.length)$('#e').textContent=d.errors.join(' | ')}
+  const paint=d=>{if(tab!=='ur'||!d)return;
+    hp(cpuH,d.cpu);hp(memH,d.mem);ringSet('cpu',d.cpu);ringSet('mem',d.mem);
+    $('#sp-cpu').innerHTML=spark([{v:cpuH,c:'var(--accent)'}],46,'CPU over the last two minutes',100);
+    $('#sp-mem').innerHTML=spark([{v:memH,c:'var(--ok-t)'}],46,'Memory over the last two minutes',100)};
+  // One second updates come from the shared live stream; if it is not connected the page asks directly.
+  const live=async()=>{if(busy||(LIVE.ok&&Date.now()-LIVE.at<3000))return;busy=1;
+    try{const d=await api(`/api/unraid/${s.id}?fast=1`);paint(d);if(d.errors.length)$('#e').textContent=d.errors.join(' | ')}
     catch(x){if(tab==='ur')$('#e').textContent=x.message}finally{busy=0}};
+  LIVE.subs.clear();LIVE.subs.add(d=>{const u=d&&d.unraid&&d.unraid[s.id];if(u)paint(u)});liveStart();
   const full=async()=>{if(fb)return;fb=1;
     try{const d=await api(`/api/unraid/${s.id}`);if(tab!=='ur')return;
       const running=d.containers.filter(run).length,started=/start/i.test(d.arrayState||''),pc=d.parity;
-      $('#uh').innerHTML=`<div class="uhr">${svcIcon('unraid')}<div class="grow"><h2>${esc(d.host||s.name)}</h2><div class="chips"><span class="pill ${started?'ok':'bad'}">Array ${esc(String(d.arrayState||'unknown').toLowerCase())}</span>${up(d.uptime)?`<span class="pill">Up ${esc(up(d.uptime))}</span>`:''}${d.cpuInfo&&d.cpuInfo.brand?`<span class="pill">${esc(d.cpuInfo.brand)}${d.cpuInfo.cores?`, ${d.cpuInfo.cores} cores`:''}</span>`:''}<span class="pill ${running===d.containers.length&&running?'ok':''}">${running} of ${d.containers.length} containers running</span></div></div><a class="btn" href="${esc(s.url)}" target="_blank" rel="noopener">Open Unraid</a></div>`;
+      $('#uh').innerHTML=`<div class="uhr">${svcIcon('unraid')}<div class="grow"><h2>${esc(d.host||s.name)}</h2>${d.cpuInfo&&d.cpuInfo.brand?`<div class="mute cpun">${esc(d.cpuInfo.brand)}${d.cpuInfo.cores?` &middot; ${d.cpuInfo.cores} cores${d.cpuInfo.threads?', '+d.cpuInfo.threads+' threads':''}`:''}${d.cpuInfo.ghz?` &middot; ${d.cpuInfo.ghz} GHz`:''}</div>`:''}<div class="chips"><span class="pill ${started?'ok':'bad'}">Array ${esc(String(d.arrayState||'unknown').toLowerCase())}</span>${up(d.uptime)?`<span class="pill">Up ${esc(up(d.uptime))}</span>`:''}<span class="pill ${running===d.containers.length&&running?'ok':''}">${running} of ${d.containers.length} containers running</span></div></div><a class="btn" href="${esc(s.url)}" target="_blank" rel="noopener">Open Unraid</a></div>`;
       if(d.total){const pc2=d.used/d.total*100;ringSet('arr',pc2);$('#n-arr').textContent=`${fmtBig((d.total-d.used)*1024)} free of ${fmtBig(d.total*1024)}`}
       $('#n-cpu').textContent=d.cpuInfo&&d.cpuInfo.threads?`${d.cpuInfo.threads} threads`:'';
       $('#e').textContent=d.errors.join(' | ');
@@ -1705,7 +1718,7 @@ function urView(){
       <div class="row ucm"><span class="mute grow">${esc((mt[c.id]&&mt[c.id].status)||'')}</span>${upd[c.id]?'<span class="pill acc">Update available</span>':''}</div>
       ${me.role==='admin'?`<div class="row uca">${run(c)?`<button data-i="${esc(c.id)}" data-c="stop">Stop</button><button data-i="${esc(c.id)}" data-c="restart">Restart</button>`:`<button class="primary" data-i="${esc(c.id)}" data-c="start">Start</button>`}<button data-l="${esc(c.id)}" data-n="${esc(c.name)}">Logs</button></div>`:''}</div>`).join('')||empty('No containers match','Try another word or filter.');
   };
-  live();full();timer=[tick(live,2000),tick(full,15000)];
+  live();full();timer=[tick(live,1000),tick(full,15000)];
 }
 // A ring whose number and arc glide to new values instead of redrawing.
 function ringMk(id){return `<svg class="rg" viewBox="0 0 100 100" role="img" aria-label="${id}" id="rg-${id}"><circle cx="50" cy="50" r="42" fill="none" style="stroke:var(--line)" stroke-width="9"/><circle class="rv2" cx="50" cy="50" r="42" fill="none" stroke-width="9" stroke-linecap="round" stroke-dasharray="0 264" transform="rotate(-90 50 50)"/><text x="50" y="58" text-anchor="middle" class="rt">–</text></svg>`}
@@ -1716,9 +1729,9 @@ async function vpnPill(s,sel){
     el.textContent=d.vpn===true?'VPN active '+d.ip:d.vpn===false?'Not using the VPN':'VPN status unknown'}catch{}
 }
 async function loadPlex(s){
-  try{const d=await api(`/api/plex/${s.id}/now`),el=$('#plx');if(!el||tab!=='dash')return;
-    const img=t=>t?`/api/plex/${s.id}/img?p=${encodeURIComponent(t)}`:'';
-    el.innerHTML=d.recent.length?`<h2 class="sec">Recently added to Plex</h2><div class="strip">${d.recent.map(x=>`<div class="pc" style="cursor:default"><div class="pw">${x.thumb?`<img src="${img(x.thumb)}" alt="" loading="lazy">`:''}</div><b>${esc(x.title)}</b><div class="mute">${esc(x.sub)}</div></div>`).join('')}</div>`:'';
+  try{const d=await api(`/api/${s.type}/${s.id}/now`),el=$('#plx');if(!el||tab!=='dash')return;
+    const img=t=>t?`/api/${s.type}/${s.id}/img?p=${encodeURIComponent(t)}`:'';
+    el.innerHTML=d.recent.length?`<h2 class="sec">${s.type==='plex'?'Recently added to Plex':'Recently added to Jellyfin'}</h2><div class="strip">${d.recent.map(x=>`<div class="pc" style="cursor:default"><div class="pw">${x.thumb?`<img src="${img(x.thumb)}" alt="" loading="lazy">`:''}</div><b>${esc(x.title)}</b><div class="mute">${esc(x.sub)}</div></div>`).join('')}</div>`:'';
   }catch{}
 }
 function rqView(){
