@@ -1,19 +1,12 @@
 <?xml version="1.0"?>
 <CommunityApplications>
-  <Profile>
-      mediahub
-  </Profile>
-  <Icon>https://github.com/bdlnaredi/mediahub/blob/main/public/icon-192.png</Icon>
-  <WebPage>https://github.com/bdlnaredi/mediahub</WebPage>
-  <Name/>
-  <Repository>https://github.com/bdlnaredi/mediahub</Repository>
-  <Network>bridge</Network>
-  <Shell>bash</Shell>
-  <Privileged>false</Privileged>
-  <Category>MediaServer:Video Downloaders:</Category>
-  <WebUI>http://[IP]:[PORT:5080]/</WebUI>
-  <!-- Optional support links (Remove the comments to use) -->
-  <!-- <Forum>https://forums.unraid.net/topic/YOUR_SUPPORT_TOPIC</Forum> -->
-  <!-- <Discord>https://discord.gg/YOUR_INVITE_CODE</Discord> -->
-</CommunityApplications>
+  <Profile>Self-hosted apps by bdlnaredi.
 
+MediaHub: one dashboard for Sonarr, Radarr, qBittorrent, Seerr, Plex and Unraid, with requests, library tools, alerts and health checks.
+
+Bahi: your TallyPrime accounting books on your phone. A small agent on the Tally PC syncs ledgers, vouchers, stock, bill-wise dues and GST to your Unraid server, with Tally-style invoice and ledger PDFs.
+
+For help or bug reports, open an issue on each app's GitHub page.</Profile>
+  <Icon>https://raw.githubusercontent.com/bdlnaredi/mediahub/main/public/icon-192.png</Icon>
+  <WebPage>https://github.com/bdlnaredi</WebPage>
+</CommunityApplications>
