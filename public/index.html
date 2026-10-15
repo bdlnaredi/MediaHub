@@ -318,7 +318,7 @@ html[data-rail=min]{--rail:70px}
 #stage .capd button:focus-visible{outline:2px solid #fff;outline-offset:1px}
 #stage .capd button{width:34px}
 .gate{pointer-events:none;position:relative;z-index:1;min-height:100vh;min-height:100dvh;display:grid;place-items:center;padding:24px 16px}
-.login{pointer-events:auto;width:min(420px,100%);max-width:none;margin:0;padding:34px 30px 28px;border-radius:32px;background:rgba(14,15,32,.56);border:1px solid rgba(255,255,255,.16);box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 40px 90px -24px rgba(0,0,0,.75);-webkit-backdrop-filter:blur(28px) saturate(1.5);backdrop-filter:blur(28px) saturate(1.5);color:#f1f0fb;display:grid;gap:12px;animation:rise .7s cubic-bezier(.2,.8,.2,1) both}
+.login{pointer-events:auto;width:min(420px,100%);max-width:none;margin:0;padding:34px 30px 28px;border-radius:32px;background:rgba(14,15,32,.26);border:1px solid rgba(255,255,255,.24);box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 40px 90px -24px rgba(0,0,0,.75);-webkit-backdrop-filter:blur(22px) saturate(1.4) brightness(.85);backdrop-filter:blur(22px) saturate(1.4) brightness(.85);color:#f1f0fb;text-shadow:0 1px 10px rgba(0,0,0,.45);display:grid;gap:12px;animation:rise .7s cubic-bezier(.2,.8,.2,1) both}
 @keyframes rise{from{opacity:0;transform:translateY(18px) scale(.985)}}
 .login h2{margin:2px 0 0;font-size:28px;letter-spacing:-.045em;font-weight:780}
 .login .lead{margin:-6px 0 6px;color:#c9c8e0;font-size:14.5px}
@@ -368,6 +368,7 @@ html[data-rail=min]{--rail:70px}
 
 /* Unraid page */
 .uh{margin-bottom:16px}.uhr{display:flex;align-items:center;gap:16px;flex-wrap:wrap}.uhr .si{width:52px;height:52px;border-radius:16px}.uhr .si .ic{width:26px;height:26px}
+.ugd{margin-top:10px;text-align:left}.ugd summary{cursor:pointer;font-size:13px;font-weight:650;color:var(--link);padding:6px 0;list-style-position:inside}.ugd summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}.ugdb{padding-top:6px}.kv{display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px solid var(--line);font-size:13.5px}.kv:last-of-type{border-bottom:0}.thg{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px 12px;margin-top:10px}.th{display:grid;grid-template-columns:22px 1fr 34px;align-items:center;gap:6px;font-size:12px}.th .ubar{margin:0}.th b{text-align:right;font-weight:650}
 .cpun{margin:0 0 8px;font-size:13.5px;overflow-wrap:anywhere}.uhr h2{margin:0 0 4px;font-size:26px;letter-spacing:-.03em}.chips{display:flex;gap:8px;flex-wrap:wrap}
 .btn{display:inline-flex;align-items:center;padding:9px 16px;border-radius:12px;background:var(--s2);color:var(--text);text-decoration:none;font-weight:600}.btn:hover{background:var(--line)}
 .ugs3{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:6px}
@@ -1663,7 +1664,17 @@ let UR={q:'',f:'all'};
 function urView(){
   const s=first('unraid');if(!s)return noSvc('Unraid');
   cpuH.length=memH.length=0;
-  const gauge=(id,label,note)=>`<div class="ug panel"><div class="mute">${label}</div><div class="ugr">${ringMk(id)}</div><div id="sp-${id}" class="ugs"></div><div class="mute ugn" id="n-${id}">${note||''}</div></div>`;
+  const gauge=(id,label,note)=>`<div class="ug panel"><div class="mute">${label}</div><div class="ugr">${ringMk(id)}</div><div id="sp-${id}" class="ugs"></div><div class="mute ugn" id="n-${id}">${note||''}</div>
+    <details class="ugd" id="dt-${id}"><summary>Show details</summary><div id="dd-${id}" class="ugdb"><span class="mute">Waiting for numbers…</span></div></details></div>`;
+  const rowsOf=a=>a.filter(Boolean).map(([k,v])=>`<div class="kv"><span class="mute">${k}</span><b>${v}</b></div>`).join('');
+  const gbf=b=>b>=2**40?(b/2**40).toFixed(2)+' TB':(b/2**30).toFixed(1)+' GB';
+  let lastD=null;
+  const fillDetails=d=>{if(d)lastD=d;d=lastD;if(!d)return;
+    const c=$('#dd-cpu'),m=$('#dd-mem'),a=$('#dd-arr');
+    if(c&&$('#dt-cpu').open){const cs=d.cores||[];
+      c.innerHTML=rowsOf([['Total load',(+d.cpu||0).toFixed(0)+'%'],cs.length?['Threads',cs.length]:null,cs.length?['Busiest thread',Math.max(...cs).toFixed(0)+'%']:null])+(cs.length?`<div class="thg">${cs.map((v,i)=>`<div class="th" title="Thread ${i}: ${v.toFixed(0)}%"><span>${i}</span><div class="ubar"><i style="width:${v}%;background:${col(v)}"></i></div><b>${v.toFixed(0)}%</b></div>`).join('')}</div>`:'<p class="mute" style="margin:8px 0 0">This Unraid version does not report each thread.</p>')}
+    if(m&&$('#dt-mem').open)m.innerHTML=d.memTotal?rowsOf([['In use',gbf(d.memUsed)+' of '+gbf(d.memTotal)+' ('+(+d.mem||0).toFixed(0)+'%)'],d.memAvail?['Available',gbf(d.memAvail)]:null,d.memFree?['Free',gbf(d.memFree)]:null,d.swapTotal?['Swap',gbf(d.swapUsed)+' of '+gbf(d.swapTotal)]:null]):'<p class="mute" style="margin:0">This Unraid version only reports the percentage.</p>';
+    if(a&&$('#dt-arr').open&&UR.arr)a.innerHTML=UR.arr};
   $('#m').innerHTML=`<section class="uh panel" id="uh"><div class="sk" style="height:64px;border-radius:16px"></div></section>
     <div class="ugs3">${gauge('cpu','CPU')}${gauge('mem','Memory')}${gauge('arr','Array storage')}</div>
     <div class="err" id="e"></div><div id="dk"></div><div id="sh"></div>
@@ -1672,7 +1683,7 @@ function urView(){
   const run=c=>/run|start|up/i.test(c.state)&&!/exit|stop/i.test(c.state);
   const up=v=>{if(!v)return '';let ms=typeof v==='number'||/^\d+(\.\d+)?$/.test(String(v))?+v*1000:Date.now()-Date.parse(v);if(!(ms>0))return '';const d=Math.floor(ms/864e5),h=Math.floor(ms%864e5/36e5);return d?`${d} day${d===1?'':'s'} ${h} h`:`${h} h ${Math.floor(ms%36e5/6e4)} min`};
   const paint=d=>{if(tab!=='ur'||!d)return;
-    hp(cpuH,d.cpu);hp(memH,d.mem);ringSet('cpu',d.cpu);ringSet('mem',d.mem);
+    hp(cpuH,d.cpu);hp(memH,d.mem);ringSet('cpu',d.cpu);ringSet('mem',d.mem);fillDetails(d);
     $('#sp-cpu').innerHTML=spark([{v:cpuH,c:'var(--accent)'}],46,'CPU over the last two minutes',100);
     $('#sp-mem').innerHTML=spark([{v:memH,c:'var(--ok-t)'}],46,'Memory over the last two minutes',100)};
   // One second updates come from the shared live stream; if it is not connected the page asks directly.
@@ -1680,11 +1691,13 @@ function urView(){
     try{const d=await api(`/api/unraid/${s.id}?fast=1`);paint(d);if(d.errors.length)$('#e').textContent=d.errors.join(' | ')}
     catch(x){if(tab==='ur')$('#e').textContent=x.message}finally{busy=0}};
   LIVE.subs.clear();LIVE.subs.add(d=>{const u=d&&d.unraid&&d.unraid[s.id];if(u)paint(u)});liveStart();
+  ['cpu','mem','arr'].forEach(k=>$('#dt-'+k).addEventListener('toggle',()=>fillDetails()));
   const full=async()=>{if(fb)return;fb=1;
     try{const d=await api(`/api/unraid/${s.id}`);if(tab!=='ur')return;
       const running=d.containers.filter(run).length,started=/start/i.test(d.arrayState||''),pc=d.parity;
       $('#uh').innerHTML=`<div class="uhr">${svcIcon('unraid')}<div class="grow"><h2>${esc(d.host||s.name)}</h2>${d.cpuInfo&&d.cpuInfo.brand?`<div class="mute cpun">${esc(d.cpuInfo.brand)}${d.cpuInfo.cores?` &middot; ${d.cpuInfo.cores} cores${d.cpuInfo.threads?', '+d.cpuInfo.threads+' threads':''}`:''}${d.cpuInfo.ghz?` &middot; ${d.cpuInfo.ghz} GHz`:''}</div>`:''}<div class="chips"><span class="pill ${started?'ok':'bad'}">Array ${esc(String(d.arrayState||'unknown').toLowerCase())}</span>${up(d.uptime)?`<span class="pill">Up ${esc(up(d.uptime))}</span>`:''}<span class="pill ${running===d.containers.length&&running?'ok':''}">${running} of ${d.containers.length} containers running</span></div></div><a class="btn" href="${esc(s.url)}" target="_blank" rel="noopener">Open Unraid</a></div>`;
-      if(d.total){const pc2=d.used/d.total*100;ringSet('arr',pc2);$('#n-arr').textContent=`${fmtBig((d.total-d.used)*1024)} free of ${fmtBig(d.total*1024)}`}
+      if(d.total){const pc2=d.used/d.total*100,dk=d.disks||[],cn=r=>dk.filter(x=>x.role===r).length;ringSet('arr',pc2);$('#n-arr').textContent=`${fmtBig((d.total-d.used)*1024)} free of ${fmtBig(d.total*1024)}`;
+        UR.arr=rowsOf([['Total size',fmtBig(d.total*1024)],['Used',fmtBig(d.used*1024)+' ('+pc2.toFixed(0)+'%)'],['Free',fmtBig((d.total-d.used)*1024)],cn('Data')?['Data disks',cn('Data')]:null,cn('Parity')?['Parity disks',cn('Parity')]:null,cn('Cache')?['Cache devices',cn('Cache')]:null]);fillDetails()}
       $('#n-cpu').textContent=d.cpuInfo&&d.cpuInfo.threads?`${d.cpuInfo.threads} threads`:'';
       $('#e').textContent=d.errors.join(' | ');
       const tc=v=>v==null?'var(--mute)':v>=55?'var(--bad)':v>=45?'#ffb547':'var(--ok)';
@@ -1694,7 +1707,8 @@ function urView(){
           <div class="udg stg">${(d.disks||[]).map((k,i)=>`<div class="ud" style="--i:${i}"><div class="row"><span class="udi">${ic('ur')}</span><b class="grow">${esc(k.name)}</b><span class="dot ${/ok|active/i.test(k.status||'')?'ok':k.status?'bad':''}" title="${esc(k.status||'')}" style="margin:0"></span></div>
             <div class="row" style="margin:10px 0 6px"><span class="pill ${k.role==='Parity'?'acc':k.role==='Cache'?'warn':''}">${esc(k.role)}</span><b class="grow" style="text-align:right;color:${tc(k.temp)}">${k.temp==null?'':k.temp+' °C'}</b></div>
             <div class="ubar"><i style="width:${k.temp==null?0:Math.min(100,k.temp/70*100)}%;background:${tc(k.temp)}"></i></div></div>`).join('')}</div>`:'');
-        $('#sh').innerHTML=(d.shares&&d.shares.length?`<h2 class="sec">Shares</h2><div class="udg stg">${d.shares.map((x,i)=>{const pc3=x.size?x.used/x.size*100:0;return `<div class="ud" style="--i:${i}"><div class="row"><b class="grow">${esc(x.name)}</b><b style="color:${col(pc3)}">${pc3.toFixed(0)}%</b></div><div class="ubar" style="margin:10px 0 8px"><i style="width:${pc3}%;background:${col(pc3)}"></i></div><div class="mute">${fmtBig(x.used*1024)} used of ${fmtBig(x.size*1024)}</div></div>`}).join('')}</div>`:'')+(d.notes&&d.notes.length?`<p class="mute">Some details are not available from this Unraid version: ${esc(d.notes[0])}</p>`:'');
+        $('#sh').innerHTML=(d.shares&&d.shares.length?`<h2 class="sec">Shares</h2><div class="udg stg">${d.shares.map((x,i)=>{const tot=x.size>0?x.size:(x.used+x.free>0?x.used+x.free:0),ar=d.total||0,pc3=tot?x.used/tot*100:(ar?x.used/ar*100:0),
+          line=tot?`${fmtBig(x.used*1024)} used of ${fmtBig(tot*1024)}${x.size>0&&x.free>0?'':''}`:(x.used>0?`${fmtBig(x.used*1024)} used${ar?`, ${pc3.toFixed(pc3<10?1:0)}% of the array`:''}`:'No size reported by Unraid');return `<div class="ud" style="--i:${i}"><div class="row"><b class="grow">${esc(x.name)}</b><b style="color:${col(pc3)}">${pc3.toFixed(0)}%</b></div><div class="ubar" style="margin:10px 0 8px"><i style="width:${pc3}%;background:${col(pc3)}"></i></div><div class="mute">${line}${x.free>0?`, ${fmtBig(x.free*1024)} free`:''}</div></div>`}).join('')}</div>`:'')+(d.notes&&d.notes.length?`<p class="mute">Some details are not available from this Unraid version: ${esc(d.notes[0])}</p>`:'');
         document.querySelectorAll('[data-pq]').forEach(b=>b.onclick=async()=>{if(!confirm(b.dataset.pq==='start'?'Start a parity check now? It can slow the server for hours.':'Cancel the running parity check?'))return;
           try{await api(`/api/unraid/${s.id}/parity`,'POST',{op:b.dataset.pq});toast('Done','ok');sig.d='';fb=0;full()}catch(x){toast(x.message,'bad')}})}
       const csig=JSON.stringify([d.containers,d.updates,d.meta,UR.q,UR.f]);
@@ -1710,7 +1724,7 @@ function urView(){
       $('#cf').onclick=e=>{const b=e.target.closest('[data-f]');if(b){UR.f=b.dataset.f;sig.c='';full()}};
       $('#cg').onclick=async e=>{const b=e.target.closest('button');if(!b)return;
         if(b.dataset.l){try{const r=await api(`/api/unraid/${s.id}/logs?id=${encodeURIComponent(b.dataset.l)}`);
-          const o=document.createElement('div');o.className='ov';o.innerHTML=`<div class="dlg" style="display:block;width:100%"><h2>${esc(b.dataset.n)} logs</h2><pre style="white-space:pre-wrap;max-height:60vh;overflow:auto;font-size:12px">${esc(r.text||'No log lines returned.')}</pre><button class="primary" id="cl2">Close</button></div>`;
+          const o=document.createElement('div');o.className='ov';o.innerHTML=`<div class="dlg" style="display:block;width:100%"><h2>${esc(b.dataset.n)} logs</h2><pre style="white-space:pre-wrap;max-height:60vh;overflow:auto;font-size:12px">${esc(r.text||'This container has not written any log lines yet.')}</pre><button class="primary" id="cl2">Close</button></div>`;
           o.onclick=ev=>{if(ev.target===o||ev.target.id==='cl2')o.remove()};document.body.append(o)}catch(x){toast(x.message,'bad')}return}
         if(b.dataset.i){b.disabled=true;try{await api(`/api/unraid/${s.id}/docker`,'POST',{id:b.dataset.i,action:b.dataset.c});toast('Done','ok')}catch(x){toast(x.message,'bad')}sig.c='';fb=0;setTimeout(full,1200)}}}
     $('#cf').innerHTML=[['all','All'],['run','Running'],['stop','Stopped'],['upd','Updates']].map(([k,n])=>`<button data-f="${k}" class="${UR.f===k?'on':''}" aria-pressed="${UR.f===k}">${n}<i>${cnt[k]}</i></button>`).join('');

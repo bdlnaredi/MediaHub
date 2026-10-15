@@ -205,6 +205,22 @@ const sabGet = async (s, q) => {
 };
 const live = { snap: null, busy: false, timer: null, hist: {}, arr: {}, okAt: {}, run: {}, cur: { qb: {}, unraid: {}, plex: {}, sab: {} } }, liveClients = new Set(), HISTN = 120, DL_STATES = /^(downloading|forcedDL|metaDL|forcedMetaDL)$/;
 const quick = (pr, ms = 3500) => Promise.race([pr, new Promise((_, no) => setTimeout(() => no(new Error('slow')), ms))]);
+// CPU per thread, memory and swap in real amounts. Older Unraid versions may not offer them, so the plain percentages are the fallback.
+const urx = {}, num = v => { const x = +v; return Number.isFinite(x) ? x : 0; };
+async function unraidMetrics(s) {
+  const f = urx[s.id];
+  if (!f || f.ok || Date.now() - f.t > 3e5) {
+    try {
+      const m = (await quick(gql(s, '{ metrics { cpu { percentTotal cpus { percentIdle percentUser percentSystem } } memory { percentTotal total used free available swapTotal swapUsed } } }'))).metrics;
+      urx[s.id] = { ok: true, t: Date.now() };
+      return { cpu: num(m.cpu.percentTotal), mem: num(m.memory.percentTotal),
+        cores: (m.cpu.cpus || []).slice(0, 256).map(c => c.percentIdle != null ? Math.max(0, Math.min(100, 100 - num(c.percentIdle))) : Math.min(100, num(c.percentUser) + num(c.percentSystem))),
+        memTotal: num(m.memory.total), memUsed: num(m.memory.used), memFree: num(m.memory.free), memAvail: num(m.memory.available), swapTotal: num(m.memory.swapTotal), swapUsed: num(m.memory.swapUsed) };
+    } catch (e) { if (/field|cannot query|unknown|validation|400/i.test(e.message)) urx[s.id] = { ok: false, t: Date.now() }; else throw e; }
+  }
+  const d = await quick(gql(s, '{ metrics { cpu { percentTotal } memory { percentTotal } } }'));
+  return { cpu: num(d.metrics.cpu.percentTotal), mem: num(d.metrics.memory.percentTotal) };
+}
 // Every app is polled on its own, so a slow one never holds the others back; the snapshot is just whatever each one last answered.
 async function liveSvc(s, slot) {
   const cur = live.cur;
@@ -217,7 +233,7 @@ async function liveSvc(s, slot) {
         cur.qb[s.id] = { dl: ti.dl_info_speed || 0, ul: ti.up_info_speed || 0, active: act.length, conn: ti.connection_status || '',
           top: act.sort((a, b) => b.dlspeed - a.dlspeed).slice(0, 6).map(x => ({ hash: x.hash, name: x.name, progress: x.progress, speed: x.dlspeed, eta: x.eta, size: x.size })) };
       } else if (s.type === 'unraid') {
-        const d = await quick(gql(s, '{ metrics { cpu { percentTotal } memory { percentTotal } } }')), o = { cpu: d.metrics.cpu.percentTotal, mem: d.metrics.memory.percentTotal };
+        const o = await unraidMetrics(s);
         let a = live.arr[s.id];
         if (!a || Date.now() - a.t > 30000) { a = live.arr[s.id] = { t: Date.now() }; try { const k = (await quick(gql(s, '{ array { capacity { kilobytes { used total } } } }'))).array.capacity.kilobytes; a.used = +k.used * 1024; a.total = +k.total * 1024; } catch {} }
         if (a.total) { o.used = a.used; o.total = a.total; }
@@ -944,14 +960,14 @@ http.createServer(async (req, res) => {
       const out = { containers: [], errors: [], notes: [] };
       const part = async (q, f, soft) => { try { f(await gql(s, q)); } catch (e) { (soft ? out.notes : out.errors).push(e.message); } };
       if (new URL(req.url, 'http://x').searchParams.get('fast')) {
-        await part('{ metrics { cpu { percentTotal } memory { percentTotal } } }', d => { out.cpu = d.metrics.cpu.percentTotal; out.mem = d.metrics.memory.percentTotal; });
+        try { Object.assign(out, await unraidMetrics(s)); } catch (e) { out.errors.push(e.message); }
         return send(res, 200, out);
       }
       await Promise.all([
         part('{ info { os { hostname } } array { state capacity { kilobytes { used total } } } }', d => {
           out.host = d.info.os.hostname; out.arrayState = d.array.state;
           out.used = +d.array.capacity.kilobytes.used; out.total = +d.array.capacity.kilobytes.total; }),
-        part('{ metrics { cpu { percentTotal } memory { percentTotal } } }', d => { out.cpu = d.metrics.cpu.percentTotal; out.mem = d.metrics.memory.percentTotal; }),
+        unraidMetrics(s).then(o => Object.assign(out, o)).catch(e => out.errors.push(e.message)),
         part('{ docker { containers { id names state } } }', d => { out.containers = d.docker.containers.map(c => ({ id: c.id, name: (c.names[0] || '').replace(/^\//, ''), state: c.state })); }),
         part('{ array { parityCheckStatus { status progress errors running } disks { name temp status } parities { name temp status } caches { name temp status } } }', d => {
           const a = d.array, tag = (l, r) => (l || []).map(x => ({ name: x.name, role: r, temp: x.temp, status: x.status }));
@@ -1635,8 +1651,14 @@ http.createServer(async (req, res) => {
     if ((r = p.match(/^\/api\/unraid\/(\w+)\/logs$/))) {
       const s = svcOf(r[1], 'unraid'), id = new URL(req.url, 'http://x').searchParams.get('id') || '';
       if (!s || !/^[\w:.\-]+$/.test(id)) return send(res, 400, { error: 'Bad request' });
-      const d = await gql(s, `{ docker { logs(id: ${JSON.stringify(id)}, tail: 200) { lines { message } } } }`);
-      return send(res, 200, { text: (((d.docker || {}).logs || {}).lines || []).map(l => l.message).join('\n') });
+      // The log query differs between Unraid versions, so try the richer one first and fall back; say plainly if none work.
+      let lines = null, why = '';
+      for (const q of [`{ docker { logs(id: ${JSON.stringify(id)}, tail: 300) { lines { timestamp message } } } }`, `{ docker { logs(id: ${JSON.stringify(id)}, tail: 300) { lines { message } } } }`, `{ docker { logs(id: ${JSON.stringify(id)}) { lines { message } } } }`]) {
+        try { const d = await gql(s, q), l = (((d.docker || {}).logs || {}).lines); if (Array.isArray(l)) { lines = l; break; } } catch (e) { why = e.message; }
+      }
+      if (!lines) return send(res, 502, { error: 'Unraid would not give the log' + (why ? ': ' + cut(why, 200) : '. This Unraid version may not offer container logs through its API.') });
+      const text = lines.map(l => (l.timestamp ? String(l.timestamp).replace('T', ' ').replace(/\.\d+Z?$/, '') + '  ' : '') + String(l.message == null ? '' : l.message).replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')).join('\n');
+      return send(res, 200, { text, empty: !text.trim() });
     }
     if (p === '/api/audit' && m === 'GET') return send(res, 200, db.log.slice(-200).reverse());
     if (p === '/api/services/test' && m === 'POST') {

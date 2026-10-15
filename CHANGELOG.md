@@ -2,6 +2,18 @@
 
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.14.3] - 2026-10-15
+
+### Added
+- Unraid: **Show details** under CPU, Memory and Array storage. CPU shows total load and every thread; memory shows in use, available, free and swap in real amounts; the array shows total size, used, free and how many disks.
+
+### Changed
+- The sign-in box is more see-through, so the pictures behind it show.
+
+### Fixed
+- Unraid shares showed "used of 0 KB" when Unraid reports no size for a share. The size is now worked out from used plus free, or shown as a share of the array.
+- Container logs: MediaHub now tries the other forms of the log request, shows the time on each line, and says why when Unraid will not give a log.
+
 ## [0.14.2] - 2026-10-14
 
 ### Added
