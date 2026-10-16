@@ -95,7 +95,7 @@ const qbCookie = {}, fails = {};
 const ipOf = req => TRUST ? String(req.headers['cf-connecting-ip'] || String(req.headers['x-forwarded-for'] || '').split(',').pop().trim() || req.socket.remoteAddress).trim() : String(req.socket.remoteAddress || '');
 
 const mkUser = (name, pw, role) => { const salt = uid(); return { id: uid(), name, role, salt, hash: hash(pw, salt), access: [] }; };
-const pubUser = u => ({ email: u.email || '', twofa: !!(u.totp && u.totp.on), id: u.id, name: u.name, role: u.role, access: u.access, perms: u.perms || null, notify: u.notify || '', dash: u.dash || null, reqLimit: u.reqLimit || null, autoApprove: !!u.autoApprove, plex: u.plex ? { name: u.plex.name } : null, libs: u.plex ? { n: ((u.plexLibs || {}).mine || []).length, of: ((u.plexLibs || {}).all || []).length, limited: libLimited(u) } : null, plexName: u.plexName || '' });
+const pubUser = u => ({ email: u.email || '', twofa: !!(u.totp && u.totp.on), id: u.id, name: u.name, role: u.role, access: u.access, perms: u.perms || null, notify: u.notify || '', dash: u.dash || null, reqLimit: u.reqLimit || null, autoApprove: !!u.autoApprove, plex: u.plex ? { name: u.plex.name } : null, hide: cleanHide(u.hide), restr: u.plexRules ? Object.fromEntries(['contentRating', 'contentRating!', 'label', 'label!'].filter(k => (u.plexRules[k] || []).length).map(k => [k, u.plexRules[k]])) : null, libs: u.plex ? { n: ((u.plexLibs || {}).mine || []).length, of: ((u.plexLibs || {}).all || []).length, limited: libLimited(u) } : null, plexName: u.plexName || '' });
 const pubSvc = s => ({ id: s.id, type: s.type, name: s.name, url: s.url });
 
 // Checks that a service answers with the details you saved.
@@ -271,6 +271,45 @@ const imgOk = new Map();
 const grant = (u, svc, paths) => { if (!ownNames(u)) return; const k = u.id + '|' + svc; let e = imgOk.get(k); if (!e) { if (imgOk.size > 400) imgOk.delete(imgOk.keys().next().value); e = new Set(); imgOk.set(k, e); }
   for (const p of paths) if (p) { if (e.size > 600) e.delete(e.values().next().value); e.add(String(p)); } };
 const mayImg = (u, svc, p) => !ownNames(u) || (imgOk.get(u.id + '|' + svc) || new Set()).has(p);
+// Things you do not want a Plex profile to see inside a library: by genre, by label or collection (tag), or by content rating.
+const hideList = v => [...new Set((Array.isArray(v) ? v : String(v || '').split(',')).map(x => cut(String(x).trim(), 40)).filter(Boolean))].slice(0, 30);
+const cleanHide = h => ({ genre: hideList((h || {}).genre), label: hideList((h || {}).label), rating: hideList((h || {}).rating) });
+const lc = a => (a || []).map(x => String(x).toLowerCase());
+const hideRules = u => { const g = (db.settings.plexLogin || {}).hide || {}, p = u.hide || {}, m = k => [...new Set([...lc(g[k]), ...lc(p[k])])]; return { genre: m('genre'), label: m('label'), rating: m('rating') }; };
+const plexMetaCache = new Map();
+async function plexTags(s, key) {
+  const ck = s.id + ':' + key, hit = plexMetaCache.get(ck); if (hit && Date.now() - hit.at < 600000) return hit.t;
+  const md = (((await plexGet(s, '/library/metadata/' + encodeURIComponent(key))).MediaContainer || {}).Metadata || [])[0] || {}, tg = l => lc((l || []).map(x => x.tag));
+  const t = { genres: tg(md.Genre), tags: [...tg(md.Label), ...tg(md.Collection)], rating: String(md.contentRating || '').toLowerCase() };
+  if (plexMetaCache.size > 2000) plexMetaCache.delete(plexMetaCache.keys().next().value); plexMetaCache.set(ck, { at: Date.now(), t }); return t;
+}
+const ratingIn = (r, list) => !!r && (list.includes(r) || list.includes(r.split('/').pop()));
+function isHidden(u, t) {
+  const r = hideRules(u);
+  if (t.genres.some(x => r.genre.includes(x)) || t.tags.some(x => r.label.includes(x)) || ratingIn(t.rating, r.rating)) return true;
+  const x = u.plexRules; if (!x) return false;
+  const L = k => lc(x[k]);
+  if (L('label!').some(v => t.tags.includes(v)) || ratingIn(t.rating, L('contentRating!'))) return true;
+  if (L('label').length && !L('label').some(v => t.tags.includes(v))) return true;
+  if (L('contentRating').length && !ratingIn(t.rating, L('contentRating'))) return true;
+  return false;
+}
+// The restrictions the server owner set on this person inside Plex itself (labels and content ratings), read from plex.tv.
+async function plexRestrict(s, pid, pname) {
+  try {
+    const x = await fetch(PLEXTV() + '/api/users', { signal: AbortSignal.timeout(8000), headers: { 'X-Plex-Token': s.apiKey || '', Accept: 'application/xml' } }); if (!x.ok) return null;
+    const xml = await x.text(), un = (v) => String(v || '').replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+    for (const m of xml.matchAll(/<User\b[^>]*>/g)) {
+      const at = n => { const v = m[0].match(new RegExp('\\b' + n + '="([^"]*)"')); return v ? un(v[1]) : ''; };
+      if (at('id') !== String(pid) && at('username').toLowerCase() !== pname.toLowerCase() && at('title').toLowerCase() !== pname.toLowerCase()) continue;
+      const out = { contentRating: [], 'contentRating!': [], label: [], 'label!': [], at: Date.now() };
+      for (const f of ['filterAll', 'filterMovies', 'filterTelevision']) { let v = at(f); try { v = decodeURIComponent(v); } catch {} for (const part of v.split('|')) { const i = part.indexOf('='); if (i < 1) continue; const k = part.slice(0, i); if (k in out) out[k].push(...hideList(part.slice(i + 1))); } }
+      for (const k of Object.keys(out)) if (Array.isArray(out[k])) out[k] = [...new Set(out[k])];
+      return out;
+    }
+    return { contentRating: [], 'contentRating!': [], label: [], 'label!': [], at: Date.now() };
+  } catch { return null; }
+}
 // Which Plex libraries exist, and which of them this person's own Plex account can open.
 async function plexLibs(s, tok) {
   const get = async t => { const x = await fetch(s.url.replace(/\/+$/, '') + '/library/sections', { signal: AbortSignal.timeout(8000), headers: { Accept: 'application/json', 'X-Plex-Token': t } }); if (!x.ok) throw new Error('Plex ' + x.status); return ((await x.json()).MediaContainer || {}).Directory || []; };
@@ -634,7 +673,7 @@ function plexCfg() {
   const c = db.settings.plexLogin || {}, s = db.services.find(x => x.id === c.sid && x.type === 'plex') || db.services.find(x => x.type === 'plex');
   return { on: !!c.on && !!s, sid: s ? s.id : '', s, auto: c.auto !== false,
     access: (Array.isArray(c.access) ? c.access : db.services.filter(x => x.type === 'seerr').map(x => x.id)).filter(a => db.services.some(x => x.id === a)),
-    perms: { ...PLEX_PERMS, ...(c.perms || {}) } };
+    perms: { ...PLEX_PERMS, ...(c.perms || {}) }, hide: cleanHide(c.hide) };
 }
 const plexPend = new Map(), plexAsk = {}, plexBad = {};
 class PlexDeny extends Error { constructor(m, code = 403) { super(m); this.code = code; } }
@@ -658,7 +697,7 @@ async function plexProfile(token) {
     db.users.push(u); audit('MediaHub', 'Created a profile from Plex', name);
   }
   if (u.role === 'admin') throw new PlexDeny('Admins sign in with their MediaHub password.');
-  u.plex.name = pname; u.plexLibs = await plexLibs(cfg.s, srvRes.accessToken || ''); save();
+  u.plex.name = pname; u.plexLibs = await plexLibs(cfg.s, srvRes.accessToken || ''); { const rr = await plexRestrict(cfg.s, who.id, pname); if (rr) u.plexRules = rr; } save();
   return u;
 }
 
@@ -1180,6 +1219,21 @@ http.createServer(async (req, res) => {
           seasons: tv ? st.seasonCount || 0 : 0, have: tv ? st.episodeFileCount || 0 : (x.hasFile ? 1 : 0), total: tv ? st.episodeCount || 0 : 1, next: tv ? x.nextAiring || '' : '' };
       }));
     }
+    const idsOf = (x, type) => ({ type, imdb: /^tt\d{1,10}$/.test(x.imdbId || '') ? x.imdbId : '', tmdb: Number.isInteger(+x.tmdbId) && +x.tmdbId > 0 ? +x.tmdbId : 0, tvdb: type === 'tv' && Number.isInteger(+x.tvdbId) && +x.tvdbId > 0 ? +x.tvdbId : 0 });
+    if (p === '/api/filestatus' && m === 'GET') {
+      const q = new URL(req.url, 'http://x').searchParams, s = arr(db.services.find(x => x.id === q.get('sid'))), id = +q.get('id');
+      if (!s || !Number.isInteger(id) || id < 1) return send(res, 404, { error: 'Not found' });
+      const fileOf = f => f ? { name: cut(String(f.relativePath || f.path || '').split(/[\\/]/).pop(), 200), size: +f.size || 0, quality: cut(((f.quality || {}).quality || {}).name, 40), langs: (f.languages || []).map(l => cut(l && l.name, 30)).filter(Boolean).slice(0, 6),
+        codec: cut(((f.mediaInfo || {}).videoCodec) || '', 20), added: f.dateAdded || '' } : null;
+      if (s.type === 'radarr') {
+        const x = await call(s, '/api/v3/movie/' + id);
+        return send(res, 200, { ids: idsOf(x, 'movie'), kind: 'movie', have: !!x.hasFile, monitored: !!x.monitored, released: x.isAvailable !== false, file: x.hasFile ? fileOf(x.movieFile) : null });
+      }
+      const x = await call(s, '/api/v3/episode/' + id); let f = x.hasFile ? x.episodeFile : null;
+      if (x.hasFile && !f && x.episodeFileId) f = await call(s, '/api/v3/episodefile/' + x.episodeFileId).catch(() => null);
+      const dt = x.airDateUtc || x.airDate || '', sr = x.seriesId ? await call(s, '/api/v3/series/' + x.seriesId).catch(() => null) : null;
+      return send(res, 200, { ids: idsOf(sr || {}, 'tv'), kind: 'episode', have: !!x.hasFile, monitored: !!x.monitored, released: !dt || Date.parse(dt) <= Date.now(), file: x.hasFile ? fileOf(f) || {} : null });
+    }
     if (p === '/api/artwork' && m === 'GET') {
       const svcs = db.services.filter(arr);
       const all = (await Promise.all(svcs.map(s => artItems(s).catch(() => [])))).flat().map(({ fl, ...x }) => x);
@@ -1203,7 +1257,7 @@ http.createServer(async (req, res) => {
       const [sr, eps, files] = await Promise.all([call(s, `/api/v3/series/${r[2]}`), call(s, `/api/v3/episode?seriesId=${r[2]}`), call(s, `/api/v3/episodefile?seriesId=${r[2]}`).catch(() => [])]);
       const fmap = {}; (Array.isArray(files) ? files : []).forEach(f => { fmap[f.id] = { q: ((f.quality || {}).quality || {}).name || '', size: f.size || 0 }; });
       const now = Date.now();
-      return send(res, 200, { id: sr.id, title: sr.title, monitored: !!sr.monitored, seasons: (sr.seasons || []).map(x => ({ n: x.seasonNumber, monitored: !!x.monitored })),
+      return send(res, 200, { ids: idsOf(sr, 'tv'), id: sr.id, title: sr.title, monitored: !!sr.monitored, seasons: (sr.seasons || []).map(x => ({ n: x.seasonNumber, monitored: !!x.monitored })),
         episodes: (Array.isArray(eps) ? eps : []).map(e => { const dt = e.airDateUtc || e.airDate || '', f = fmap[e.episodeFileId] || {};
           return { id: e.id, season: e.seasonNumber, num: e.episodeNumber, title: e.title || '', date: dt, monitored: !!e.monitored, has: !!e.hasFile, quality: f.q || '', size: f.size || 0, aired: !!dt && Date.parse(dt) <= now }; })
           .sort((a, b) => a.season - b.season || a.num - b.num) });
@@ -1236,9 +1290,11 @@ http.createServer(async (req, res) => {
     if ((r = p.match(/^\/api\/plex\/(\w+)\/now$/))) {
       const s = svcOf(r[1], 'plex'); if (!s) return send(res, 404, { error: 'Not found' });
       const lim = libLimited(me), recentRaw = async () => lim
-        ? (await Promise.all(((me.plexLibs || {}).mine || []).map(k => plex(s, `/library/sections/${k}/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=14`).then(x => x.json()).then(j => (j.MediaContainer || {}).Metadata || []).catch(() => [])))).flat().sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0)).slice(0, 14)
-        : ((await plex(s, '/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=14').then(x => x.json())).MediaContainer || {}).Metadata || [];
-      const [sessions, raw] = await Promise.all([plexSessions(s), recentRaw()]);
+        ? (await Promise.all(((me.plexLibs || {}).mine || []).map(k => plex(s, `/library/sections/${k}/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=30`).then(x => x.json()).then(j => (j.MediaContainer || {}).Metadata || []).catch(() => [])))).flat().sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0)).slice(0, 14)
+        : ((await plex(s, '/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=' + (ownNames(me) ? 30 : 14)).then(x => x.json())).MediaContainer || {}).Metadata || [];
+      const [sessions, raw0] = await Promise.all([plexSessions(s), recentRaw()]);
+      let raw = raw0;
+      if (ownNames(me)) { const keep = await Promise.all(raw0.map(async x => { try { return !isHidden(me, await plexTags(s, String(x.type === 'episode' ? x.grandparentRatingKey : x.type === 'season' ? x.parentRatingKey : x.ratingKey || ''))); } catch { return false; } })); raw = raw0.filter((_, i) => keep[i]).slice(0, 14); }
       const th2 = x => x.grandparentThumb || x.parentThumb || x.thumb || '';
       const nm = x => x.type === 'episode' ? { title: x.grandparentTitle, sub: `S${pad2(x.parentIndex)}E${pad2(x.index)} ${x.title}` } : { title: x.title, sub: String(x.year || '') };
       const mineS = mineOnly(me, sessions), recent = raw.map(x => ({ ...nm(x), thumb: th2(x) }));
@@ -1693,14 +1749,14 @@ http.createServer(async (req, res) => {
     const linkScopes = b => Object.fromEntries(SCOPES.map(k => [k, k === 'apps' ? b[k] !== false : !!b[k]]));
     if (p === '/api/plexsettings' && m === 'GET') {
       const c = plexCfg();
-      return send(res, 200, { on: c.on || !!(db.settings.plexLogin || {}).on, auto: c.auto, sid: c.sid, servers: db.services.filter(x => x.type === 'plex').map(x => ({ id: x.id, name: x.name })), access: c.access, perms: c.perms, linked: db.users.filter(x => x.plex).length });
+      return send(res, 200, { on: c.on || !!(db.settings.plexLogin || {}).on, auto: c.auto, sid: c.sid, servers: db.services.filter(x => x.type === 'plex').map(x => ({ id: x.id, name: x.name })), access: c.access, perms: c.perms, hide: c.hide, linked: db.users.filter(x => x.plex).length });
     }
     if (p === '/api/plexsettings' && m === 'PUT') {
       const b = await readBody(req), o = db.settings.plexLogin || {}, srv = db.services.find(x => x.id === b.sid && x.type === 'plex');
       if (b.on && !srv && !db.services.some(x => x.type === 'plex')) return send(res, 400, { error: 'Add your Plex server under Settings, then Apps, first.' });
       db.settings.plexLogin = { on: !!b.on, sid: srv ? srv.id : (o.sid || ''), auto: b.auto !== false,
         access: Array.isArray(b.access) ? b.access.filter(a => db.services.some(x => x.id === a)) : o.access,
-        perms: b.perms ? Object.fromEntries(['add', 'control', 'remove', 'request'].map(k => [k, b.perms[k] === true])) : o.perms };
+        perms: b.perms ? Object.fromEntries(['add', 'control', 'remove', 'request'].map(k => [k, b.perms[k] === true])) : o.perms, hide: 'hide' in b ? cleanHide(b.hide) : o.hide };
       save(); audit(me.name, 'Changed Sign in with Plex', b.on ? 'on' : 'off'); return send(res, 200, {});
     }
     if (p === '/api/signin' && m === 'GET') {
@@ -1815,6 +1871,7 @@ http.createServer(async (req, res) => {
         if (u.role === 'admin' && db.users.filter(x => x.role === 'admin').length < 2) return send(res, 400, { error: 'There must be at least one admin' });
         u.role = b.role;
       }
+      if ('hide' in b) u.hide = cleanHide(b.hide);
       if ('perms' in b) u.perms = b.perms ? Object.fromEntries(['add', 'control', 'remove', 'request'].map(k => [k, b.perms[k] !== false])) : undefined;
       if ('reqLimit' in b) { const n = Math.round(+(b.reqLimit || {}).n), d = Math.round(+(b.reqLimit || {}).days); u.reqLimit = n > 0 ? { n: Math.min(n, 1000), days: Math.min(Math.max(d || 7, 1), 365) } : undefined; }
       if ('autoApprove' in b) u.autoApprove = !!b.autoApprove;

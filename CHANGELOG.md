@@ -2,6 +2,26 @@
 
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.14.10] - 2026-10-16
+
+### Added
+- **IMDb, TMDB and TVDB numbers** now show in the movie and episode pop-up and in the series window. Each is a link to that title's page. There is also a **Trakt** link; Radarr and Sonarr do not store Trakt's own number, so it looks the title up by its IMDb or TMDB number.
+
+## [0.14.9] - 2026-10-16
+
+### Added
+- **The movie and episode pop-up now says whether the file is there.** It shows **File available** with the quality, video codec, language, size and file name, or **No file yet** (and whether it is monitored, so a download is expected), or **Not released yet**. TV series already showed this for every episode.
+
+## [0.14.8] - 2026-10-16
+
+### Added
+- **Hide things inside a library from Plex profiles.** Under Settings, Users, Sign in with Plex, list genres, tags (labels or collection names) and content ratings to hide from every Plex profile. Each profile can also get its own extra list. Hidden things never appear in their "recently added".
+- **Plex's own restrictions are followed too.** MediaHub reads the label and content-rating restrictions you set on each person in Plex (when they sign in) and applies them. The profile card shows what was found, so you can check it worked.
+
+### Notes
+- Hidden genres, tags and ratings apply to the "recently added" list. Seerr search results and a person's own watch history are not filtered by them.
+- Reading Plex's own restrictions has only been tried against a pretend plex.tv. If the profile card says none were found but you set some in Plex, use the hide lists instead.
+
 ## [0.14.7] - 2026-10-16
 
 ### Added

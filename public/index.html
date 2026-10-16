@@ -267,8 +267,8 @@ progress::-moz-progress-bar{background:linear-gradient(90deg,var(--accent),color
 main{max-width:1180px;padding:34px 36px 70px}
 html[data-rail=min]{--rail:70px}
 /* settings: side menu + content */
-main.sx{display:grid;grid-template-columns:250px minmax(0,1fr);grid-template-areas:"ph ph" "nav t" "nav m";column-gap:30px;align-content:start;grid-template-rows:auto auto 1fr}
-main.sx>.demo{grid-column:1/-1}main.sx>.ph{grid-area:ph}main.sx>.sxn{grid-area:nav}main.sx>.sxt{grid-area:t}main.sx>#m{grid-area:m;min-width:0}
+main.sx{display:grid;grid-template-columns:250px minmax(0,1fr);grid-template-areas:"demo demo" "ph ph" "nav t" "nav m";column-gap:30px;align-content:start;grid-template-rows:auto auto auto 1fr}
+main.sx>.demo{grid-area:demo}main.sx>.ph{grid-area:ph}main.sx>.sxn{grid-area:nav}main.sx>.sxt{grid-area:t}main.sx>#m{grid-area:m;min-width:0}
 .sxn{position:sticky;top:20px;align-self:start;display:flex;flex-direction:column;gap:18px}
 .sxh{font-size:12.5px;font-weight:650;color:var(--mute);padding:0 12px 6px}
 .sxn button{display:flex;gap:11px;align-items:flex-start;width:100%;text-align:left;border:0;background:none;border-radius:14px;padding:9px 12px;color:var(--text)}
@@ -1105,6 +1105,8 @@ async function usrView(){
       <label class="opt ${px.auto?'':'on'}"><input type="radio" name="auto" value="0" ${px.auto?'':'checked'} style="width:auto;min-height:0"><b>Only people I add</b><span>Add their Plex name on their profile below. Everyone else is turned away.</span></label></div>
     <div class="mute" style="margin-top:14px">New Plex profiles can open</div><div>${services.map(x=>`<label class="chk" style="margin:6px 14px 0 0"><input type="checkbox" data-pa="${x.id}" ${px.access.includes(x.id)?'checked':''}>${esc(x.name)}</label>`).join('')}</div>
     <p class="mute" style="margin:10px 0 0;font-size:13px">Library apps (Sonarr, Radarr, qBittorrent and similar) are only given to a Plex profile that can open every library on your Plex server. If even one library is hidden from them in Plex, those apps stay off for them. Seerr, Plex, Jellyfin and Tautulli show only their own activity. Checked each time they sign in.</p>
+    <div class="mute" style="margin-top:14px">Hide these from every Plex profile</div><p class="mute" style="margin:2px 0 0;font-size:13px">Things inside a library you do not want them to see. Separate several with commas. Matching is not case sensitive, and a collection name counts as a tag.</p>
+    <div class="row" style="margin-top:8px;gap:10px;align-items:flex-end"><label class="mute">Genres <input data-hx-g value="${esc(((px.hide||{}).genre||[]).join(', '))}" placeholder="Horror, Adult" style="min-width:170px"></label><label class="mute">Tags or labels <input data-hx-l value="${esc(((px.hide||{}).label||[]).join(', '))}" placeholder="Private" style="min-width:170px"></label><label class="mute">Content ratings <input data-hx-r value="${esc(((px.hide||{}).rating||[]).join(', '))}" placeholder="R, NC-17" style="min-width:150px"></label></div>
     <div class="mute" style="margin-top:12px">and can</div><div>${PERMS.map(([k,n])=>`<label class="chk" style="margin:6px 14px 0 0"><input type="checkbox" data-pp="${k}" ${px.perms[k]?'checked':''}>${n}</label>`).join('')}</div>
     <div class="row"><button class="primary">Save</button><span class="mute">${px.linked?px.linked+' Plex profile'+(px.linked===1?'':'s')+' so far':''}</span></div><div class="err" id="pxe"></div>`:'<p class="mute" style="margin:0"><b>Add your Plex server first</b> (Settings, then Apps) so MediaHub can check who has access.</p>'}</form>`;
   $('#m').innerHTML=pxPanel+`<div class="panel" style="margin-bottom:16px"><h3 style="margin-top:0">Add a profile</h3><form id="uf" style="margin:0;max-width:420px"><input name="name" placeholder="Name" required><input name="password" type="password" placeholder="Password (8+ characters)" required>
@@ -1114,6 +1116,7 @@ async function usrView(){
       <div class="row" style="margin-top:12px"><label class="mute">Role <select data-role><option value="user" ${u.role==='user'?'selected':''}>User</option><option value="admin" ${u.role==='admin'?'selected':''}>Admin</option></select></label>
       <label class="mute" style="margin-left:12px">Phone messages <input data-nt value="${esc(u.notify||'')}" placeholder="https://ntfy.sh/…" style="min-width:230px"></label><button data-ns>Save</button></div>
       ${u.role==='user'?`<div class="row" style="margin-top:10px"><label class="mute">Plex name <input data-pn value="${esc(u.plex?u.plex.name:u.plexName||'')}" placeholder="Their Plex username" ${u.plex?'readonly':''} style="min-width:230px"></label>${u.plex?'<button data-pu>Unlink</button>':'<button data-ps>Save</button>'}</div>`:''}
+      ${u.plex?`<div class="mute" style="margin-top:14px">Also hide from this profile</div><div class="row" style="margin-top:8px;gap:10px;align-items:flex-end"><label class="mute">Genres <input data-hp-g value="${esc(((u.hide||{}).genre||[]).join(', '))}" placeholder="Horror, Adult" style="min-width:170px"></label><label class="mute">Tags or labels <input data-hp-l value="${esc(((u.hide||{}).label||[]).join(', '))}" placeholder="Private" style="min-width:170px"></label><label class="mute">Content ratings <input data-hp-r value="${esc(((u.hide||{}).rating||[]).join(', '))}" placeholder="R, NC-17" style="min-width:150px"></label></div><div class="row" style="margin-top:6px"><button data-hs>Save</button><span class="mute" style="font-size:13px">${u.restr?'Restrictions found in Plex: '+esc(Object.entries(u.restr).map(([k,v])=>({contentRating:'only ratings','contentRating!':'not ratings',label:'only tags','label!':'not tags'})[k]+' '+v.join(', ')).join('; ')):'No restrictions found in Plex. They are read each time this person signs in.'}</span></div>`:''}
       ${u.role==='user'?`<div class="mute" style="margin-top:14px">Apps this profile can open</div><div>${services.map(s=>`<label class="chk" style="margin:6px 14px 0 0"><input type="checkbox" data-ac="${s.id}" ${u.access.includes(s.id)?'checked':''}>${esc(s.name)}</label>`).join('')||'<span class="mute">Add apps first.</span>'}</div>
       <div class="row" style="margin-top:14px"><span class="mute">What this profile can do</span><select data-pre aria-label="Preset"><option value="std" ${presetOf(u)==='std'?'selected':''}>Standard</option><option value="view" ${presetOf(u)==='view'?'selected':''}>View only</option><option value="custom" ${presetOf(u)==='custom'?'selected':''}>Custom</option></select></div>
       <div>${PERMS.map(([k,n])=>`<label class="chk" style="margin:6px 14px 0 0"><input type="checkbox" data-pm="${k}" ${!u.perms||u.perms[k]!==false?'checked':''}>${n}</label>`).join('')}</div>
@@ -1121,7 +1124,7 @@ async function usrView(){
       <label class="mute">every <select data-rd aria-label="Limit period">${[1,7,30].map(d=>`<option value="${d}" ${(u.reqLimit?u.reqLimit.days:7)===d?'selected':''}>${d===1?'day':d+' days'}</option>`).join('')}</select></label>
       <label class="chk"><input type="checkbox" data-aa ${u.autoApprove?'checked':''}>Approve their requests automatically</label></div>`:'<p class="mute" style="margin:12px 0 0">Admins can open every app and do everything.</p>'}</div>`).join('')}`;
   if($('#pxf')&&px.servers.length)$('#pxf').onsubmit=async e=>{e.preventDefault();const f=e.target,v=new FormData(f);$('#pxe').textContent='';
-    try{await api('/api/plexsettings','PUT',{on:f.on.checked,sid:v.get('sid'),auto:v.get('auto')==='1',access:[...f.querySelectorAll('[data-pa]:checked')].map(c=>c.dataset.pa),perms:Object.fromEntries([...f.querySelectorAll('[data-pp]')].map(c=>[c.dataset.pp,c.checked]))});toast('Saved','ok');if(f.on.checked&&!PLEXLOGIN)PLEXLOGIN=true;usrView()}catch(x){$('#pxe').textContent=x.message}};
+    try{await api('/api/plexsettings','PUT',{on:f.on.checked,sid:v.get('sid'),auto:v.get('auto')==='1',access:[...f.querySelectorAll('[data-pa]:checked')].map(c=>c.dataset.pa),perms:Object.fromEntries([...f.querySelectorAll('[data-pp]')].map(c=>[c.dataset.pp,c.checked])),hide:{genre:f.querySelector('[data-hx-g]').value,label:f.querySelector('[data-hx-l]').value,rating:f.querySelector('[data-hx-r]').value}});toast('Saved','ok');if(f.on.checked&&!PLEXLOGIN)PLEXLOGIN=true;usrView()}catch(x){$('#pxe').textContent=x.message}};
   $('#uf').onsubmit=async e=>{e.preventDefault();$('#ue').textContent='';try{await api('/api/users','POST',Object.fromEntries(new FormData(e.target)));toast('Profile added','ok');usrView()}catch(x){$('#ue').textContent=x.message}};
   const put=async(id,b)=>{try{await api('/api/users/'+id,'PUT',b);toast('Saved','ok');return true}catch(x){toast(x.message,'bad');return false}};
   $('#m').onchange=async e=>{const card=e.target.closest('[data-u]');if(!card)return;const id=card.dataset.u,t=e.target;
@@ -1133,6 +1136,7 @@ async function usrView(){
     else if(t.matches('[data-pm]')){const pm=Object.fromEntries([...card.querySelectorAll('[data-pm]')].map(c=>[c.dataset.pm,c.checked]));await put(id,{perms:pm});
       const v=Object.values(pm);card.querySelector('[data-pre]').value=v.every(Boolean)?'std':v.every(x=>!x)?'view':'custom'}};
   $('#m').onclick=async e=>{const card=e.target.closest('[data-u]');if(!card)return;const id=card.dataset.u;
+    if(e.target.closest('[data-hs]')){await put(id,{hide:{genre:card.querySelector('[data-hp-g]').value,label:card.querySelector('[data-hp-l]').value,rating:card.querySelector('[data-hp-r]').value}})}
     if(e.target.closest('[data-ns]'))await put(id,{notify:card.querySelector('[data-nt]').value.trim()});
     if(e.target.closest('[data-ps]')){if(await put(id,{plexName:card.querySelector('[data-pn]').value.trim()}))usrView()}
     if(e.target.closest('[data-pu]')&&confirm('Unlink this Plex account? They will no longer be able to sign in with Plex, and have no password until you set one.')){if(await put(id,{plexName:''}))usrView()}
@@ -1588,7 +1592,7 @@ async function seriesDialog(s,x,cb){
   const draw=()=>{
     const tot=d.episodes.length,have=d.episodes.filter(q=>q.has).length;
     o.querySelector('#sd').innerHTML=`<div class="row" style="align-items:flex-start;gap:16px">${x.poster?`<img src="${esc(x.poster)}" alt="" style="width:120px;border-radius:10px;aspect-ratio:2/3;object-fit:cover">`:''}
-      <div class="grow" style="min-width:240px"><div class="mute">${esc([x.year,LSTAT[x.status],x.maker,x.profile].filter(Boolean).join(', '))}</div><div class="mute">${have} of ${tot} episodes downloaded${x.size?', '+fmt(x.size):''}</div>
+      <div class="grow" style="min-width:240px"><div class="mute">${esc([x.year,LSTAT[x.status],x.maker,x.profile].filter(Boolean).join(', '))}</div><div class="mute">${have} of ${tot} episodes downloaded${x.size?', '+fmt(x.size):''}</div>${idChips(d.ids)}
       <p style="margin:8px 0">${esc(x.overview||'No description available.')}</p>
       <div class="row" style="gap:12px"><label class="tgl"><input type="checkbox" data-mon ${d.monitored?'checked':''} ${canAdd?'':'disabled'}><span>Monitor this series</span></label>
       ${canAdd?`<button data-sa="1">Monitor all seasons</button><button data-sa="0">Unmonitor all</button><button data-sx>${ic('find')}Search missing</button>`:''}${admin?'<button class="danger" data-rm>Remove</button>':''}</div></div></div>
@@ -1619,12 +1623,21 @@ async function seriesDialog(s,x,cb){
     if(rm){if(!confirm('Remove "'+x.title+'" from your library?'))return;const files=confirm('Also delete the downloaded files from disk?\n\nOK = delete the files, Cancel = keep the files');
       try{await api(`/api/library/${s.id}/${x.id}?files=${files?1:0}`,'DELETE');o.close();if(cb.onRemove)cb.onRemove()}catch(ex){toast(ex.message,'bad')}}});
 }
+// IMDb, TMDB and TVDB numbers as links. Radarr and Sonarr do not keep Trakt's own number, so the Trakt link looks the title up by its IMDb or TMDB number.
+function idChips(i){if(!i)return '';const L=(n,v,u,t)=>`<a class="pill" href="${esc(u)}" target="_blank" rel="noopener noreferrer" title="${t}">${n} ${esc(v)}</a>`,tv=i.type==='tv',o=[];
+  if(i.imdb)o.push(L('IMDb',i.imdb,'https://www.imdb.com/title/'+i.imdb+'/','Open on IMDb'));
+  if(i.tmdb)o.push(L('TMDB',i.tmdb,`https://www.themoviedb.org/${tv?'tv':'movie'}/${i.tmdb}`,'Open on TMDB'));
+  if(i.tvdb)o.push(L('TVDB',i.tvdb,'https://thetvdb.com/?tab=series&id='+i.tvdb,'Open on TheTVDB'));
+  const tk=i.imdb?'https://trakt.tv/search/imdb/'+i.imdb:i.tmdb?`https://trakt.tv/search/tmdb/${i.tmdb}?id_type=${tv?'show':'movie'}`:'';
+  if(tk)o.push(`<a class="pill" href="${esc(tk)}" target="_blank" rel="noopener noreferrer" title="Find it on Trakt (opens in a new tab)">Trakt ${ic('ext')}</a>`);
+  return o.length?`<div class="chips" style="margin-top:6px">${o.join('')}</div>`:''}
 function showDetail(x){
   const o=document.createElement('div');o.className='ov';
   o.innerHTML=`<div class="dlg" role="dialog" aria-modal="true" aria-label="${esc(x.title)}">${x.fanart?'<div class="dbd"></div>':''}${x.poster?`<img src="${esc(x.poster)}" alt="" style="width:160px;border-radius:8px;align-self:flex-start">`:''}
     <div style="flex:1;min-width:220px"><h2 style="margin:0">${esc(x.title)}</h2>
     <div class="mute">${esc(x.sub||'')}${x.date?' · '+new Date(x.date).toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'}):''}</div>
     ${x.meta?`<div class="mute">${esc(x.meta)}</div>`:''}
+    ${x.sid&&x.id&&x.scope!=='series'?'<div id="fs" class="chips" style="margin:8px 0" role="status"></div>':''}
     <p>${esc(x.overview||'No description available yet.')}</p>${x.mon?`<label class="tgl" style="margin:4px 0 10px"><input type="checkbox" id="mon" ${x.mon.monitored?'checked':''} ${can('add')?'':'disabled'}><span>Monitored</span></label>`:''}${x.about?`<h3>About the series</h3><p class="mute">${esc(x.about)}</p>`:''}
     <div class="row">${x.sid&&x.id&&can('add')?`<button id="au">${x.scope==='series'?'Search missing episodes':'Auto search'}</button>${x.scope==='series'?'':'<button id="in">Interactive search</button>'}`:''}${x.del?'<button id="rm">Remove</button>':''}<button class="primary" id="cl">Close</button></div>
     <div class="mute" id="st" role="status" style="margin-top:8px"></div></div><div id="rl" style="flex-basis:100%"></div></div>`;
@@ -1632,6 +1645,9 @@ function showDetail(x){
   document.addEventListener('keydown',k);o.onclick=e=>{if(e.target===o)close()};
   document.body.append(o);const q=s=>o.querySelector(s),st=q('#st');q('#cl').onclick=close;q('#cl').focus();
   if(x.fanart&&q('.dbd'))q('.dbd').style.backgroundImage='url("'+String(x.fanart).replace(/"/g,'%22')+'")';
+  if(q('#fs'))api(`/api/filestatus?sid=${encodeURIComponent(x.sid)}&id=${x.id}`).then(f=>{const b=q('#fs');if(!b)return;
+    if(f.have){const fl=f.file||{};b.innerHTML=`<span class="pill ok">File available</span>${fl.quality?`<span class="pill">${esc(fl.quality)}</span>`:''}${fl.codec?`<span class="pill">${esc(fl.codec)}</span>`:''}${(fl.langs||[]).length?`<span class="pill">${esc(fl.langs.join(', '))}</span>`:''}${fl.size?`<span class="pill">${fmt(fl.size)}</span>`:''}${fl.name?`<div class="mute" style="flex-basis:100%;overflow-wrap:anywhere;font-size:12.5px">${esc(fl.name)}</div>`:''}`}
+    else b.innerHTML=!f.released?'<span class="pill">Not released yet</span>':`<span class="pill bad">No file yet</span><span class="mute">${f.monitored?'Monitored, waiting for a download.':'Not monitored, so nothing will be downloaded.'}</span>`;if(f.ids)b.insertAdjacentHTML('afterend',idChips(f.ids))}).catch(()=>{const b=q('#fs');if(b)b.remove()});
   if(q('#mon'))q('#mon').onchange=async e=>{const t=e.target,v=t.checked;t.disabled=true;
     try{await api('/api/monitor','POST',{sid:x.mon.sid,kind:x.mon.kind,id:x.mon.id,monitored:v});x.mon.monitored=v;if(x.mon.onChange)x.mon.onChange(v);toast(v?'Now monitored':'No longer monitored','ok')}
     catch(ex){t.checked=!v;st.textContent=ex.message}t.disabled=!can('add')};
