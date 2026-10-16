@@ -266,6 +266,24 @@ progress::-moz-progress-bar{background:linear-gradient(90deg,var(--accent),color
 .av{background:linear-gradient(135deg,var(--accent),color-mix(in srgb,var(--accent) 50%,#7b6cff));color:var(--onacc)}
 main{max-width:1180px;padding:34px 36px 70px}
 html[data-rail=min]{--rail:70px}
+/* settings: side menu + content */
+main.sx{display:grid;grid-template-columns:250px minmax(0,1fr);grid-template-areas:"ph ph" "nav t" "nav m";column-gap:30px;align-content:start;grid-template-rows:auto auto 1fr}
+main.sx>.demo{grid-column:1/-1}main.sx>.ph{grid-area:ph}main.sx>.sxn{grid-area:nav}main.sx>.sxt{grid-area:t}main.sx>#m{grid-area:m;min-width:0}
+.sxn{position:sticky;top:20px;align-self:start;display:flex;flex-direction:column;gap:18px}
+.sxh{font-size:12.5px;font-weight:650;color:var(--mute);padding:0 12px 6px}
+.sxn button{display:flex;gap:11px;align-items:flex-start;width:100%;text-align:left;border:0;background:none;border-radius:14px;padding:9px 12px;color:var(--text)}
+.sxn button:hover{background:color-mix(in srgb,var(--s2) 80%,transparent)}
+.sxn button.on,.sxn button.on:hover{background:var(--s1);box-shadow:var(--hl),0 4px 14px -8px rgba(0,0,0,.55)}
+.sxn button .ic{width:20px;height:20px;margin-top:1px;flex:none;color:var(--mute)}.sxn button.on .ic{color:var(--accent)}
+.sxn b{display:block;font-weight:650;font-size:14.5px}.sxn small{display:block;font-size:12px;color:var(--mute);line-height:1.35;margin-top:1px}
+.sxt{margin:0 0 16px}.sxt h2{margin:0;font-size:22px;letter-spacing:-.025em}.sxt p{margin:3px 0 0}
+main.sx #m .panel{max-width:760px!important}
+@media(max-width:860px){
+ main.sx{display:block}
+ .sxn{position:static;flex-direction:row;gap:6px;overflow-x:auto;margin:0 -16px 16px;padding:0 16px 4px;scrollbar-width:none}.sxn::-webkit-scrollbar{display:none}
+ .sxg{display:contents}.sxh{display:none}
+ .sxn button{width:auto;flex:none;align-items:center;padding:8px 14px;border:1px solid var(--line);border-radius:999px;white-space:nowrap}.sxn button small{display:none}.sxn button .ic{margin:0;width:18px;height:18px}
+}
 /* phone: top bar + dock */
 .dock,.mtools{display:none}
 @media(max-width:860px){
@@ -360,7 +378,7 @@ html[data-rail=min]{--rail:70px}
 
 /* service icon tiles */
 .si{position:relative;display:inline-grid;place-items:center;width:38px;height:38px;border-radius:12px;color:#fff;flex:none;background:linear-gradient(145deg,var(--a),var(--b));box-shadow:0 8px 16px -8px var(--b),inset 0 1px 0 rgba(255,255,255,.28)}
-.si .lg{position:absolute;inset:0;width:100%;height:100%;padding:18%;box-sizing:border-box;object-fit:contain;opacity:0;transition:opacity .25s}.si.lgon{background:rgba(255,255,255,.94);box-shadow:0 6px 14px -8px rgba(0,0,0,.45),inset 0 0 0 1px rgba(0,0,0,.06)}.si.lgon .lg{opacity:1}.si.lgon .ic{opacity:0}
+.si .lg{position:absolute;inset:0;width:100%;height:100%;padding:18%;box-sizing:border-box;object-fit:contain;opacity:0;transition:opacity .25s}.si.lgon{background:rgba(255,255,255,.94);box-shadow:0 6px 14px -8px rgba(0,0,0,.45),inset 0 0 0 1px rgba(0,0,0,.06)}.si.lgon .lg{opacity:1}.si.lgon .ic,.si.lgon b{opacity:0}
 .si .ic{width:20px;height:20px}.si b{font-size:17px;font-weight:800}
 .si .dot{position:absolute;right:-3px;bottom:-3px;width:12px;height:12px;margin:0!important;border:2px solid var(--bg)}
 .srow{grid-template-columns:40px 1fr auto 110px 200px auto}
@@ -369,6 +387,8 @@ html[data-rail=min]{--rail:70px}
 /* Unraid page */
 .uh{margin-bottom:16px}.uhr{display:flex;align-items:center;gap:16px;flex-wrap:wrap}.uhr .si{width:52px;height:52px;border-radius:16px}.uhr .si .ic{width:26px;height:26px}
 .ugd{margin-top:10px;text-align:left}.ugd summary{cursor:pointer;font-size:13px;font-weight:650;color:var(--link);padding:6px 0;list-style-position:inside}.ugd summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}.ugdb{padding-top:6px}.kv{display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px solid var(--line);font-size:13.5px}.kv:last-of-type{border-bottom:0}.thg{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px 12px;margin-top:10px}.th{display:grid;grid-template-columns:22px 1fr 34px;align-items:center;gap:6px;font-size:12px}.th .ubar{margin:0}.th b{text-align:right;font-weight:650}
+.orl{display:flex;align-items:center;gap:10px;color:#c9c8e0;font-size:13px}.orl::before,.orl::after{content:'';flex:1;height:1px;background:rgba(255,255,255,.2)}.login button.plexb{min-height:48px;border-radius:15px;font-weight:700;font-size:15.5px;background:rgba(229,160,13,.16);border-color:rgba(229,160,13,.7);color:#ffd36b}.login button.plexb:hover{background:rgba(229,160,13,.28)}.pxs{min-height:1.2em;font-size:13px;text-align:center}.pxs a{color:#ffd36b}
+.relx{display:inline-grid;place-items:center;width:34px;height:34px;flex:none;border-radius:10px;border:1px solid var(--line);color:var(--link)}.relx:hover{border-color:var(--accent)}.relx .ic{width:18px;height:18px}.rel b a{color:inherit;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}.rel b a:hover{text-decoration-color:var(--accent)}
 .cpun{margin:0 0 8px;font-size:13.5px;overflow-wrap:anywhere}.uhr h2{margin:0 0 4px;font-size:26px;letter-spacing:-.03em}.chips{display:flex;gap:8px;flex-wrap:wrap}
 .btn{display:inline-flex;align-items:center;padding:9px 16px;border-radius:12px;background:var(--s2);color:var(--text);text-decoration:none;font-weight:600}.btn:hover{background:var(--line)}
 .ugs3{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:6px}
@@ -473,9 +493,9 @@ const svcGuess=n=>{n=String(n||'').toLowerCase();return Object.keys(SVC_ICON).fi
 // The real logos come from the public dashboard-icons set, loaded by the browser. If they cannot be reached (no internet, or ICON_BASE is empty) the drawn tile above stays.
 let ICONB='';
 const ICON_FILES={seerr:['seerr','jellyseerr','overseerr']};
-const svcIcon=(type,id,name)=>{const k=SVC_ICON[type]?type:svcGuess(name||type),d=SVC_ICON[k],dot=id?`<span class="dot" id="d${id}"></span>`:'';
-  const f=ICONB&&k?(ICON_FILES[k]||[k]):[],lg=f.length?`<img class="lg" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" src="${esc(ICONB+f[0])}.svg" data-alt="${esc(f.slice(1).join(','))}">`:'';
-  if(!d){const h=[...String(name||type||'?')].reduce((a,c)=>a*31+c.charCodeAt(0)|0,7)%360;return `<span class="si" style="--a:hsl(${h},55%,48%);--b:hsl(${(h+40)%360},60%,30%)"><b>${esc(String(name||type||'?').trim()[0]||'?').toUpperCase()}</b>${dot}</span>`}
+const svcIcon=(type,id,name,url)=>{const k=SVC_ICON[type]?type:svcGuess(name||type),d=SVC_ICON[k],dot=id?`<span class="dot" id="d${id}"></span>`:'';
+  const f=ICONB&&k?(ICON_FILES[k]||[k]):[],lg=url?`<img class="lg" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" src="${esc(url)}" data-alt="${esc(f.join(','))}">`:f.length?`<img class="lg" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" src="${esc(ICONB+f[0])}.svg" data-alt="${esc(f.slice(1).join(','))}">`:'';
+  if(!d){const h=[...String(name||type||'?')].reduce((a,c)=>a*31+c.charCodeAt(0)|0,7)%360;return `<span class="si" style="--a:hsl(${h},55%,48%);--b:hsl(${(h+40)%360},60%,30%)"><b>${esc(String(name||type||'?').trim()[0]||'?').toUpperCase()}</b>${lg}${dot}</span>`}
   return `<span class="si" style="--a:${d[1]};--b:${d[2]}">${ic(d[0])}${lg}${dot}</span>`};
 document.addEventListener('load',e=>{const i=e.target;if(i.classList&&i.classList.contains('lg'))i.parentNode.classList.add('lgon')},true);
 document.addEventListener('error',e=>{const i=e.target;if(!(i.classList&&i.classList.contains('lg')))return;const n=(i.dataset.alt||'').split(',').filter(Boolean);if(n.length){i.dataset.alt=n.slice(1).join(',');i.src=ICONB+n[0]+'.svg'}else i.remove()},true);
@@ -488,11 +508,11 @@ async function api(url,method='GET',body){
   return d;
 }
 let DEMO=false;
-let REC=false;
+let REC=false,PLEXLOGIN=false;
 async function start(){
   await loadLang();
   const s=await api('/api/me');
-  DEMO=!!s.demo;REC=!!s.recovery;ICONB=s.iconBase?s.iconBase.replace(/\/*$/,'/'):'';
+  DEMO=!!s.demo;REC=!!s.recovery;PLEXLOGIN=!!s.plexLogin;ICONB=s.iconBase?s.iconBase.replace(/\/*$/,'/'):'';
   const rt=(location.hash.match(/^#reset=([\w-]{20,80})$/)||[])[1];
   if(rt)return resetView(rt);
   if(!s.user)return authView(s.setup,s.setupCode);
@@ -528,6 +548,29 @@ async function showStage(){
 }
 function hideStage(){clearInterval(stageTimer);const s=$('#stage');if(s)s.remove()}
 const pwToggle=()=>{const b=$('#pwt'),i=document.querySelector('input[name=password]');if(!b||!i)return;b.onclick=()=>{const show=i.type==='password';i.type=show?'text':'password';b.setAttribute('aria-pressed',show);b.setAttribute('aria-label',show?'Hide password':'Show password')}};
+// Sign in with Plex: Plex's own window does the signing in (password, two-step, Google or Apple), we just wait for it to finish.
+let PX=null;
+async function plexSignIn(){
+  const b=$('#px'),st=$('#pxs'),err=$('#e');if(!b)return;
+  if(PX){PX.stop();return}
+  err.textContent='';st.textContent='';
+  let stop=false,win=window.open('about:blank','mh_plex','width=620,height=780');   // opened right away, or the browser blocks it
+  const done=()=>{PX=null;b.textContent='Sign in with Plex';b.disabled=false;if(win&&!win.closed)try{win.close()}catch{}};
+  PX={stop:()=>{stop=true;st.textContent='';done()}};b.textContent='Waiting for Plex (click to cancel)';
+  try{
+    const s=await api('/api/plexlogin/start','POST');
+    if(win&&!win.closed)win.location.href=s.url;
+    else st.innerHTML=`Your browser blocked the Plex window. <a href="${esc(s.url)}" target="_blank" rel="noopener">Open Plex sign-in</a>, then come back here.`;
+    if(win&&!win.closed)st.textContent='Finish signing in in the Plex window.';
+    const t0=Date.now();
+    while(!stop&&Date.now()-t0<570000){
+      await new Promise(r=>setTimeout(r,1500));if(stop)return;
+      const r=await api('/api/plexlogin/poll?t='+encodeURIComponent(s.ticket));
+      if(r&&r.user){done();return start()}
+    }
+    if(!stop){done();err.textContent='That took too long. Please try again.'}
+  }catch(x){if(!stop){done();st.textContent='';err.textContent=x.message}}
+}
 function authView(setup,needCode){
   Cinema.stopAmbient();Cinema.reset();showStage();
   $('#app').innerHTML=`<div class="gate"><form class="login box" id="f">
@@ -535,9 +578,10 @@ function authView(setup,needCode){
     ${setup&&needCode?'<input name="token" placeholder="Setup code (SETUP_TOKEN from your container settings)" aria-label="Setup code" autocomplete="off" required>':''}
     <input name="name" placeholder="Name" aria-label="Name" autocomplete="username" required>
     <div class="pwf"><input name="password" type="password" placeholder="Password (8+ characters)" aria-label="Password" autocomplete="${setup?'new-password':'current-password'}" required><button type="button" class="ghost" id="pwt" aria-label="Show password" aria-pressed="false">${ic('eye')}</button></div>
-    <button class="primary">${setup?'Create account':'Sign in'}</button>${setup?'':'<button type="button" class="lnk" id="fg">Forgot password?</button>'}<div class="err" id="e" role="alert"></div>${DEMO?'<p class="mute demo-hint">Demo with pretend apps. Sign in as <b>demo</b> with <b>demo-mediahub</b> (admin), or <b>guest</b> with <b>guest-mediahub</b> (regular profile).</p>':''}</form></div>`;
+    <button class="primary">${setup?'Create account':'Sign in'}</button>${!setup&&PLEXLOGIN?'<div class="orl"><span>or</span></div><button type="button" class="plexb" id="px">Sign in with Plex</button><div class="mute pxs" id="pxs" role="status"></div>':''}${setup?'':'<button type="button" class="lnk" id="fg">Forgot password?</button>'}<div class="err" id="e" role="alert"></div>${DEMO?'<p class="mute demo-hint">Demo with pretend apps. Sign in as <b>demo</b> with <b>demo-mediahub</b> (admin), or <b>guest</b> with <b>guest-mediahub</b> (regular profile).</p>':''}</form></div>`;
   pwToggle();
   const fg=$('#fg');if(fg)fg.onclick=()=>forgotView(setup,needCode);
+  if($('#px'))$('#px').onclick=()=>plexSignIn();
   $('#f').onsubmit=async e=>{e.preventDefault();const btn=e.target.querySelector('.primary');btn.disabled=true;
     try{const r=await api(setup?'/api/setup':'/api/login','POST',Object.fromEntries(new FormData(e.target)));if(r&&r.twofa)return codeView(r.ticket);start()}
     catch(x){$('#e').textContent=x.message;btn.disabled=false}};
@@ -583,7 +627,7 @@ function codeView(ticket){
     try{await api('/api/login/2fa','POST',{ticket,code:e.target.code.value.trim()});start()}
     catch(x){$('#e').textContent=x.message;if(/start again|expired|too many/i.test(x.message))setTimeout(()=>authView(false,false),1500)}};
 }
-const ICONS={
+const ICONS={ext:'<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
  mb:'<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
  sub:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 11h3M13 11h4M7 15h5M15 15h2"/>',
  nzb:'<path d="M7 18a4 4 0 0 1-.6-7.96A6 6 0 0 1 18 9a4.5 4.5 0 0 1-.5 9H7z"/><path d="M12 11v6m0 0-2.5-2.5M12 17l2.5-2.5"/>',
@@ -830,12 +874,18 @@ function dashView(){
   checks();upt();slow();attn();rq();
   timer=[tick(fallback,4000),setInterval(glide,1000),tick(slow,60000),tick(attn,60000),tick(rq,60000),tick(upt,300000),tick(()=>{if(!LIVE.ok)checks()},30000)];
 }
-const ST_SECTIONS=[['acct','Account',false],['look','Appearance',false],['apps','Apps',true],['users','Users',true],['alerts','Alerts',true],['links','Status pages',true],['rules','Download rules',true],['backup','Backup',true],['audit','Activity',true]];
+const ST_SECTIONS=[['acct','Account',false,'Your password, sign-in and devices','usr','You'],['look','Appearance',false,'Theme, colours and layout','pal','You'],['apps','Apps',true,'The apps MediaHub connects to','svc','Server'],['users','Users',true,'Profiles and what each can do','usr','Server'],['links','Status pages',true,'Public pages that show if your server is up','eye','Server'],['alerts','Alerts',true,'Email, phone messages and reports','al','Care'],['rules','Download rules',true,'Speed schedule and stream throttling','dl','Care'],['backup','Backup',true,'Save and restore your setup','pw','Care'],['audit','Activity',true,'Who did what, and when','hl','Care']];
 function setView(){
   const admin=me.role==='admin',secs=ST_SECTIONS.filter(s=>admin||!s[2]);
   if(!secs.some(s=>s[0]===stSub))stSub='acct';
-  document.querySelector('.ph').insertAdjacentHTML('beforeend',`<div class="seg" id="sn" style="margin-top:14px">${secs.map(([k,n])=>`<button data-k="${k}" class="${k===stSub?'on':''}">${n}</button>`).join('')}</div>`);
+  const cur=secs.find(s=>s[0]===stSub);
+  const groups=[...new Set(secs.map(s=>s[5]))];
+  const nav=`<nav class="sxn" id="sn" aria-label="Settings sections">${groups.map(g=>`<div class="sxg"><div class="sxh">${g}</div>${secs.filter(s=>s[5]===g).map(([k,n,,d,i])=>`<button data-k="${k}" class="${k===stSub?'on':''}"${k===stSub?' aria-current="page"':''}>${ic(i)}<span><b>${n}</b><small>${d}</small></span></button>`).join('')}</div>`).join('')}</nav>`;
+  const mm=$('#m');mm.insertAdjacentHTML('beforebegin',nav);
+  mm.closest('main').classList.add('sx');
+  mm.insertAdjacentHTML('beforebegin',`<div class="sxt"><h2>${cur[1]}</h2><p class="mute">${cur[3]}</p></div>`);
   $('#sn').onclick=e=>{const b=e.target.closest('[data-k]');if(!b)return;stSub=b.dataset.k;render()};
+  const ob=$('#sn .on');if(ob&&ob.scrollIntoView)ob.scrollIntoView({inline:'center',block:'nearest'});
   ({acct:stAcct,look:stLook,apps:svcView,users:usrView,alerts:alView,links:linksView,rules:stRules,backup:stBackup,audit:stAudit})[stSub]();
 }
 function stLook(){$('#m').innerHTML=`<div class="panel" style="max-width:560px">${appearHtml()}</div>`;bindAppear($('#m'))}
@@ -863,6 +913,8 @@ async function stAcct(){
     try{const r=await api('/api/me/email','PUT',{email:f.email.value.trim(),password:f.password.value});me.email=r.email;f.password.value='';toast(r.email?'Recovery email saved':'Recovery email removed','ok')}catch(x){$('#ee').textContent=x.message}};
   if(me.role==='admin')signinPanel();
   tfaPanel();
+  if(me.plex){['#pf','#ef','#tf'].forEach(i=>{const e=$(i);if(e)(e.closest('.panel')||e).remove()});
+    $('#m').insertAdjacentHTML('afterbegin',`<div class="panel" style="max-width:560px;margin-bottom:16px"><h3 style="margin-top:0">You sign in with Plex</h3><p class="mute" style="margin:0">Your Plex account (${esc(me.plex.name)}) is how you sign in here, so there is no MediaHub password to change. To stop, ask the server owner to remove your profile.</p></div>`)}
   const loadD=async()=>{try{const all=$('#sall')&&$('#sall').checked,l=await api('/api/sessions'+(all?'?all=1':''));if(tab!=='set'||stSub!=='acct')return;
     $('#dv').innerHTML=l.map(s=>`<div class="box row"><div class="grow"><b>${esc(s.device)}</b> ${s.current?'<span class="pill ok">This device</span>':''}<div class="mute">${all?esc(s.user)+', ':''}${esc(s.ip||'')}, active ${ago(s.seen)}</div></div>${s.current?'':`<button data-r="${s.id}">Sign out</button>`}</div>`).join('')||'<p class="mute">No devices.</p>'}catch(x){$('#dv').textContent=x.message}};
   $('#dv').onclick=async e=>{const b=e.target.closest('[data-r]');if(!b)return;try{await api('/api/sessions/revoke','POST',{id:b.dataset.r});toast('Signed out','ok');loadD()}catch(x){toast(x.message,'bad')}};
@@ -1043,18 +1095,32 @@ async function stAudit(){
 async function usrView(){
   try{users=await api('/api/users')}catch(x){$('#m').innerHTML=`<div class="err">${esc(x.message)}</div>`;return}
   if(tab!=='set'||stSub!=='users')return;
-  $('#m').innerHTML=`<div class="panel" style="margin-bottom:16px"><h3 style="margin-top:0">Add a profile</h3><form id="uf" style="margin:0;max-width:420px"><input name="name" placeholder="Name" required><input name="password" type="password" placeholder="Password (8+ characters)" required>
+  let px={on:false,auto:true,servers:[],access:[],perms:{request:true}};try{px=await api('/api/plexsettings')}catch{}
+  if(tab!=='set'||stSub!=='users')return;
+  const pxPanel=`<form class="panel" id="pxf" style="margin-bottom:16px"><h3 style="margin-top:0">Sign in with Plex</h3>
+    <p class="mute" style="margin-top:0">People on your Plex server get a <b>Sign in with Plex</b> button on the sign-in page. They sign in on Plex's own page, MediaHub checks that their Plex account can use your Plex server, and they get a regular profile. MediaHub never sees their Plex password and does not keep their Plex login. Admins always sign in with their MediaHub password.</p>
+    ${px.servers.length?`<label class="chk"><input type="checkbox" name="on" ${px.on?'checked':''}>Let people from my Plex server sign in with Plex</label>
+    ${px.servers.length>1?`<label class="mute">Plex server <select name="sid">${px.servers.map(x=>`<option value="${x.id}" ${x.id===px.sid?'selected':''}>${esc(x.name)}</option>`).join('')}</select></label>`:`<input type="hidden" name="sid" value="${px.servers[0].id}">`}
+    <div class="opts" role="radiogroup" aria-label="Who can sign in" style="margin:10px 0 0"><label class="opt ${px.auto?'on':''}"><input type="radio" name="auto" value="1" ${px.auto?'checked':''} style="width:auto;min-height:0"><b>Anyone with access to my Plex server</b><span>A profile is made the first time they sign in.</span></label>
+      <label class="opt ${px.auto?'':'on'}"><input type="radio" name="auto" value="0" ${px.auto?'':'checked'} style="width:auto;min-height:0"><b>Only people I add</b><span>Add their Plex name on their profile below. Everyone else is turned away.</span></label></div>
+    <div class="mute" style="margin-top:14px">New Plex profiles can open</div><div>${services.map(x=>`<label class="chk" style="margin:6px 14px 0 0"><input type="checkbox" data-pa="${x.id}" ${px.access.includes(x.id)?'checked':''}>${esc(x.name)}</label>`).join('')}</div>
+    <div class="mute" style="margin-top:12px">and can</div><div>${PERMS.map(([k,n])=>`<label class="chk" style="margin:6px 14px 0 0"><input type="checkbox" data-pp="${k}" ${px.perms[k]?'checked':''}>${n}</label>`).join('')}</div>
+    <div class="row"><button class="primary">Save</button><span class="mute">${px.linked?px.linked+' Plex profile'+(px.linked===1?'':'s')+' so far':''}</span></div><div class="err" id="pxe"></div>`:'<p class="mute" style="margin:0"><b>Add your Plex server first</b> (Settings, then Apps) so MediaHub can check who has access.</p>'}</form>`;
+  $('#m').innerHTML=pxPanel+`<div class="panel" style="margin-bottom:16px"><h3 style="margin-top:0">Add a profile</h3><form id="uf" style="margin:0;max-width:420px"><input name="name" placeholder="Name" required><input name="password" type="password" placeholder="Password (8+ characters)" required>
       <input name="email" type="email" placeholder="Email for password recovery (optional)" autocomplete="off"><select name="role" aria-label="Role"><option value="user">User</option><option value="admin">Admin</option></select><div class="row"><button class="primary">${ic('rq')}Add profile</button></div><div class="err" id="ue"></div></form></div>
-    ${users.map(u=>`<div class="panel" style="margin-bottom:14px" data-u="${u.id}"><div class="row"><b style="font-size:16px">${esc(u.name)}</b><span class="pill ${u.role==='admin'?'acc':''}">${u.role==='admin'?'Admin':'User'}</span>${u.id===me.id?'<span class="pill">You</span>':''}${u.twofa?'<span class="pill ok">2FA</span>':''}<span class="grow"></span>${u.twofa&&u.id!==me.id?'<button data-t2>Turn off 2FA</button>':''}
+    ${users.map(u=>`<div class="panel" style="margin-bottom:14px" data-u="${u.id}"><div class="row"><b style="font-size:16px">${esc(u.name)}</b><span class="pill ${u.role==='admin'?'acc':''}">${u.role==='admin'?'Admin':'User'}</span>${u.id===me.id?'<span class="pill">You</span>':''}${u.twofa?'<span class="pill ok">2FA</span>':''}${u.plex?`<span class="pill acc">Plex: ${esc(u.plex.name)}</span>`:''}<span class="grow"></span>${u.twofa&&u.id!==me.id?'<button data-t2>Turn off 2FA</button>':''}
       <button data-rp>Reset password</button>${u.id!==me.id?'<button class="danger" data-del>Delete</button>':''}</div>
       <div class="row" style="margin-top:12px"><label class="mute">Role <select data-role><option value="user" ${u.role==='user'?'selected':''}>User</option><option value="admin" ${u.role==='admin'?'selected':''}>Admin</option></select></label>
       <label class="mute" style="margin-left:12px">Phone messages <input data-nt value="${esc(u.notify||'')}" placeholder="https://ntfy.sh/…" style="min-width:230px"></label><button data-ns>Save</button></div>
+      ${u.role==='user'?`<div class="row" style="margin-top:10px"><label class="mute">Plex name <input data-pn value="${esc(u.plex?u.plex.name:u.plexName||'')}" placeholder="Their Plex username" ${u.plex?'readonly':''} style="min-width:230px"></label>${u.plex?'<button data-pu>Unlink</button>':'<button data-ps>Save</button>'}</div>`:''}
       ${u.role==='user'?`<div class="mute" style="margin-top:14px">Apps this profile can open</div><div>${services.map(s=>`<label class="chk" style="margin:6px 14px 0 0"><input type="checkbox" data-ac="${s.id}" ${u.access.includes(s.id)?'checked':''}>${esc(s.name)}</label>`).join('')||'<span class="mute">Add apps first.</span>'}</div>
       <div class="row" style="margin-top:14px"><span class="mute">What this profile can do</span><select data-pre aria-label="Preset"><option value="std" ${presetOf(u)==='std'?'selected':''}>Standard</option><option value="view" ${presetOf(u)==='view'?'selected':''}>View only</option><option value="custom" ${presetOf(u)==='custom'?'selected':''}>Custom</option></select></div>
       <div>${PERMS.map(([k,n])=>`<label class="chk" style="margin:6px 14px 0 0"><input type="checkbox" data-pm="${k}" ${!u.perms||u.perms[k]!==false?'checked':''}>${n}</label>`).join('')}</div>
       <div class="row" style="margin-top:14px"><span class="mute">Requests</span><label class="mute">Limit <input type="number" min="0" max="1000" data-rl value="${u.reqLimit?u.reqLimit.n:''}" placeholder="None" style="width:80px"></label>
       <label class="mute">every <select data-rd aria-label="Limit period">${[1,7,30].map(d=>`<option value="${d}" ${(u.reqLimit?u.reqLimit.days:7)===d?'selected':''}>${d===1?'day':d+' days'}</option>`).join('')}</select></label>
       <label class="chk"><input type="checkbox" data-aa ${u.autoApprove?'checked':''}>Approve their requests automatically</label></div>`:'<p class="mute" style="margin:12px 0 0">Admins can open every app and do everything.</p>'}</div>`).join('')}`;
+  if($('#pxf')&&px.servers.length)$('#pxf').onsubmit=async e=>{e.preventDefault();const f=e.target,v=new FormData(f);$('#pxe').textContent='';
+    try{await api('/api/plexsettings','PUT',{on:f.on.checked,sid:v.get('sid'),auto:v.get('auto')==='1',access:[...f.querySelectorAll('[data-pa]:checked')].map(c=>c.dataset.pa),perms:Object.fromEntries([...f.querySelectorAll('[data-pp]')].map(c=>[c.dataset.pp,c.checked]))});toast('Saved','ok');if(f.on.checked&&!PLEXLOGIN)PLEXLOGIN=true;usrView()}catch(x){$('#pxe').textContent=x.message}};
   $('#uf').onsubmit=async e=>{e.preventDefault();$('#ue').textContent='';try{await api('/api/users','POST',Object.fromEntries(new FormData(e.target)));toast('Profile added','ok');usrView()}catch(x){$('#ue').textContent=x.message}};
   const put=async(id,b)=>{try{await api('/api/users/'+id,'PUT',b);toast('Saved','ok');return true}catch(x){toast(x.message,'bad');return false}};
   $('#m').onchange=async e=>{const card=e.target.closest('[data-u]');if(!card)return;const id=card.dataset.u,t=e.target;
@@ -1067,6 +1133,8 @@ async function usrView(){
       const v=Object.values(pm);card.querySelector('[data-pre]').value=v.every(Boolean)?'std':v.every(x=>!x)?'view':'custom'}};
   $('#m').onclick=async e=>{const card=e.target.closest('[data-u]');if(!card)return;const id=card.dataset.u;
     if(e.target.closest('[data-ns]'))await put(id,{notify:card.querySelector('[data-nt]').value.trim()});
+    if(e.target.closest('[data-ps]')){if(await put(id,{plexName:card.querySelector('[data-pn]').value.trim()}))usrView()}
+    if(e.target.closest('[data-pu]')&&confirm('Unlink this Plex account? They will no longer be able to sign in with Plex, and have no password until you set one.')){if(await put(id,{plexName:''}))usrView()}
     if(e.target.closest('[data-t2]')&&confirm('Turn off two-step sign-in for this profile? They can set it up again.')){try{await api(`/api/users/${id}/2fa/reset`,'POST');toast('Two-step sign-in is off for them','ok');usrView()}catch(x){toast(x.message,'bad')}}
     if(e.target.closest('[data-rp]')){const pw=prompt('New password for this profile (8+ characters):');if(!pw)return;try{await api(`/api/users/${id}/password`,'POST',{password:pw});toast('Password changed. They will need to sign in again.','ok')}catch(x){toast(x.message,'bad')}}
     if(e.target.closest('[data-del]')&&confirm('Delete this profile?')){try{await api('/api/users/'+id,'DELETE');toast('Deleted','ok');usrView()}catch(x){toast(x.message,'bad')}}};
@@ -1575,7 +1643,10 @@ function showDetail(x){
     catch(e){st.textContent=e.message}b.disabled=false};
   if(q('#in'))q('#in').onclick=async()=>{const rl=q('#rl');st.textContent='';rl.innerHTML='<p class="mute">Searching your indexers, this can take up to a minute…</p>';
     try{const r=await api(`/api/releases?sid=${x.sid}&id=${x.id}`);
-      rl.innerHTML=r.map((y,i)=>`<div class="box"><b>${esc(y.title)}</b><div class="mute">${esc(y.quality||'')} · ${fmt(y.size)} · ${y.seeders} seeders · ${esc(y.indexer||'')} · ${y.age}d old</div>
+      rl.innerHTML=r.map((y,i)=>`<div class="box rel"><div class="row" style="align-items:flex-start;gap:8px"><b class="grow" style="overflow-wrap:anywhere">${y.link?`<a href="${esc(y.link)}" target="_blank" rel="noopener noreferrer" title="Open the page for this release">${esc(y.title)}</a>`:esc(y.title)}</b>
+        ${y.link?`<a class="relx" href="${esc(y.link)}" target="_blank" rel="noopener noreferrer" aria-label="Open the ${y.protocol==='usenet'?'release':'torrent'} page for ${esc(y.title)}" title="Open the ${y.protocol==='usenet'?'release':'torrent'} page (opens in a new tab)">${ic('ext')}</a>`:''}</div>
+        <div class="chips" style="margin-top:6px"><span class="pill acc" title="Language of the release">${y.langs.length?esc(y.langs.join(', ')):'Language unknown'}</span>${y.protocol?`<span class="pill">${y.protocol==='usenet'?'Usenet':'Torrent'}</span>`:''}${y.quality?`<span class="pill">${esc(y.quality)}</span>`:''}</div>
+        <div class="mute" style="margin-top:6px">${fmt(y.size)}${y.protocol==='usenet'?'':` · ${y.seeders} seeders${y.leechers?', '+y.leechers+' leechers':''}`} · ${esc(y.indexer||'')}${y.group?' · '+esc(y.group):''} · ${y.age}d old</div>
         ${y.rejected?`<div style="color:var(--bad-t)">${esc(y.why||'Rejected')}</div>`:''}<button data-g="${i}" style="margin-top:6px">Grab</button></div>`).join('')||'<p class="mute">No releases found.</p>';
       rl.querySelectorAll('[data-g]').forEach(b=>b.onclick=async()=>{b.disabled=true;b.textContent='Sending…';
         try{const y=r[b.dataset.g];await api('/api/grab','POST',{sid:x.sid,guid:y.guid,indexerId:y.indexerId});b.textContent='Sent to downloader'}
@@ -1711,7 +1782,7 @@ function urView(){
           line=tot?`${fmtBig(x.used*1024)} used of ${fmtBig(tot*1024)}${x.size>0&&x.free>0?'':''}`:(x.used>0?`${fmtBig(x.used*1024)} used${ar?`, ${pc3.toFixed(pc3<10?1:0)}% of the array`:''}`:'No size reported by Unraid');return `<div class="ud" style="--i:${i}"><div class="row"><b class="grow">${esc(x.name)}</b><b style="color:${col(pc3)}">${pc3.toFixed(0)}%</b></div><div class="ubar" style="margin:10px 0 8px"><i style="width:${pc3}%;background:${col(pc3)}"></i></div><div class="mute">${line}${x.free>0?`, ${fmtBig(x.free*1024)} free`:''}</div></div>`}).join('')}</div>`:'')+(d.notes&&d.notes.length?`<p class="mute">Some details are not available from this Unraid version: ${esc(d.notes[0])}</p>`:'');
         document.querySelectorAll('[data-pq]').forEach(b=>b.onclick=async()=>{if(!confirm(b.dataset.pq==='start'?'Start a parity check now? It can slow the server for hours.':'Cancel the running parity check?'))return;
           try{await api(`/api/unraid/${s.id}/parity`,'POST',{op:b.dataset.pq});toast('Done','ok');sig.d='';fb=0;full()}catch(x){toast(x.message,'bad')}})}
-      const csig=JSON.stringify([d.containers,d.updates,d.meta,UR.q,UR.f]);
+      const csig=JSON.stringify([d.containers,d.updates,d.meta,d.icons,UR.q,UR.f]);
       if(csig!==sig.c){sig.c=csig;paintC(d)}
     }catch(x){if(tab==='ur')$('#e').textContent=x.message}finally{fb=0}};
   const paintC=d=>{
@@ -1728,7 +1799,7 @@ function urView(){
           o.onclick=ev=>{if(ev.target===o||ev.target.id==='cl2')o.remove()};document.body.append(o)}catch(x){toast(x.message,'bad')}return}
         if(b.dataset.i){b.disabled=true;try{await api(`/api/unraid/${s.id}/docker`,'POST',{id:b.dataset.i,action:b.dataset.c});toast('Done','ok')}catch(x){toast(x.message,'bad')}sig.c='';fb=0;setTimeout(full,1200)}}}
     $('#cf').innerHTML=[['all','All'],['run','Running'],['stop','Stopped'],['upd','Updates']].map(([k,n])=>`<button data-f="${k}" class="${UR.f===k?'on':''}" aria-pressed="${UR.f===k}">${n}<i>${cnt[k]}</i></button>`).join('');
-    $('#cg').innerHTML=list.map((c,i)=>`<div class="uc ${run(c)?'on':''}" style="--i:${Math.min(i,14)}"><div class="row">${svcIcon('',null,c.name)}<div class="grow" style="min-width:0"><b>${esc(c.name)}</b><div class="mute" style="font-size:12.5px;word-break:break-all">${esc((mt[c.id]&&mt[c.id].image)||'')}</div></div><span class="ucs"><i class="dot ${run(c)?'ok':'bad'}" style="margin:0"></i>${esc(String(c.state).toLowerCase())}</span></div>
+    $('#cg').innerHTML=list.map((c,i)=>`<div class="uc ${run(c)?'on':''}" style="--i:${Math.min(i,14)}"><div class="row">${svcIcon('',null,c.name,(d.icons||{})[c.id])}<div class="grow" style="min-width:0"><b>${esc(c.name)}</b><div class="mute" style="font-size:12.5px;word-break:break-all">${esc((mt[c.id]&&mt[c.id].image)||'')}</div></div><span class="ucs"><i class="dot ${run(c)?'ok':'bad'}" style="margin:0"></i>${esc(String(c.state).toLowerCase())}</span></div>
       <div class="row ucm"><span class="mute grow">${esc((mt[c.id]&&mt[c.id].status)||'')}</span>${upd[c.id]?'<span class="pill acc">Update available</span>':''}</div>
       ${me.role==='admin'?`<div class="row uca">${run(c)?`<button data-i="${esc(c.id)}" data-c="stop">Stop</button><button data-i="${esc(c.id)}" data-c="restart">Restart</button>`:`<button class="primary" data-i="${esc(c.id)}" data-c="start">Start</button>`}<button data-l="${esc(c.id)}" data-n="${esc(c.name)}">Logs</button></div>`:''}</div>`).join('')||empty('No containers match','Try another word or filter.');
   };

@@ -2,6 +2,24 @@
 
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.14.5] - 2026-10-16
+
+### Added
+- **Interactive search shows the language** of each release (for example English, or English, French, German), whether it is a torrent or Usenet, the release group and the leechers, and gives each result a **link to the release page** on its indexer. Click the title or the small arrow icon; it opens in a new tab. Links that contain a key or passkey are never shown. If the indexer gives no page, there is no link.
+
+- **Unraid containers show their own icons.** The Containers list uses the icon each container is set up with in Unraid. A container with no icon, or one that will not load, keeps the logo or letter shown before. Only plain https icon addresses are used, and any address that carries a key is ignored.
+
+### Changed
+- **Settings redesigned.** The row of buttons is now a side menu with the sections grouped as You, Server and Care. Each section has an icon, a one-line description and a heading. On phones the menu becomes a strip you swipe along the top.
+
+## [0.14.4] - 2026-10-15
+
+### Added
+- **Sign in with Plex.** Turn it on under Settings, then Users. People on your Plex server get a **Sign in with Plex** button on the sign-in page, sign in in Plex's own window (password, two-step, Google or Apple all work), and MediaHub checks that their Plex account can use your Plex server before letting them in. MediaHub never sees their Plex password and does not keep their Plex login.
+  - Choose **anyone with access to my Plex server** (a profile is made on first sign-in, with the apps and abilities you pick) or **only people I add** (type their Plex name on their profile).
+  - Plex profiles are always regular profiles. Admins sign in with their MediaHub password, and a Plex name can never take over an existing profile.
+  - Profiles show a Plex badge. Settings, Account explains there is no password to change.
+
 ## [0.14.3] - 2026-10-15
 
 ### Added

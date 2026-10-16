@@ -68,6 +68,7 @@ if (DEMO) {
   db = defaults({ users: [mkU('demo', 'demo-mediahub', 'admin'), mkU('guest', 'guest-mediahub', 'user')], alerts: { channels: [], reports: true }, requests: [],
     services: [['Sonarr', 'sonarr'], ['Radarr', 'radarr'], ['qBittorrent', 'qbittorrent'], ['Plex', 'plex'], ['Jellyfin', 'jellyfin'], ['Seerr', 'seerr'], ['Prowlarr', 'prowlarr'], ['Lidarr', 'lidarr'], ['Readarr', 'readarr'], ['Bazarr', 'bazarr'], ['SABnzbd', 'sabnzbd'], ['Tautulli', 'tautulli'], ['Unraid', 'unraid']].map(x => mk(x[0], x[1])) });
   db.users[1].access = db.services.map(x => x.id);
+  db.settings.plexLogin = { on: true, sid: db.services.find(x => x.type === 'plex').id, auto: true };
   db.requests.push({ id: 'r1', sid: db.services.find(x => x.type === 'seerr').id, uid: db.users[1].id, user: 'guest', mediaType: 'movie', mediaId: 801, title: 'Hidden Harbor', year: '2024', poster: '', status: 'pending', at: Date.now() - 3600e3 * 5 });
 }
 if (db.users.length) save();
@@ -94,7 +95,7 @@ const qbCookie = {}, fails = {};
 const ipOf = req => TRUST ? String(req.headers['cf-connecting-ip'] || String(req.headers['x-forwarded-for'] || '').split(',').pop().trim() || req.socket.remoteAddress).trim() : String(req.socket.remoteAddress || '');
 
 const mkUser = (name, pw, role) => { const salt = uid(); return { id: uid(), name, role, salt, hash: hash(pw, salt), access: [] }; };
-const pubUser = u => ({ email: u.email || '', twofa: !!(u.totp && u.totp.on), id: u.id, name: u.name, role: u.role, access: u.access, perms: u.perms || null, notify: u.notify || '', dash: u.dash || null, reqLimit: u.reqLimit || null, autoApprove: !!u.autoApprove });
+const pubUser = u => ({ email: u.email || '', twofa: !!(u.totp && u.totp.on), id: u.id, name: u.name, role: u.role, access: u.access, perms: u.perms || null, notify: u.notify || '', dash: u.dash || null, reqLimit: u.reqLimit || null, autoApprove: !!u.autoApprove, plex: u.plex ? { name: u.plex.name } : null, plexName: u.plexName || '' });
 const pubSvc = s => ({ id: s.id, type: s.type, name: s.name, url: s.url });
 
 // Checks that a service answers with the details you saved.
@@ -598,6 +599,49 @@ const RESET_MS = 30 * 60e3, failsRst = {}, askRst = {};
 const mailer = () => ((db.alerts || {}).channels || []).find(c => c.type === 'email' && !channels.problem(c));
 const baseUrl = () => String(process.env.PUBLIC_URL || (db.settings || {}).publicUrl || '').replace(/\/+$/, '');
 const sendRecovery = (c, to, subject, text) => require('./lib/smtp').sendMail({ host: c.host, port: c.port, secure: c.secure, user: c.user, pass: c.pass, from: c.from, insecure: !!c.insecure, to, subject, text });
+
+// ---- Sign in with Plex: people open Plex's own sign-in window (so MediaHub never sees their password and keeps no Plex token),
+// then MediaHub checks that their Plex account can reach YOUR Plex server and signs them in to a regular (never admin) profile. ----
+const PLEXTV = () => String(process.env.PLEX_TV_URL || (DEMO ? `http://127.0.0.1:${PORT}/__demo/plextv` : 'https://plex.tv')).replace(/\/+$/, '');
+const PLEXAUTH = () => process.env.PLEX_AUTH_URL || (DEMO ? '/__demo/plextv/auth' : 'https://app.plex.tv/auth');
+function plexCid() { if (!db.settings.plexClientId) { db.settings.plexClientId = crypto.randomBytes(16).toString('hex'); save(); } return db.settings.plexClientId; }
+async function ptv(pth, opt = {}) {
+  const r = await fetch(PLEXTV() + pth, { signal: AbortSignal.timeout(10000), ...opt, headers: { Accept: 'application/json', 'X-Plex-Product': 'MediaHub', 'X-Plex-Version': VERSION, 'X-Plex-Client-Identifier': plexCid(), 'X-Plex-Device-Name': 'MediaHub', 'X-Plex-Platform': 'Web', ...(opt.headers || {}) } });
+  if (!r.ok) throw new Error('plex.tv answered ' + r.status);
+  return r.json();
+}
+const PLEX_PERMS = { add: false, control: false, remove: false, request: true };
+function plexCfg() {
+  const c = db.settings.plexLogin || {}, s = db.services.find(x => x.id === c.sid && x.type === 'plex') || db.services.find(x => x.type === 'plex');
+  return { on: !!c.on && !!s, sid: s ? s.id : '', s, auto: c.auto !== false,
+    access: (Array.isArray(c.access) ? c.access : db.services.filter(x => x.type === 'seerr').map(x => x.id)).filter(a => db.services.some(x => x.id === a)),
+    perms: { ...PLEX_PERMS, ...(c.perms || {}) } };
+}
+const plexPend = new Map(), plexAsk = {}, plexBad = {};
+class PlexDeny extends Error { constructor(m, code = 403) { super(m); this.code = code; } }
+// Turns a Plex token into a MediaHub profile (found, linked or created). The token is thrown away afterwards.
+async function plexProfile(token) {
+  const cfg = plexCfg(); if (!cfg.on) throw new PlexDeny('Sign in with Plex is turned off.');
+  const h = { 'X-Plex-Token': token }, who = await ptv('/api/v2/user', { headers: h });
+  const pid = String(who.uuid || who.id || ''), pname = cut(who.username || who.title || '', 60).trim();
+  if (!pid || !pname) throw new PlexDeny('Plex did not say who you are. Please try again.', 502);
+  let mid = ''; try { mid = ((await (await fetch(cfg.s.url.replace(/\/+$/, '') + '/identity', { signal: AbortSignal.timeout(8000), headers: { Accept: 'application/json', 'X-Plex-Token': cfg.s.apiKey || '' } })).json()).MediaContainer || {}).machineIdentifier || ''; } catch {}
+  if (!mid) throw new PlexDeny('MediaHub could not reach the Plex server to check your access. Ask the server owner.', 502);
+  const res = await ptv('/api/v2/resources?includeHttps=1&includeRelay=1', { headers: h });
+  if (!(Array.isArray(res) ? res : []).some(x => x.clientIdentifier === mid && /server/.test(x.provides || ''))) throw new PlexDeny('This Plex account does not have access to this Plex server.');
+  let u = db.users.find(x => x.plex && x.plex.id === pid);
+  if (!u) { u = db.users.find(x => !x.plex && x.role === 'user' && x.plexName && x.plexName.toLowerCase() === pname.toLowerCase()); if (u) u.plex = { id: pid, name: pname }; }
+  if (!u) {
+    if (!cfg.auto) throw new PlexDeny(`The server owner has not added you yet. Ask them to add the Plex name "${pname}".`);
+    let name = pname, n = 1; while (db.users.some(x => x.name.trim().toLowerCase() === name.toLowerCase())) name = `${pname} (Plex${n > 1 ? ' ' + n : ''})`, n++;
+    u = mkUser(name, crypto.randomBytes(24).toString('hex'), 'user'); u.access = cfg.access; u.perms = cfg.perms; u.plex = { id: pid, name: pname };
+    db.users.push(u); audit('MediaHub', 'Created a profile from Plex', name);
+  }
+  if (u.role === 'admin') throw new PlexDeny('Admins sign in with their MediaHub password.');
+  u.plex.name = pname; save();
+  return u;
+}
+
 http.createServer(async (req, res) => {
   const p = new URL(req.url, 'http://x').pathname, m = req.method;
   res.secure = !!req.socket.encrypted || (TRUST && req.headers['x-forwarded-proto'] === 'https');
@@ -635,7 +679,7 @@ http.createServer(async (req, res) => {
     const setup = !db.users.length;
     if (p === '/api/health') return send(res, 200, { ok: true, version: VERSION });
     if (p === '/api/wallpapers' && m === 'GET') { if (!DEMO && wpMode() === 'library' && !wpList().some(f => LIBWP.test(f)) && !wpBusy) wpKick(); return send(res, 200, wpMode() === 'scenes' ? [] : DEMO ? demo.fanarts() : wpList()); }
-    if (p === '/api/me') return send(res, 200, { setup, setupCode: setup && !!SETUP_TOKEN, version: VERSION, demo: DEMO, iconBase: String(process.env.ICON_BASE == null ? 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/' : process.env.ICON_BASE).replace(/[^\w:/.@-]/g, ''), recovery: !DEMO && !!(mailer() && baseUrl()), user: me ? pubUser(me) : null });
+    if (p === '/api/me') return send(res, 200, { setup, setupCode: setup && !!SETUP_TOKEN, version: VERSION, demo: DEMO, plexLogin: plexCfg().on, iconBase: String(process.env.ICON_BASE == null ? 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/' : process.env.ICON_BASE).replace(/[^\w:/.@-]/g, ''), recovery: !DEMO && !!(mailer() && baseUrl()), user: me ? pubUser(me) : null });
 
     if (p === '/api/setup' && m === 'POST') {
       if (!setup) return send(res, 403, { error: 'Already set up' });
@@ -643,6 +687,32 @@ http.createServer(async (req, res) => {
       if (SETUP_TOKEN && !same(b.token, SETUP_TOKEN)) return send(res, 403, { error: 'That setup code is not right' });
       if (!b.name || (b.password || '').length < 8) return send(res, 400, { error: 'Enter a name and a password of 8+ characters' });
       const u = mkUser(b.name, b.password, 'admin'); db.users.push(u); save(); return login(res, u);
+    }
+    if (p === '/api/plexlogin/start' && m === 'POST') {
+      if (!plexCfg().on) return send(res, 403, { error: 'Sign in with Plex is turned off.' });
+      const ip = ipOf(req), now = Date.now(), a = plexAsk[ip] = (plexAsk[ip] || []).filter(t => now - t < 600000);
+      if (a.length >= 15) return send(res, 429, { error: 'Too many tries. Wait a few minutes.' });
+      a.push(now); for (const [k, v] of plexPend) if (now - v.at > 600000) plexPend.delete(k);
+      if (plexPend.size > 300) return send(res, 429, { error: 'Busy. Try again in a minute.' });
+      let pin; try { pin = await ptv('/api/v2/pins?strong=true', { method: 'POST' }); } catch (e) { return send(res, 502, { error: 'Could not reach plex.tv: ' + e.message }); }
+      if (!pin || !pin.id || !pin.code) return send(res, 502, { error: 'plex.tv gave an unexpected answer.' });
+      const ticket = crypto.randomBytes(18).toString('hex'); plexPend.set(ticket, { id: String(Math.round(+pin.id)), at: now });
+      return send(res, 200, { ticket, url: `${PLEXAUTH()}#?clientID=${encodeURIComponent(plexCid())}&code=${encodeURIComponent(pin.code)}&context%5Bdevice%5D%5Bproduct%5D=MediaHub` });
+    }
+    if (p === '/api/plexlogin/poll' && m === 'GET') {
+      const tk = String(new URL(req.url, 'http://x').searchParams.get('t') || ''), e = plexPend.get(tk);
+      if (!e || Date.now() - e.at > 600000) { plexPend.delete(tk); return send(res, 410, { error: 'That sign-in timed out. Please start again.' }); }
+      const ip = ipOf(req);
+      try {
+        const pin = await ptv('/api/v2/pins/' + e.id);
+        if (!pin || !pin.authToken) return send(res, 200, { pending: true });
+        plexPend.delete(tk);
+        const u = await plexProfile(String(pin.authToken));
+        audit(u.name, 'Signed in with Plex', res.info.ip); return login(res, u);
+      } catch (x) {
+        if (x instanceof PlexDeny) { plexPend.delete(tk); const f = plexBad[ip] = plexBad[ip] || { n: 0, t: 0 }; f.n++; f.t = Date.now(); audit('?', 'Plex sign-in refused', cut(x.message, 80) + ' ' + ip); return send(res, x.code, { error: x.message }); }
+        return send(res, 502, { error: 'Could not check with Plex: ' + cut(x.message, 120) });
+      }
     }
     if (p === '/api/forgot' && m === 'POST') {
       const ip = ipOf(req), now = Date.now(), a = askRst[ip] = (askRst[ip] || []).filter(t => now - t < 900000);
@@ -712,7 +782,7 @@ http.createServer(async (req, res) => {
     }
     if (p === '/api/logout') { sessions.delete(th(token)); saveSess(); return send(res, 200, {}, { 'Set-Cookie': 'sid=; Path=/; Max-Age=0' }); }
     if (!me) return send(res, 401, { error: 'Sign in first' });
-    if (DEMO && m !== 'GET' && /^\/api\/(users|password|2fa|backups?|restore|alerts|statuslinks|signin|services|weekly|throttle|me\/notify|me\/email)/.test(p)) return send(res, 403, { error: 'This is turned off in the demo' });
+    if (DEMO && m !== 'GET' && /^\/api\/(users|password|2fa|backups?|restore|alerts|statuslinks|signin|services|weekly|throttle|me\/notify|me\/email|plexsettings)/.test(p)) return send(res, 403, { error: 'This is turned off in the demo' });
 
     if (p === '/api/2fa/start' && m === 'POST') {
       if (me.totp && me.totp.on) return send(res, 400, { error: 'Two-step sign-in is already on' });
@@ -982,6 +1052,14 @@ http.createServer(async (req, res) => {
           if (!out.cpuInfo) { out.notes.pop(); await part('{ info { os { uptime } cpu { brand cores threads } } }', cpuOut, true); }
         })(),
         part('{ docker { containers { id image status } } }', d => { out.meta = {}; for (const c of d.docker.containers) out.meta[c.id] = { image: cut(c.image, 100), status: cut(c.status, 60) }; }, true),
+        part('{ docker { containers { id labels } } }', d => {
+          out.icons = {};
+          for (const c of d.docker.containers) {
+            let l = c.labels; if (typeof l === 'string') { try { l = JSON.parse(l); } catch { l = null; } }
+            const v = l && typeof l === 'object' ? l['net.unraid.docker.icon'] : '';
+            try { const u = new URL(String(v || '')); if (u.protocol === 'https:' && !u.username && !u.password && !/(api_?key|token|passkey|secret)=/i.test(u.search)) out.icons[c.id] = u.href.slice(0, 400); } catch {}
+          }
+        }, true),
         part('{ docker { containers { id isUpdateAvailable } } }', d => { out.updates = {}; for (const c of d.docker.containers) if (c.isUpdateAvailable) out.updates[c.id] = true; }, true)
       ]);
       return send(res, 200, out);
@@ -1306,8 +1384,11 @@ http.createServer(async (req, res) => {
       const q = new URL(req.url, 'http://x').searchParams, s = arr(db.services.find(x => x.id === q.get('sid')));
       if (!s || !+q.get('id')) return send(res, 400, { error: 'Bad request' });
       const rel = await call(s, `/api/v3/release?${s.type === 'sonarr' ? 'episodeId' : 'movieId'}=${+q.get('id')}`, { signal: AbortSignal.timeout(90000) });
-      return send(res, 200, rel.map(x => ({ guid: x.guid, indexerId: x.indexerId, title: x.title, size: x.size, seeders: x.seeders || 0,
-        indexer: x.indexer, quality: ((x.quality || {}).quality || {}).name, age: x.age, rejected: !!x.rejected, why: (x.rejections || []).slice(0, 2).join('; ') }))
+      // A page about the release, if the indexer gives one. Links that carry a key or passkey are left out, so no secret ever reaches the browser.
+      const page = x => { for (const v of [x.infoUrl, x.guid]) { try { const u = new URL(String(v || '')); if (/^https?:$/.test(u.protocol) && !/(api_?key|passkey|token|secret|pass|auth|rsskey|key)=/i.test(u.search) && !u.username && !u.password) return u.href.slice(0, 600); } catch {} } return ''; };
+      return send(res, 200, rel.map(x => ({ guid: x.guid, indexerId: x.indexerId, title: x.title, size: x.size, seeders: x.seeders || 0, leechers: x.leechers || 0,
+        indexer: x.indexer, quality: ((x.quality || {}).quality || {}).name, age: x.age, rejected: !!x.rejected, why: (x.rejections || []).slice(0, 2).join('; '),
+        langs: (x.languages || []).map(l => cut(l && l.name, 30)).filter(Boolean).slice(0, 6), link: page(x), protocol: x.protocol === 'usenet' ? 'usenet' : x.protocol === 'torrent' ? 'torrent' : '', group: cut(x.releaseGroup, 40) }))
         .sort((a, b) => a.rejected - b.rejected || b.seeders - a.seeders).slice(0, 40));
     }
     if (p === '/api/grab' && m === 'POST') {
@@ -1568,6 +1649,18 @@ http.createServer(async (req, res) => {
     }
     const SCOPES = ['apps', 'traffic', 'downloads', 'upcoming', 'watching'], LOOKS = ['auto', 'dark', 'light'];
     const linkScopes = b => Object.fromEntries(SCOPES.map(k => [k, k === 'apps' ? b[k] !== false : !!b[k]]));
+    if (p === '/api/plexsettings' && m === 'GET') {
+      const c = plexCfg();
+      return send(res, 200, { on: c.on || !!(db.settings.plexLogin || {}).on, auto: c.auto, sid: c.sid, servers: db.services.filter(x => x.type === 'plex').map(x => ({ id: x.id, name: x.name })), access: c.access, perms: c.perms, linked: db.users.filter(x => x.plex).length });
+    }
+    if (p === '/api/plexsettings' && m === 'PUT') {
+      const b = await readBody(req), o = db.settings.plexLogin || {}, srv = db.services.find(x => x.id === b.sid && x.type === 'plex');
+      if (b.on && !srv && !db.services.some(x => x.type === 'plex')) return send(res, 400, { error: 'Add your Plex server under Settings, then Apps, first.' });
+      db.settings.plexLogin = { on: !!b.on, sid: srv ? srv.id : (o.sid || ''), auto: b.auto !== false,
+        access: Array.isArray(b.access) ? b.access.filter(a => db.services.some(x => x.id === a)) : o.access,
+        perms: b.perms ? Object.fromEntries(['add', 'control', 'remove', 'request'].map(k => [k, b.perms[k] === true])) : o.perms };
+      save(); audit(me.name, 'Changed Sign in with Plex', b.on ? 'on' : 'off'); return send(res, 200, {});
+    }
     if (p === '/api/signin' && m === 'GET') {
       const mc = mailer();
       return send(res, 200, { mail: !!mc, mailFrom: mc ? mc.from : '', publicUrl: baseUrl(), urlFromEnv: !!process.env.PUBLIC_URL, loginArt: wpMode(), cached: wpList().filter(f => LIBWP.test(f)).length, own: wpList().filter(f => !LIBWP.test(f)).length, wp: { at: wpState.at, running: wpBusy, errors: wpState.errors } });
@@ -1683,6 +1776,7 @@ http.createServer(async (req, res) => {
       if ('perms' in b) u.perms = b.perms ? Object.fromEntries(['add', 'control', 'remove', 'request'].map(k => [k, b.perms[k] !== false])) : undefined;
       if ('reqLimit' in b) { const n = Math.round(+(b.reqLimit || {}).n), d = Math.round(+(b.reqLimit || {}).days); u.reqLimit = n > 0 ? { n: Math.min(n, 1000), days: Math.min(Math.max(d || 7, 1), 365) } : undefined; }
       if ('autoApprove' in b) u.autoApprove = !!b.autoApprove;
+      if ('plexName' in b) { const v = cut(b.plexName, 60).trim(); if (v && u.role === 'admin') return send(res, 400, { error: 'Admins sign in with their MediaHub password.' }); u.plexName = v || undefined; if (!v) delete u.plex; }
       if ('notify' in b) { const v = String(b.notify || '').trim(); if (v && !/^https?:\/\//i.test(v)) return send(res, 400, { error: 'Enter a web address starting with https://' }); u.notify = v.slice(0, 500); }
       save(); audit(me.name, 'Changed a profile', u.name); return send(res, 200, pubUser(u));
     }
