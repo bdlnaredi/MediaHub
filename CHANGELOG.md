@@ -2,15 +2,19 @@
 
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.14.6] - 2026-10-16
+
+### Added
+- **Unraid containers show their own icons.** The Containers list uses the icon each container is set up with in Unraid. A container with no icon, or one that will not load, keeps the logo or letter shown before. Only plain https icon addresses are used, and any address that carries a key is ignored.
+- **People who sign in with Plex only see their own viewing.** On Plex, Jellyfin and Tautulli they see only their own streams, watch history and stats, never other people's. The server's "recently added" list is hidden from them too, because it could show libraries you keep from them. Note: this does not yet hide whole libraries in Sonarr, Radarr or the poster pictures; for now only tick the apps you are happy for them to see in full.
+
+### Changed
+- **Settings redesigned.** The row of buttons is now a side menu with the sections grouped as You, Server and Care. Each section has an icon, a one-line description and a heading. On phones the menu becomes a strip you swipe along the top.
+
 ## [0.14.5] - 2026-10-16
 
 ### Added
 - **Interactive search shows the language** of each release (for example English, or English, French, German), whether it is a torrent or Usenet, the release group and the leechers, and gives each result a **link to the release page** on its indexer. Click the title or the small arrow icon; it opens in a new tab. Links that contain a key or passkey are never shown. If the indexer gives no page, there is no link.
-
-- **Unraid containers show their own icons.** The Containers list uses the icon each container is set up with in Unraid. A container with no icon, or one that will not load, keeps the logo or letter shown before. Only plain https icon addresses are used, and any address that carries a key is ignored.
-
-### Changed
-- **Settings redesigned.** The row of buttons is now a side menu with the sections grouped as You, Server and Care. Each section has an icon, a one-line description and a heading. On phones the menu becomes a strip you swipe along the top.
 
 ## [0.14.4] - 2026-10-15
 

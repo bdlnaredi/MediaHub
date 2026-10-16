@@ -259,11 +259,14 @@ async function liveBuild() {
   for (const s of db.services) if (health[s.id]) out.health[s.id] = health[s.id].ok;
   return out;
 }
+// A profile that signs in with Plex only ever sees its own viewing: its own streams and its own history.
+const ownNames = u => u && u.role !== 'admin' && u.plex ? [u.plex.name, u.plexName].filter(Boolean).map(x => String(x).trim().toLowerCase()) : null;
+const mineOnly = (u, l) => { const n = ownNames(u); return n ? (Array.isArray(l) ? l : []).filter(x => n.includes(String(x.user || '').trim().toLowerCase())) : l; };
 function liveView(u, snap, first) {
   const o = { t: snap.t, qb: {}, unraid: {}, plex: {}, sab: {}, health: {} }; if (first) o.hist = {};
   for (const s of db.services) {
     if (u.role !== 'admin' && !(u.access || []).includes(s.id)) continue;
-    for (const k of ['qb', 'unraid', 'plex', 'sab']) if (snap[k][s.id]) o[k][s.id] = snap[k][s.id];
+    for (const k of ['qb', 'unraid', 'plex', 'sab']) if (snap[k][s.id]) o[k][s.id] = k === 'plex' ? mineOnly(u, snap[k][s.id]) : snap[k][s.id];
     if (s.id in snap.health) o.health[s.id] = snap.health[s.id];
     if (first && live.hist[s.id]) o.hist[s.id] = live.hist[s.id];
   }
@@ -1219,8 +1222,8 @@ http.createServer(async (req, res) => {
       const th2 = x => x.grandparentThumb || x.parentThumb || x.thumb || '';
       const nm = x => x.type === 'episode' ? { title: x.grandparentTitle, sub: `S${pad2(x.parentIndex)}E${pad2(x.index)} ${x.title}` } : { title: x.title, sub: String(x.year || '') };
       return send(res, 200, {
-        sessions,
-        recent: ((b.MediaContainer || {}).Metadata || []).map(x => ({ ...nm(x), thumb: th2(x) })) });
+        sessions: mineOnly(me, sessions),
+        recent: ownNames(me) ? [] : ((b.MediaContainer || {}).Metadata || []).map(x => ({ ...nm(x), thumb: th2(x) })) });
     }
     if ((r = p.match(/^\/api\/plex\/(\w+)\/img$/))) {
       const s = svcOf(r[1], 'plex'), pth = new URL(req.url, 'http://x').searchParams.get('p') || '';
@@ -1232,7 +1235,7 @@ http.createServer(async (req, res) => {
     if ((r = p.match(/^\/api\/jellyfin\/(\w+)\/now$/))) {
       const s = svcOf(r[1], 'jellyfin'); if (!s) return send(res, 404, { error: 'Not found' });
       const [sessions, b] = await Promise.all([jfSessions(s), jfGet(s, '/Items?SortBy=DateCreated&SortOrder=Descending&Recursive=true&IncludeItemTypes=Movie,Series&Limit=14').then(x => x.json())]);
-      return send(res, 200, { sessions, recent: (b.Items || []).map(x => ({ title: cut(x.Name, 120), sub: String(x.ProductionYear || ''), thumb: x.Id })) });
+      return send(res, 200, { sessions: mineOnly(me, sessions), recent: ownNames(me) ? [] : (b.Items || []).map(x => ({ title: cut(x.Name, 120), sub: String(x.ProductionYear || ''), thumb: x.Id })) });
     }
     if ((r = p.match(/^\/api\/jellyfin\/(\w+)\/img$/))) {
       const s = svcOf(r[1], 'jellyfin'), id = new URL(req.url, 'http://x').searchParams.get('p') || '';
@@ -1314,6 +1317,21 @@ http.createServer(async (req, res) => {
     if ((r = p.match(/^\/api\/tautulli\/(\w+)\/stats$/))) {
       const s = svcOf(r[1], 'tautulli'); if (!s) return send(res, 404, { error: 'Not found' });
       const days = [7, 30, 90].includes(+new URL(req.url, 'http://x').searchParams.get('days')) ? +new URL(req.url, 'http://x').searchParams.get('days') : 30;
+      const ob = ownNames(me);
+      if (ob) {
+        let who = null; try { who = ((await taut(s, 'get_users')) || []).find(x => ob.includes(String(x.username || '').trim().toLowerCase()) || ob.includes(String(x.friendly_name || '').trim().toLowerCase())); } catch {}
+        const none = { days, own: true, movies: [], tv: [], users: [], totals: { plays: 0, seconds: 0 }, byDate: null, byHour: null, byPlatform: null, history: [] };
+        if (!who || !who.user_id) return send(res, 200, none);
+        const U = '&user_id=' + encodeURIComponent(who.user_id), sf = pr => pr.catch(() => null), im = x => { const v = x && (x.grandparent_thumb || x.thumb); return /^\/library\/[\w\/.-]+$/.test(v || '') && !v.includes('..') ? v : ''; };
+        const [hist, byDate, byDur, byHour, byPlat] = await Promise.all([sf(taut(s, 'get_history', '&length=300' + U)), sf(taut(s, 'get_plays_by_date', `&time_range=${days}&y_axis=plays` + U)), sf(taut(s, 'get_plays_by_date', `&time_range=${days}&y_axis=duration` + U)),
+          sf(taut(s, 'get_plays_by_hourofday', `&time_range=${days}&y_axis=plays` + U)), sf(taut(s, 'get_plays_by_top_10_platforms', `&time_range=${days}&y_axis=plays` + U))]);
+        const ch = (c, n = 6) => c && Array.isArray(c.categories) ? { categories: c.categories.map(x => cut(x, 40)), series: (c.series || []).slice(0, n).map(z => ({ name: cut(z.name, 30), data: (z.data || []).map(v => +v || 0) })) } : null;
+        const sm = c => c ? c.series.reduce((a, z) => a + z.data.reduce((q, v) => q + v, 0), 0) : 0, dur = ch(byDur), plays = ch(byDate), rows = ((hist || {}).data || []).filter(x => (x.date || 0) * 1000 >= Date.now() - days * 864e5);
+        const top = (type, key) => { const g = new Map(); for (const x of rows.filter(y => y.media_type === type)) { const t = cut(x[key] || x.title, 120), e = g.get(t) || { title: t, plays: 0, thumb: im(x), year: x.year || '' }; e.plays++; g.set(t, e); } return [...g.values()].sort((a, b) => b.plays - a.plays).slice(0, 10); };
+        return send(res, 200, { days, own: true, movies: top('movie', 'title'), tv: top('episode', 'grandparent_title'), users: [{ title: cut(who.friendly_name || who.username, 60), plays: rows.length, seconds: rows.reduce((a, x) => a + (+x.duration || 0), 0) }],
+          totals: { plays: sm(plays), seconds: sm(dur) }, byDate: plays, byHour: ch(byHour), byPlatform: ch(byPlat),
+          history: ((hist || {}).data || []).slice(0, 14).map(x => ({ user: x.friendly_name || x.user, title: x.full_title || x.title, type: x.media_type, at: (x.date || 0) * 1000, player: x.player, pct: x.percent_complete, thumb: im(x) })) });
+      }
       const soft = pr => pr.catch(() => null), img = x => { const v = x && (x.grandparent_thumb || x.thumb); return /^\/library\/[\w\/.-]+$/.test(v || '') && !v.includes('..') ? v : ''; };
       const [home, hist, byDate, byDur, byHour, byPlat] = await Promise.all([taut(s, 'get_home_stats', `&time_range=${days}&stats_count=10`), taut(s, 'get_history', '&length=14'),
         soft(taut(s, 'get_plays_by_date', `&time_range=${days}&y_axis=plays`)), soft(taut(s, 'get_plays_by_date', `&time_range=${days}&y_axis=duration`)),
