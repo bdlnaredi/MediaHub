@@ -4,7 +4,7 @@ ARG VERSION=dev
 LABEL org.opencontainers.image.title="MediaHub" \
       org.opencontainers.image.description="A self-hosted dashboard for Sonarr, Radarr, qBittorrent, Seerr, Plex, Unraid and more" \
       org.opencontainers.image.source="https://github.com/bdlnaredi/mediahub" \
-      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.licenses="GPL-3.0-or-later" \
       org.opencontainers.image.version="${VERSION}"
 
 # su-exec lets the container drop root after fixing folder ownership; tini handles shutdown signals.

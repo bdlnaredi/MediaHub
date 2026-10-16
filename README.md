@@ -3,7 +3,7 @@
 # MediaHub
 
 [![CI](https://github.com/bdlnaredi/mediahub/actions/workflows/ci.yml/badge.svg)](https://github.com/bdlnaredi/mediahub/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
 [![Container](https://img.shields.io/badge/ghcr.io-bdlnaredi%2Fmediahub-informational)](https://github.com/bdlnaredi/mediahub/pkgs/container/mediahub)
 
 One friendly web page for the apps on your home media server. See what is downloading, add shows and movies, approve requests from family, check on your server, and get a phone message when something needs you. It runs as a single small Docker container with **no dependencies** to install.
@@ -220,4 +220,8 @@ npm test
 
 ## License
 
-[MIT](LICENSE)
+MediaHub is free software, released under the [GNU General Public License, version 3 or (at your option) any later version](LICENSE).
+
+You may use, study, change and share it. If you share a changed version, you must share it under the same license and make its source available. There is no warranty.
+
+Versions up to 0.14.12 were released under the MIT license, and anyone who received those versions keeps the rights the MIT license gave them for those versions.

@@ -1,8 +1,8 @@
 {
   "name": "mediahub",
-  "version": "0.14.12",
+  "version": "0.14.13",
   "description": "A self-hosted dashboard for your media server apps: Sonarr, Radarr, qBittorrent, Seerr, Plex, Unraid and more.",
-  "license": "MIT",
+  "license": "GPL-3.0-or-later",
   "repository": { "type": "git", "url": "git+https://github.com/bdlnaredi/mediahub.git" },
   "bugs": { "url": "https://github.com/bdlnaredi/mediahub/issues" },
   "homepage": "https://github.com/bdlnaredi/mediahub#readme",

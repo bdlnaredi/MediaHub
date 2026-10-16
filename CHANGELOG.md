@@ -2,6 +2,11 @@
 
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.14.13] - 2026-10-16
+
+### Changed
+- **MediaHub is now released under the GNU General Public License, version 3 or later** (it was MIT). The `LICENSE` file, the package details, the image label and the README say so. Earlier versions (up to 0.14.12) stay available under the MIT license for anyone who already has them.
+
 ## [0.14.12] - 2026-10-16
 
 ### Changed

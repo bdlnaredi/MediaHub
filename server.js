@@ -1,3 +1,9 @@
+// MediaHub: a self-hosted dashboard for your media apps.
+// Copyright (C) 2026 bdlnaredi
+// This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License
+// as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+// This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details: see the LICENSE file.
 const http = require('http'), fs = require('fs'), path = require('path'), crypto = require('crypto');
 const DATA = process.env.DATA_DIR || '/data', FILE = path.join(DATA, 'db.json');
 fs.mkdirSync(DATA, { recursive: true });
