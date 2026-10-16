@@ -2,6 +2,14 @@
 
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.14.15] - 2026-10-16
+
+### Added
+- **Discover tab.** Trending, Popular and Anticipated movies and shows from **Trakt**, **TMDB** and **TheTVDB**. Open any title to see its IMDb, TMDB, TVDB and Trakt links, and request it through Seerr in one press. Because the Android app shows the same page, it gets Discover too.
+- **Settings, Discover lists.** Admins paste a free key for each site (Trakt Client ID, TMDB key or token, TheTVDB key). Keys stay on the server, and only the last four characters are shown back. The tab appears once at least one key is saved.
+- TheTVDB has Popular and Anticipated shows and Popular movies only. It has no trending list.
+- Tested against pretend versions of the three sites only. The real sites have not been tried yet.
+
 ## [0.14.14] - 2026-10-16
 
 ### Added

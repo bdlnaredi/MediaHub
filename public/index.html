@@ -657,16 +657,16 @@ const ICONS={ext:'<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1
  wt:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>',stats:'<path d="M5 20V10M12 20V4M19 20v-7"/>',
  set:'<circle cx="12" cy="12" r="3"/><path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/>',
  tv:'<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4"/>',film:'<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 4v16M16 4v16M4 9h4M4 15h4M16 9h4M16 15h4"/>',book:'<path d="M5 4h10a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h10"/>',box:'<path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z"/><path d="M3 7.5 12 12l9-4.5M12 12v9"/>',
- hist:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',trash:'<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>'};
+ disc:'<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>',hist:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',trash:'<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>'};
 const ic=k=>`<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICONS[k]}</svg>`;
 const LOGO='<img src="/icon-192.png" alt="" width="38" height="38">';
-const PAGES={dash:['',''],find:['Search','Find a show or movie and add it to Sonarr or Radarr.'],rq:['Requests','Ask for something new, or approve what others asked for.'],lib:['Library','Everything in Sonarr and Radarr, and what is still missing.'],
+const PAGES={dash:['',''],find:['Search','Find a show or movie and add it to Sonarr or Radarr.'],disc:['Discover','What is trending, popular and anticipated on Trakt, TMDB and TheTVDB.'],rq:['Requests','Ask for something new, or approve what others asked for.'],lib:['Library','Everything in Sonarr and Radarr, and what is still missing.'],
  wt:['Wanted','Episodes and movies you are still missing, or that could be a better quality.'],dl:['Downloads','What qBittorrent is fetching right now.'],rss:['RSS','Feeds and auto-download rules from qBittorrent.'],up:['Upcoming','Releases coming soon, and what is downloading.'],
  idx:['Indexers','Search your Jackett indexers and check how Prowlarr is doing.'],mb:['Music and books','Artists and authors from Lidarr and Readarr.'],sub:['Subtitles','Episodes and movies that are missing subtitles in Bazarr.'],nzb:['Usenet','What SABnzbd is fetching, what finished, and adding NZB files.'],hl:['Health','Problems, disk space and stuck downloads across your apps.'],ur:['Unraid','Server health, disks and containers.'],stats:['Watch stats','Who watches what on Plex.'],set:['Settings','Apps, profiles, alerts, backups and how MediaHub looks.']};
-const TABS=[['dash','Dashboard'],['find','Search'],['rq','Requests'],['lib','Library'],['wt','Wanted'],['dl','Downloads'],['rss','RSS'],['up','Upcoming'],['idx','Indexers'],['mb','Music & books'],['sub','Subtitles'],['nzb','Usenet'],['hl','Health'],['ur','Unraid'],['stats','Stats'],['set','Settings']];
+const TABS=[['dash','Dashboard'],['find','Search'],['disc','Discover'],['rq','Requests'],['lib','Library'],['wt','Wanted'],['dl','Downloads'],['rss','RSS'],['up','Upcoming'],['idx','Indexers'],['mb','Music & books'],['sub','Subtitles'],['nzb','Usenet'],['hl','Health'],['ur','Unraid'],['stats','Stats'],['set','Settings']];
 const TYPE_TABS={find:['sonarr','radarr'],rq:['seerr'],lib:['sonarr','radarr'],wt:['sonarr','radarr'],dl:['qbittorrent'],rss:['qbittorrent'],up:['sonarr','radarr'],idx:['jackett','prowlarr'],mb:['lidarr','readarr'],sub:['bazarr'],nzb:['sabnzbd'],ur:['unraid'],stats:['tautulli']};
 const PICK={sub:'bazarr',nzb:'sabnzbd',dl:'qbittorrent',rss:'qbittorrent',idx:'jackett',ur:'unraid',rq:'seerr',stats:'tautulli'};
-const visibleTabs=()=>TABS.filter(([k])=>!TYPE_TABS[k]||TYPE_TABS[k].some(t=>ofType(t).length)).filter(([k])=>k!=='hl'||(me.role==='admin'&&services.some(s=>['sonarr','radarr','lidarr','readarr','prowlarr'].includes(s.type))));
+const visibleTabs=()=>TABS.filter(([k])=>!TYPE_TABS[k]||TYPE_TABS[k].some(t=>ofType(t).length)).filter(([k])=>k!=='disc'||Object.values(me.lists||{}).some(Boolean)).filter(([k])=>k!=='hl'||(me.role==='admin'&&services.some(s=>['sonarr','radarr','lidarr','readarr','prowlarr'].includes(s.type))));
 let stSub='acct';
 function goto(k){if(String(k).includes(':')){const [t,s]=k.split(':');tab=t==='st'?'set':t;stSub=s}else tab=k;render()}
 function render(){
@@ -690,7 +690,7 @@ $('#rl').onclick=()=>{UI.rail=!UI.rail;saveUI()};$('#qs').onclick=quick;
     $('#pk2').onchange=e=>{UI['pick_'+pt]=e.target.value;saveUI();render()}}
   [].concat(timer||[]).forEach(clearInterval);liveFns=[];LIVE.subs.clear();if(tab!=='dash'&&tab!=='ur')liveStop();
   const on=document.querySelector('.nv.on');if(on&&on.scrollIntoView)on.scrollIntoView({inline:'center',block:'nearest'});
-  ({dash:dashView,find:findView,rq:rqView,lib:libView,wt:wtView,dl:dlView,rss:rssView,up:upView,idx:idxView,mb:mbView,sub:subView,nzb:nzbView,hl:hlView,ur:urView,stats:statsView,set:setView})[tab]();
+  ({dash:dashView,find:findView,disc:discView,rq:rqView,lib:libView,wt:wtView,dl:dlView,rss:rssView,up:upView,idx:idxView,mb:mbView,sub:subView,nzb:nzbView,hl:hlView,ur:urView,stats:statsView,set:setView})[tab]();
   if(arrOnce())Cinema.load(api);
   const mm=$('#m');if(mm){mm.classList.remove('pgin');void mm.offsetWidth;mm.classList.add('pgin')}
 }
@@ -875,7 +875,7 @@ function dashView(){
   checks();upt();slow();attn();rq();
   timer=[tick(fallback,4000),setInterval(glide,1000),tick(slow,60000),tick(attn,60000),tick(rq,60000),tick(upt,300000),tick(()=>{if(!LIVE.ok)checks()},30000)];
 }
-const ST_SECTIONS=[['acct','Account',false,'Your password, sign-in and devices','usr','You'],['look','Appearance',false,'Theme, colours and layout','pal','You'],['apps','Apps',true,'The apps MediaHub connects to','svc','Server'],['users','Users',true,'Profiles and what each can do','usr','Server'],['links','Status pages',true,'Public pages that show if your server is up','eye','Server'],['alerts','Alerts',true,'Email, phone messages and reports','al','Care'],['rules','Download rules',true,'Speed schedule and stream throttling','dl','Care'],['backup','Backup',true,'Save and restore your setup','pw','Care'],['audit','Activity',true,'Who did what, and when','hl','Care']];
+const ST_SECTIONS=[['acct','Account',false,'Your password, sign-in and devices','usr','You'],['look','Appearance',false,'Theme, colours and layout','pal','You'],['apps','Apps',true,'The apps MediaHub connects to','svc','Server'],['lists','Discover lists',true,'Keys for the Trakt, TMDB and TheTVDB lists','find','Server'],['users','Users',true,'Profiles and what each can do','usr','Server'],['links','Status pages',true,'Public pages that show if your server is up','eye','Server'],['alerts','Alerts',true,'Email, phone messages and reports','al','Care'],['rules','Download rules',true,'Speed schedule and stream throttling','dl','Care'],['backup','Backup',true,'Save and restore your setup','pw','Care'],['audit','Activity',true,'Who did what, and when','hl','Care']];
 function setView(){
   const admin=me.role==='admin',secs=ST_SECTIONS.filter(s=>admin||!s[2]);
   if(!secs.some(s=>s[0]===stSub))stSub='acct';
@@ -887,7 +887,7 @@ function setView(){
   mm.insertAdjacentHTML('beforebegin',`<div class="sxt"><h2>${cur[1]}</h2><p class="mute">${cur[3]}</p></div>`);
   $('#sn').onclick=e=>{const b=e.target.closest('[data-k]');if(!b)return;stSub=b.dataset.k;render()};
   const ob=$('#sn .on');if(ob&&ob.scrollIntoView)ob.scrollIntoView({inline:'center',block:'nearest'});
-  ({acct:stAcct,look:stLook,apps:svcView,users:usrView,alerts:alView,links:linksView,rules:stRules,backup:stBackup,audit:stAudit})[stSub]();
+  ({acct:stAcct,look:stLook,apps:svcView,lists:stLists,users:usrView,alerts:alView,links:linksView,rules:stRules,backup:stBackup,audit:stAudit})[stSub]();
 }
 function stLook(){$('#m').innerHTML=`<div class="panel" style="max-width:560px">${appearHtml()}</div>`;bindAppear($('#m'))}
 async function stAcct(){
@@ -1836,6 +1836,54 @@ async function loadPlex(s){
     const img=t=>t?`/api/${s.type}/${s.id}/img?p=${encodeURIComponent(t)}`:'';
     el.innerHTML=d.recent.length?`<h2 class="sec">${s.type==='plex'?'Recently added to Plex':'Recently added to Jellyfin'}</h2><div class="strip">${d.recent.map(x=>`<div class="pc" style="cursor:default"><div class="pw">${x.thumb?`<img src="${img(x.thumb)}" alt="" loading="lazy">`:''}</div><b>${esc(x.title)}</b><div class="mute">${esc(x.sub)}</div></div>`).join('')}</div>`:'';
   }catch{}
+}
+const DS={src:'',kind:'movie',list:'trending'};let dsTok=0;
+const DSRC={trakt:'Trakt',tmdb:'TMDB',tvdb:'TheTVDB'},DLIST={trending:'Trending',popular:'Popular',anticipated:'Anticipated'},DAVAIL={trakt:['trending','popular','anticipated'],tmdb:['trending','popular','anticipated'],tvdb:['popular','anticipated']};
+function discView(){
+  const on=Object.keys(DSRC).filter(k=>(me.lists||{})[k]);
+  if(!on.length){$('#m').innerHTML='<div class="panel">No list is set up yet.'+(me.role==='admin'?' Add a free key under Settings, then Discover lists.':' Ask the admin to add one.')+'</div>';return}
+  if(!on.includes(DS.src))DS.src=on[0];
+  const avail=()=>DAVAIL[DS.src].filter(l=>!(DS.src==='tvdb'&&DS.kind==='movie'&&l==='anticipated'));
+  if(!avail().includes(DS.list))DS.list=avail()[0];
+  const seg=(id,items,cur,lab)=>`<div class="seg" id="${id}" role="group" aria-label="${lab}">${items.map(([k,n])=>`<button data-v="${k}" class="${k===cur?'on':''}" aria-pressed="${k===cur}">${n}</button>`).join('')}</div>`;
+  $('#m').innerHTML=`<div class="row" style="flex-wrap:wrap;gap:10px;margin-bottom:16px">${on.length>1?seg('ds',on.map(k=>[k,DSRC[k]]),DS.src,'Which site'):`<span class="pill">${DSRC[on[0]]}</span>`}${seg('dk',[['movie','Movies'],['tv','Shows']],DS.kind,'Movies or shows')}${seg('dl',avail().map(k=>[k,DLIST[k]]),DS.list,'Which list')}</div><div class="err" id="e"></div><div id="dg"><p class="mute">Loading…</p></div>`;
+  [['ds','src'],['dk','kind'],['dl','list']].forEach(([id,f])=>{const g=$('#'+id);if(g)g.onclick=e=>{const b=e.target.closest('[data-v]');if(!b)return;DS[f]=b.dataset.v;discView()}});
+  const my=++dsTok;
+  api(`/api/discover?src=${DS.src}&list=${DS.list}&kind=${DS.kind}`).then(l=>{
+    if(my!==dsTok||tab!=='disc')return;
+    $('#dg').innerHTML=l.length?`<div class="grid">${l.map((x,i)=>`<div class="card" data-v="${i}" tabindex="0" role="button" aria-label="${esc(x.title)}" style="cursor:pointer">${x.rating?`<span class="cn-star">★ ${x.rating.toFixed(1)}</span>`:''}${x.poster?`<img src="${esc(x.poster)}" alt="" loading="lazy" style="width:100%;border-radius:8px;aspect-ratio:2/3;object-fit:cover">`:`<div class="mute" style="aspect-ratio:2/3;display:grid;place-items:center;text-align:center;background:var(--s2);border-radius:8px;padding:10px">${esc(x.title)}</div>`}<h3>${esc(x.title)} <span class="mute">${esc(x.year)}</span></h3></div>`).join('')}</div>`:'<p class="mute">Nothing on this list right now.</p>';
+    document.querySelectorAll('#dg .card').forEach(c=>{const go=()=>discOpen(l[c.dataset.v]);c.onclick=go;c.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}}});
+  }).catch(e=>{if(my===dsTok&&$('#dg')){$('#dg').innerHTML='';$('#e').textContent=e.message}});
+}
+function discOpen(x){
+  const sk=ofType('seerr')[0],tv=x.mediaType==='tv';
+  const o=modal(`<div class="row" style="align-items:flex-start;gap:16px;flex-wrap:wrap">${x.poster?`<img src="${esc(x.poster)}" alt="" style="width:140px;border-radius:10px;aspect-ratio:2/3;object-fit:cover">`:''}<div class="grow" style="min-width:220px"><h2 style="margin:0">${esc(x.title)} <span class="mute">${esc(x.year)}</span></h2><div class="mute">${tv?'TV show':'Movie'}${x.rating?', rated '+x.rating.toFixed(1):''}</div>${x.overview?`<p>${esc(x.overview)}</p>`:''}${idChips({type:x.mediaType,imdb:x.imdb,tmdb:x.tmdb,tvdb:x.tvdb})}<div id="rqs" style="margin-top:12px"></div></div></div><div class="row" style="margin-top:14px"><button data-x>Close</button></div>`);
+  o.querySelector('[data-x]').onclick=o.close;
+  const box=o.querySelector('#rqs');
+  if(!sk){box.innerHTML='<span class="mute">Connect Seerr to request things from here.</span>';return}
+  if(!can('request')){box.innerHTML='<span class="mute">Requests are off for your profile.</span>';return}
+  const ask=m=>{box.innerHTML='<button class="primary" id="rq1">Request</button><div class="err" id="re"></div>';
+    box.querySelector('#rq1').onclick=async e=>{const b=e.target;b.disabled=true;b.textContent='Sending…';
+      try{const r=await api('/api/requests','POST',{sid:sk.id,mediaType:x.mediaType,mediaId:m.id,title:m.title,year:m.year,poster:m.poster||x.poster,seasons:[]});box.innerHTML=`<span class="pill ok">${r.status==='approved'?'Requested':'Sent for approval'}</span>${tv?' <span class="mute">All seasons</span>':''}`}
+      catch(er){b.disabled=false;b.textContent='Request';box.querySelector('#re').textContent=er.message}}};
+  box.innerHTML='<span class="mute">Checking Seerr…</span>';
+  api(`/api/seerr/search?sid=${sk.id}&term=${encodeURIComponent(x.title)}`).then(r=>{
+    const nt=z=>String(z).toLowerCase().replace(/[^a-z0-9]/g,''),m=r.find(y=>y.mediaType===x.mediaType&&(x.tmdb?y.id===x.tmdb:nt(y.title)===nt(x.title)&&(!x.year||!y.year||Math.abs(+y.year-+x.year)<=1)));
+    if(m)m.status===5?box.innerHTML='<span class="pill ok">Available</span>':m.status>=2?box.innerHTML='<span class="pill">Already requested</span>':ask(m);
+    else if(x.tmdb)ask({id:x.tmdb,title:x.title,year:x.year});
+    else box.innerHTML='<span class="mute">Seerr could not find this one.</span>';
+  }).catch(er=>{box.innerHTML=`<span class="mute">${esc(er.message)}</span>`});
+}
+const SL_SRC=[['trakt','Trakt','Client ID','Sign in at trakt.tv, open Settings, then Your API Apps, then New Application. Any name works, and urn:ietf:wg:oauth:2.0:oob is fine for the redirect address. Copy the Client ID.'],
+  ['tmdb','TMDB','API key or Read Access Token','Sign in at themoviedb.org, open Settings, then API. Copy the API Key, or the longer API Read Access Token. Either works.'],
+  ['tvdb','TheTVDB','API key','Make one at thetvdb.com/api-information. TheTVDB may ask for a small subscription for personal use. It has Popular and Anticipated shows, and Popular movies.']];
+async function stLists(){
+  let c;try{c=await api('/api/listsettings')}catch(e){$('#m').innerHTML=`<div class="panel err">${esc(e.message)}</div>`;return}
+  $('#m').innerHTML=`<p class="mute" style="max-width:640px">Add a free key from any of these sites and a <b>Discover</b> tab appears with their Trending, Popular and Anticipated lists. Keys stay on your server. Trakt has no pictures of its own, so they come from TMDB (if you add a key) or from Seerr.</p>`+SL_SRC.map(([k,n,lab,help])=>`<div class="panel" style="max-width:640px;margin-top:14px"><div class="row"><h3 style="margin:0" class="grow">${n}</h3>${c[k].on?`<span class="pill ok">Saved ${esc(c[k].hint)}</span>`:'<span class="pill">Not set</span>'}</div>
+    <p class="mute">${help}</p><form data-k="${k}" style="margin:0"><input name="v" placeholder="${c[k].on?'Paste a new '+lab+' to replace it':lab}" autocomplete="off" spellcheck="false" aria-label="${n} ${lab}"><div class="row"><button class="primary">Save</button>${c[k].on?'<button type="button" data-rm="'+k+'">Remove</button>':''}</div></form></div>`).join('')+'<div class="err" id="le"></div>';
+  const put=async b=>{try{const r=await api('/api/listsettings','PUT',b);me.lists=r;toast('Saved','ok');stLists()}catch(e){$('#le').textContent=e.message}};
+  document.querySelectorAll('form[data-k]').forEach(f=>f.onsubmit=e=>{e.preventDefault();const v=f.v.value.trim();if(!v){$('#le').textContent='Paste the key first.';return}put({[f.dataset.k]:v})});
+  document.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>put({[b.dataset.rm]:''}));
 }
 function rqView(){
   const sv=services.filter(s=>s.type==='seerr'),admin=me.role==='admin';

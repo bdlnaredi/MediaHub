@@ -7,7 +7,7 @@
 const http = require('http'), fs = require('fs'), path = require('path'), crypto = require('crypto');
 const DATA = process.env.DATA_DIR || '/data', FILE = path.join(DATA, 'db.json');
 fs.mkdirSync(DATA, { recursive: true });
-const totp = require('./lib/totp'), channels = require('./lib/channels');
+const totp = require('./lib/totp'), channels = require('./lib/channels'), listsLib = require('./lib/lists');
 const PORT = +process.env.PORT || 5080, DEMO = /^(1|true|yes)$/i.test(process.env.DEMO || ''), DAY = 864e5;
 const demo = DEMO ? require('./lib/demo').create({ streams: 2 }) : null;
 const VERSION = (() => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'))).version; } catch { return 'dev'; } })();
@@ -75,6 +75,7 @@ if (DEMO) {
     services: [['Sonarr', 'sonarr'], ['Radarr', 'radarr'], ['qBittorrent', 'qbittorrent'], ['Plex', 'plex'], ['Jellyfin', 'jellyfin'], ['Seerr', 'seerr'], ['Prowlarr', 'prowlarr'], ['Lidarr', 'lidarr'], ['Readarr', 'readarr'], ['Bazarr', 'bazarr'], ['SABnzbd', 'sabnzbd'], ['Tautulli', 'tautulli'], ['Unraid', 'unraid']].map(x => mk(x[0], x[1])) });
   db.users[1].access = db.services.map(x => x.id);
   db.settings.plexLogin = { on: true, sid: db.services.find(x => x.type === 'plex').id, auto: true };
+  db.settings.lists = { trakt: { id: 'demo' }, tmdb: { key: 'demo' }, tvdb: { key: 'demo' } };
   db.requests.push({ id: 'r1', sid: db.services.find(x => x.type === 'seerr').id, uid: db.users[1].id, user: 'guest', mediaType: 'movie', mediaId: 801, title: 'Hidden Harbor', year: '2024', poster: '', status: 'pending', at: Date.now() - 3600e3 * 5 });
 }
 if (db.users.length) save();
@@ -101,7 +102,12 @@ const qbCookie = {}, fails = {};
 const ipOf = req => TRUST ? String(req.headers['cf-connecting-ip'] || String(req.headers['x-forwarded-for'] || '').split(',').pop().trim() || req.socket.remoteAddress).trim() : String(req.socket.remoteAddress || '');
 
 const mkUser = (name, pw, role) => { const salt = uid(); return { id: uid(), name, role, salt, hash: hash(pw, salt), access: [] }; };
-const pubUser = u => ({ email: u.email || '', twofa: !!(u.totp && u.totp.on), id: u.id, name: u.name, role: u.role, access: u.access, perms: u.perms || null, notify: u.notify || '', dash: u.dash || null, reqLimit: u.reqLimit || null, autoApprove: !!u.autoApprove, plex: u.plex ? { name: u.plex.name } : null, hide: cleanHide(u.hide), restr: u.plexRules ? Object.fromEntries(['contentRating', 'contentRating!', 'label', 'label!'].filter(k => (u.plexRules[k] || []).length).map(k => [k, u.plexRules[k]])) : null, libs: u.plex ? { n: ((u.plexLibs || {}).mine || []).length, of: ((u.plexLibs || {}).all || []).length, limited: libLimited(u) } : null, plexName: u.plexName || '' });
+// Trending / popular / anticipated lists. The keys are the admin's own, kept in settings; the sites can be moved with TRAKT_URL, TMDB_URL and TVDB_URL.
+const listKeys = () => { const l = (db.settings || {}).lists || {}; return { trakt: String((l.trakt || {}).id || ''), tmdb: String((l.tmdb || {}).key || ''), tvdb: String((l.tvdb || {}).key || '') }; };
+const lists = listsLib.create({ keys: listKeys,
+  urls: new Proxy({}, { get: (_, k) => String(process.env[k.toUpperCase() + '_URL'] || (DEMO ? `http://127.0.0.1:${PORT}/__demo/${k}` : { trakt: 'https://api.trakt.tv', tmdb: 'https://api.themoviedb.org/3', tvdb: 'https://api4.thetvdb.com/v4' }[k])).replace(/\/+$/, '') }),
+  seerrPoster: async (kind, id) => { const s = db.services.find(x => x.type === 'seerr'); if (!s) return ''; const r = await fetch(`${s.url.replace(/\/+$/, '')}/api/v1/${kind === 'tv' ? 'tv' : 'movie'}/${id}`, { signal: AbortSignal.timeout(8000), headers: { 'X-Api-Key': s.apiKey } }); return r.ok ? ((await r.json()).posterPath || '') : ''; } });
+const pubUser = u => ({ email: u.email || '', twofa: !!(u.totp && u.totp.on), id: u.id, name: u.name, role: u.role, access: u.access, perms: u.perms || null, notify: u.notify || '', dash: u.dash || null, reqLimit: u.reqLimit || null, autoApprove: !!u.autoApprove, plex: u.plex ? { name: u.plex.name } : null, hide: cleanHide(u.hide), restr: u.plexRules ? Object.fromEntries(['contentRating', 'contentRating!', 'label', 'label!'].filter(k => (u.plexRules[k] || []).length).map(k => [k, u.plexRules[k]])) : null, libs: u.plex ? { n: ((u.plexLibs || {}).mine || []).length, of: ((u.plexLibs || {}).all || []).length, limited: libLimited(u) } : null, plexName: u.plexName || '', lists: lists.enabled() });
 const pubSvc = s => ({ id: s.id, type: s.type, name: s.name, url: s.url });
 
 // Checks that a service answers with the details you saved.
@@ -849,7 +855,7 @@ http.createServer(async (req, res) => {
     }
     if (p === '/api/logout') { sessions.delete(th(token)); saveSess(); return send(res, 200, {}, { 'Set-Cookie': 'sid=; Path=/; Max-Age=0' }); }
     if (!me) return send(res, 401, { error: 'Sign in first' });
-    if (DEMO && m !== 'GET' && /^\/api\/(users|password|2fa|backups?|restore|alerts|statuslinks|signin|services|weekly|throttle|me\/notify|me\/email|plexsettings)/.test(p)) return send(res, 403, { error: 'This is turned off in the demo' });
+    if (DEMO && m !== 'GET' && /^\/api\/(users|password|2fa|backups?|restore|alerts|statuslinks|signin|services|weekly|throttle|me\/notify|me\/email|plexsettings|listsettings)/.test(p)) return send(res, 403, { error: 'This is turned off in the demo' });
 
     if (p === '/api/2fa/start' && m === 'POST') {
       if (me.totp && me.totp.on) return send(res, 400, { error: 'Two-step sign-in is already on' });
@@ -1153,6 +1159,11 @@ http.createServer(async (req, res) => {
       const s = svcOf(r[1], 'qbittorrent'); if (!s) return send(res, 404, { error: 'Not found' });
       const v = await vpnStatus(s);
       return send(res, 200, { vpn: v.vpn, conn: v.conn, ip: v.ip ? v.ip.replace(/\.\d+$/, '.x') : '' });
+    }
+    if (p === '/api/discover' && m === 'GET') {
+      const q = new URL(req.url, 'http://x').searchParams;
+      try { return send(res, 200, await lists.list(q.get('src'), q.get('list'), q.get('kind'))); }
+      catch (e) { if (e.status) return send(res, e.status, { error: e.message }); throw e; }
     }
     if (p === '/api/seerr/search' && m === 'GET') {
       const q = new URL(req.url, 'http://x').searchParams, s = svcOf(q.get('sid'), 'seerr');
@@ -1756,6 +1767,21 @@ http.createServer(async (req, res) => {
     }
     const SCOPES = ['apps', 'traffic', 'downloads', 'upcoming', 'watching'], LOOKS = ['auto', 'dark', 'light'];
     const linkScopes = b => Object.fromEntries(SCOPES.map(k => [k, k === 'apps' ? b[k] !== false : !!b[k]]));
+    if (p === '/api/listsettings' && m === 'GET') {
+      const k = listKeys(), hint = v => v ? '\u2022\u2022\u2022\u2022' + v.slice(-4) : '';
+      return send(res, 200, { trakt: { on: !!k.trakt, hint: hint(k.trakt) }, tmdb: { on: !!k.tmdb, hint: hint(k.tmdb) }, tvdb: { on: !!k.tvdb, hint: hint(k.tvdb) } });
+    }
+    if (p === '/api/listsettings' && m === 'PUT') {
+      const b = await readBody(req), cur = (db.settings.lists = db.settings.lists || {}), field = { trakt: 'id', tmdb: 'key', tvdb: 'key' }, changed = [];
+      for (const src of Object.keys(field)) {
+        if (typeof b[src] !== 'string') continue;   // left out: keep what is saved
+        const v = b[src].trim();
+        if (v && !/^[\w.\-]{8,2000}$/.test(v)) return send(res, 400, { error: `That does not look like a ${listsLib.NAMES[src]} key. Copy it again without spaces.` });
+        if (v) cur[src] = { [field[src]]: v }; else delete cur[src];
+        changed.push(listsLib.NAMES[src] + (v ? ' saved' : ' removed'));
+      }
+      save(); audit(me.name, 'Changed Discover list keys', changed.join(', ')); return send(res, 200, lists.enabled());
+    }
     if (p === '/api/plexsettings' && m === 'GET') {
       const c = plexCfg();
       return send(res, 200, { on: c.on || !!(db.settings.plexLogin || {}).on, auto: c.auto, sid: c.sid, servers: db.services.filter(x => x.type === 'plex').map(x => ({ id: x.id, name: x.name })), access: c.access, perms: c.perms, hide: c.hide, linked: db.users.filter(x => x.plex).length });

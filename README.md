@@ -218,6 +218,10 @@ DATA_DIR=./data PORT=5080 node server.js
 npm test
 ```
 
+## Discover
+
+Add a free key for Trakt, TMDB or TheTVDB under **Settings, Discover lists**, and a **Discover** tab shows their Trending, Popular and Anticipated lists. Open a title to request it through Seerr.
+
 ## Android app
 
 There is an Android app named **MediaHub** that opens your server full screen. Build it from GitHub with one button, or in Android Studio. See [docs/ANDROID.md](docs/ANDROID.md).
