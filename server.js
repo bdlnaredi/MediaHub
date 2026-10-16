@@ -95,7 +95,7 @@ const qbCookie = {}, fails = {};
 const ipOf = req => TRUST ? String(req.headers['cf-connecting-ip'] || String(req.headers['x-forwarded-for'] || '').split(',').pop().trim() || req.socket.remoteAddress).trim() : String(req.socket.remoteAddress || '');
 
 const mkUser = (name, pw, role) => { const salt = uid(); return { id: uid(), name, role, salt, hash: hash(pw, salt), access: [] }; };
-const pubUser = u => ({ email: u.email || '', twofa: !!(u.totp && u.totp.on), id: u.id, name: u.name, role: u.role, access: u.access, perms: u.perms || null, notify: u.notify || '', dash: u.dash || null, reqLimit: u.reqLimit || null, autoApprove: !!u.autoApprove, plex: u.plex ? { name: u.plex.name } : null, plexName: u.plexName || '' });
+const pubUser = u => ({ email: u.email || '', twofa: !!(u.totp && u.totp.on), id: u.id, name: u.name, role: u.role, access: u.access, perms: u.perms || null, notify: u.notify || '', dash: u.dash || null, reqLimit: u.reqLimit || null, autoApprove: !!u.autoApprove, plex: u.plex ? { name: u.plex.name } : null, libs: u.plex ? { n: ((u.plexLibs || {}).mine || []).length, of: ((u.plexLibs || {}).all || []).length, limited: libLimited(u) } : null, plexName: u.plexName || '' });
 const pubSvc = s => ({ id: s.id, type: s.type, name: s.name, url: s.url });
 
 // Checks that a service answers with the details you saved.
@@ -262,11 +262,27 @@ async function liveBuild() {
 // A profile that signs in with Plex only ever sees its own viewing: its own streams and its own history.
 const ownNames = u => u && u.role !== 'admin' && u.plex ? [u.plex.name, u.plexName].filter(Boolean).map(x => String(x).trim().toLowerCase()) : null;
 const mineOnly = (u, l) => { const n = ownNames(u); return n ? (Array.isArray(l) ? l : []).filter(x => n.includes(String(x.user || '').trim().toLowerCase())) : l; };
+// Apps that list the whole library: a Plex profile with a library hidden from it never gets them.
+const LIBAPPS = ['sonarr', 'radarr', 'lidarr', 'readarr', 'qbittorrent', 'sabnzbd', 'bazarr', 'prowlarr', 'jackett'];
+const libLimited = u => !!ownNames(u) && !(u.plexLibs && u.plexLibs.all && u.plexLibs.all.length && u.plexLibs.all.every(k => (u.plexLibs.mine || []).includes(k)));
+const svcOk = (u, s) => u.role === 'admin' || ((u.access || []).includes(s.id) && !(libLimited(u) && LIBAPPS.includes(s.type)));
+// Pictures a Plex profile may load: only those belonging to things it was shown.
+const imgOk = new Map();
+const grant = (u, svc, paths) => { if (!ownNames(u)) return; const k = u.id + '|' + svc; let e = imgOk.get(k); if (!e) { if (imgOk.size > 400) imgOk.delete(imgOk.keys().next().value); e = new Set(); imgOk.set(k, e); }
+  for (const p of paths) if (p) { if (e.size > 600) e.delete(e.values().next().value); e.add(String(p)); } };
+const mayImg = (u, svc, p) => !ownNames(u) || (imgOk.get(u.id + '|' + svc) || new Set()).has(p);
+// Which Plex libraries exist, and which of them this person's own Plex account can open.
+async function plexLibs(s, tok) {
+  const get = async t => { const x = await fetch(s.url.replace(/\/+$/, '') + '/library/sections', { signal: AbortSignal.timeout(8000), headers: { Accept: 'application/json', 'X-Plex-Token': t } }); if (!x.ok) throw new Error('Plex ' + x.status); return ((await x.json()).MediaContainer || {}).Directory || []; };
+  const keys = l => l.map(d => String(d.key)).filter(k => /^\d{1,9}$/.test(k));
+  try { const all = keys(await get(s.apiKey || '')); let mine = []; if (tok) { try { mine = keys(await get(tok)).filter(k => all.includes(k)); } catch {} } return { all, mine, at: Date.now() }; }
+  catch { return { all: [], mine: [], at: Date.now() }; }
+}
 function liveView(u, snap, first) {
   const o = { t: snap.t, qb: {}, unraid: {}, plex: {}, sab: {}, health: {} }; if (first) o.hist = {};
   for (const s of db.services) {
-    if (u.role !== 'admin' && !(u.access || []).includes(s.id)) continue;
-    for (const k of ['qb', 'unraid', 'plex', 'sab']) if (snap[k][s.id]) o[k][s.id] = k === 'plex' ? mineOnly(u, snap[k][s.id]) : snap[k][s.id];
+    if (!svcOk(u, s)) continue;
+    for (const k of ['qb', 'unraid', 'plex', 'sab']) if (snap[k][s.id]) { o[k][s.id] = k === 'plex' ? mineOnly(u, snap[k][s.id]) : snap[k][s.id]; if (k === 'plex' && ownNames(u)) grant(u, s.id, o[k][s.id].map(x => x.thumb)); }
     if (s.id in snap.health) o.health[s.id] = snap.health[s.id];
     if (first && live.hist[s.id]) o.hist[s.id] = live.hist[s.id];
   }
@@ -631,7 +647,8 @@ async function plexProfile(token) {
   let mid = ''; try { mid = ((await (await fetch(cfg.s.url.replace(/\/+$/, '') + '/identity', { signal: AbortSignal.timeout(8000), headers: { Accept: 'application/json', 'X-Plex-Token': cfg.s.apiKey || '' } })).json()).MediaContainer || {}).machineIdentifier || ''; } catch {}
   if (!mid) throw new PlexDeny('MediaHub could not reach the Plex server to check your access. Ask the server owner.', 502);
   const res = await ptv('/api/v2/resources?includeHttps=1&includeRelay=1', { headers: h });
-  if (!(Array.isArray(res) ? res : []).some(x => x.clientIdentifier === mid && /server/.test(x.provides || ''))) throw new PlexDeny('This Plex account does not have access to this Plex server.');
+  const srvRes = (Array.isArray(res) ? res : []).find(x => x.clientIdentifier === mid && /server/.test(x.provides || ''));
+  if (!srvRes) throw new PlexDeny('This Plex account does not have access to this Plex server.');
   let u = db.users.find(x => x.plex && x.plex.id === pid);
   if (!u) { u = db.users.find(x => !x.plex && x.role === 'user' && x.plexName && x.plexName.toLowerCase() === pname.toLowerCase()); if (u) u.plex = { id: pid, name: pname }; }
   if (!u) {
@@ -641,7 +658,7 @@ async function plexProfile(token) {
     db.users.push(u); audit('MediaHub', 'Created a profile from Plex', name);
   }
   if (u.role === 'admin') throw new PlexDeny('Admins sign in with their MediaHub password.');
-  u.plex.name = pname; save();
+  u.plex.name = pname; u.plexLibs = await plexLibs(cfg.s, srvRes.accessToken || ''); save();
   return u;
 }
 
@@ -826,7 +843,7 @@ http.createServer(async (req, res) => {
     if (me.role === 'admin' && !process.env.PUBLIC_URL && !db.settings.publicUrl && !DEMO && req.headers.host) {
       const host = (TRUST && req.headers['x-forwarded-host']) || req.headers.host; db.settings.publicUrl = (res.secure ? 'https://' : 'http://') + String(host).split(',')[0].trim(); save();
     }
-    const allowed = s => me.role === 'admin' || me.access.includes(s.id);
+    const allowed = s => svcOk(me, s);
     const can = k => me.role === 'admin' || !me.perms || me.perms[k] !== false;
     const deny = (k, what) => can(k) ? false : (send(res, 403, { error: `Your profile cannot ${what}.` }), true);
     if (p === '/api/live' && m === 'GET') {
@@ -1218,16 +1235,20 @@ http.createServer(async (req, res) => {
     };
     if ((r = p.match(/^\/api\/plex\/(\w+)\/now$/))) {
       const s = svcOf(r[1], 'plex'); if (!s) return send(res, 404, { error: 'Not found' });
-      const [sessions, b] = await Promise.all([plexSessions(s), plex(s, '/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=14').then(x => x.json())]);
+      const lim = libLimited(me), recentRaw = async () => lim
+        ? (await Promise.all(((me.plexLibs || {}).mine || []).map(k => plex(s, `/library/sections/${k}/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=14`).then(x => x.json()).then(j => (j.MediaContainer || {}).Metadata || []).catch(() => [])))).flat().sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0)).slice(0, 14)
+        : ((await plex(s, '/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=14').then(x => x.json())).MediaContainer || {}).Metadata || [];
+      const [sessions, raw] = await Promise.all([plexSessions(s), recentRaw()]);
       const th2 = x => x.grandparentThumb || x.parentThumb || x.thumb || '';
       const nm = x => x.type === 'episode' ? { title: x.grandparentTitle, sub: `S${pad2(x.parentIndex)}E${pad2(x.index)} ${x.title}` } : { title: x.title, sub: String(x.year || '') };
-      return send(res, 200, {
-        sessions: mineOnly(me, sessions),
-        recent: ownNames(me) ? [] : ((b.MediaContainer || {}).Metadata || []).map(x => ({ ...nm(x), thumb: th2(x) })) });
+      const mineS = mineOnly(me, sessions), recent = raw.map(x => ({ ...nm(x), thumb: th2(x) }));
+      grant(me, s.id, [...mineS.map(x => x.thumb), ...recent.map(x => x.thumb)]);
+      return send(res, 200, { sessions: mineS, recent });
     }
     if ((r = p.match(/^\/api\/plex\/(\w+)\/img$/))) {
       const s = svcOf(r[1], 'plex'), pth = new URL(req.url, 'http://x').searchParams.get('p') || '';
       if (!s || !/^\/library\/[\w\/.-]+$/.test(pth) || pth.includes('..')) return send(res, 400, { error: 'Bad request' });
+      if (!mayImg(me, s.id, pth)) return send(res, 403, { error: 'Not available to your profile' });
       const x = await plex(s, pth);
       res.writeHead(200, { 'Content-Type': x.headers.get('content-type') || 'image/jpeg', 'Cache-Control': 'private, max-age=3600' });
       return res.end(Buffer.from(await x.arrayBuffer()));
@@ -1235,11 +1256,12 @@ http.createServer(async (req, res) => {
     if ((r = p.match(/^\/api\/jellyfin\/(\w+)\/now$/))) {
       const s = svcOf(r[1], 'jellyfin'); if (!s) return send(res, 404, { error: 'Not found' });
       const [sessions, b] = await Promise.all([jfSessions(s), jfGet(s, '/Items?SortBy=DateCreated&SortOrder=Descending&Recursive=true&IncludeItemTypes=Movie,Series&Limit=14').then(x => x.json())]);
-      return send(res, 200, { sessions: mineOnly(me, sessions), recent: ownNames(me) ? [] : (b.Items || []).map(x => ({ title: cut(x.Name, 120), sub: String(x.ProductionYear || ''), thumb: x.Id })) });
+      const mineJ = mineOnly(me, sessions); grant(me, s.id, mineJ.map(x => x.thumb)); return send(res, 200, { sessions: mineJ, recent: ownNames(me) ? [] : (b.Items || []).map(x => ({ title: cut(x.Name, 120), sub: String(x.ProductionYear || ''), thumb: x.Id })) });
     }
     if ((r = p.match(/^\/api\/jellyfin\/(\w+)\/img$/))) {
       const s = svcOf(r[1], 'jellyfin'), id = new URL(req.url, 'http://x').searchParams.get('p') || '';
       if (!s || !/^[0-9a-fA-F-]{32,36}$/.test(id)) return send(res, 400, { error: 'Bad request' });
+      if (!mayImg(me, s.id, id)) return send(res, 403, { error: 'Not available to your profile' });
       const x = await jfGet(s, `/Items/${id}/Images/Primary?maxHeight=450&quality=85`);
       res.writeHead(200, { 'Content-Type': x.headers.get('content-type') || 'image/jpeg', 'Cache-Control': 'private, max-age=3600' });
       return res.end(Buffer.from(await x.arrayBuffer()));
@@ -1328,9 +1350,10 @@ http.createServer(async (req, res) => {
         const ch = (c, n = 6) => c && Array.isArray(c.categories) ? { categories: c.categories.map(x => cut(x, 40)), series: (c.series || []).slice(0, n).map(z => ({ name: cut(z.name, 30), data: (z.data || []).map(v => +v || 0) })) } : null;
         const sm = c => c ? c.series.reduce((a, z) => a + z.data.reduce((q, v) => q + v, 0), 0) : 0, dur = ch(byDur), plays = ch(byDate), rows = ((hist || {}).data || []).filter(x => (x.date || 0) * 1000 >= Date.now() - days * 864e5);
         const top = (type, key) => { const g = new Map(); for (const x of rows.filter(y => y.media_type === type)) { const t = cut(x[key] || x.title, 120), e = g.get(t) || { title: t, plays: 0, thumb: im(x), year: x.year || '' }; e.plays++; g.set(t, e); } return [...g.values()].sort((a, b) => b.plays - a.plays).slice(0, 10); };
-        return send(res, 200, { days, own: true, movies: top('movie', 'title'), tv: top('episode', 'grandparent_title'), users: [{ title: cut(who.friendly_name || who.username, 60), plays: rows.length, seconds: rows.reduce((a, x) => a + (+x.duration || 0), 0) }],
+        const outS = { days, own: true, movies: top('movie', 'title'), tv: top('episode', 'grandparent_title'), users: [{ title: cut(who.friendly_name || who.username, 60), plays: rows.length, seconds: rows.reduce((a, x) => a + (+x.duration || 0), 0) }],
           totals: { plays: sm(plays), seconds: sm(dur) }, byDate: plays, byHour: ch(byHour), byPlatform: ch(byPlat),
-          history: ((hist || {}).data || []).slice(0, 14).map(x => ({ user: x.friendly_name || x.user, title: x.full_title || x.title, type: x.media_type, at: (x.date || 0) * 1000, player: x.player, pct: x.percent_complete, thumb: im(x) })) });
+          history: ((hist || {}).data || []).slice(0, 14).map(x => ({ user: x.friendly_name || x.user, title: x.full_title || x.title, type: x.media_type, at: (x.date || 0) * 1000, player: x.player, pct: x.percent_complete, thumb: im(x) })) };
+        grant(me, s.id, [...outS.movies, ...outS.tv, ...outS.history].map(x => x.thumb)); return send(res, 200, outS);
       }
       const soft = pr => pr.catch(() => null), img = x => { const v = x && (x.grandparent_thumb || x.thumb); return /^\/library\/[\w\/.-]+$/.test(v || '') && !v.includes('..') ? v : ''; };
       const [home, hist, byDate, byDur, byHour, byPlat] = await Promise.all([taut(s, 'get_home_stats', `&time_range=${days}&stats_count=10`), taut(s, 'get_history', '&length=14'),
@@ -1347,6 +1370,7 @@ http.createServer(async (req, res) => {
     if ((r = p.match(/^\/api\/tautulli\/(\w+)\/img$/))) {
       const s = svcOf(r[1], 'tautulli'), pth = new URL(req.url, 'http://x').searchParams.get('p') || '';
       if (!s || !/^\/library\/[\w\/.-]+$/.test(pth) || pth.includes('..')) return send(res, 400, { error: 'Bad request' });
+      if (!mayImg(me, s.id, pth)) return send(res, 403, { error: 'Not available to your profile' });
       const x = await fetch(`${s.url.replace(/\/+$/, '')}/api/v2?apikey=${encodeURIComponent(s.apiKey)}&cmd=pms_image_proxy&img=${encodeURIComponent(pth)}&width=300&height=450&fallback=poster`, { signal: AbortSignal.timeout(10000) });
       const ct = x.headers.get('content-type') || '';
       if (!x.ok || !/^image\//.test(ct)) return send(res, 404, { error: 'No image' });

@@ -2,6 +2,20 @@
 
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.14.7] - 2026-10-16
+
+### Added
+- **Plex libraries hidden from a person stay hidden here.** Each time someone signs in with Plex, MediaHub asks your Plex server which libraries their account can open.
+  - If every library is open to them, nothing changes for them.
+  - If even one library is hidden from them, the library apps (Sonarr, Radarr, Lidarr, Readarr, qBittorrent, SABnzbd, Bazarr, Prowlarr, Jackett) are not given to them, even if ticked. Seerr, Plex, Jellyfin and Tautulli still work, showing only their own activity.
+  - Their "recently added" list on Plex only comes from the libraries they can open.
+  - The Users list shows how many libraries each Plex profile can open. If MediaHub cannot tell, it treats them as limited.
+- **Pictures are locked too.** A Plex profile can only load posters and thumbnails of things it was actually shown.
+
+### Notes
+- Profiles made before this version are treated as limited until they sign in with Plex once more.
+- Seerr can still say a title "is available" even if it sits in a library hidden from that person.
+
 ## [0.14.6] - 2026-10-16
 
 ### Added

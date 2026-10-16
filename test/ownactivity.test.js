@@ -21,7 +21,7 @@ test('Plex profiles see only their own viewing on Plex, Jellyfin and Tautulli', 
     const all = (await a.get(`/api/plex/${plex}/now`)).data, mine = (await c.get(`/api/plex/${plex}/now`)).data;
     assert.ok(all.sessions.length > mine.sessions.length && mine.sessions.length > 0, 'the owner sees every stream, the profile only its own');
     assert.ok(mine.sessions.every(x => x.user === 'alex'));
-    assert.ok(all.recent.length > 0); assert.deepEqual(mine.recent, [], 'the recently added list could show hidden libraries');
+    assert.ok(all.recent.length > 0); assert.ok(mine.recent.every(x => x.title !== 'Library 3 item'), 'never from a library hidden from them');
     const j = (await c.get(`/api/jellyfin/${jf}/now`)).data;
     assert.deepEqual(j.sessions, [], 'someone else on Jellyfin is not shown'); assert.deepEqual(j.recent, []);
     assert.ok((await a.get(`/api/jellyfin/${jf}/now`)).data.sessions.length > 0);
