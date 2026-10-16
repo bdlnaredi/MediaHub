@@ -721,7 +721,7 @@ function quick(){
 }
 document.addEventListener('keydown',e=>{if(!me)return;const t=(e.target&&e.target.tagName)||'';
   if((e.key==='k'&&(e.ctrlKey||e.metaKey))||(e.key==='/'&&!/^(INPUT|TEXTAREA|SELECT)$/.test(t)&&!document.querySelector('.ov'))){e.preventDefault();quick()}});
-const DSEC=[['ticker','Poster ticker'],['hero','Featured'],['attn','Needs attention'],['tiles','Live tiles'],['rails','Poster rows'],['plex','Who is watching'],['dl','Downloading now'],['sab','Usenet'],['apps','Apps'],['up','Coming up']];
+const DSEC=[['plexnew','Recently added to Plex'],['ticker','Poster ticker'],['hero','Featured'],['attn','Needs attention'],['tiles','Live tiles'],['rails','Poster rows'],['plex','Who is watching'],['dl','Downloading now'],['sab','Usenet'],['apps','Apps'],['up','Coming up']];
 const dashLayout=()=>{const d=me.dash||{},o=(d.order||[]).filter(k=>DSEC.some(s=>s[0]===k)),keys=DSEC.map(s=>s[0]);keys.forEach((k,i)=>{if(o.includes(k))return;const prev=keys.slice(0,i).reverse().find(x=>o.includes(x));o.splice(prev?o.indexOf(prev)+1:0,0,k)});return{order:o,hidden:d.hidden||[]}};
 function dashCustomize(){
   const L=dashLayout();let order=[...L.order];const hidden=new Set(L.hidden);
@@ -778,7 +778,8 @@ function dashView(){
   const S={
     attn:services.length?'<div id="attn"></div>':'',
     tiles:tiles.length?`<div class="tiles">${tiles.join('')}</div>`:'',
-    plex:plx.length?'<div id="np"></div><div id="plx"></div>':'',
+    plex:plx.length?'<div id="np"></div>':'',
+    plexnew:plx.length?'<div id="plx"></div>':'',
     dl:q?'<div id="dlnow"></div>':arrOn?'<h2 class="sec">Downloading now</h2><div id="dq"></div>':'',
     sab:sb?'<div id="sab"></div>':'',
     apps:services.length?`<h2 class="sec">Apps</h2><div class="panel" style="padding:4px 18px">${services.map(s=>`<div class="srow">${svcIcon(s.type,s.id)}<b>${esc(s.name)}</b>

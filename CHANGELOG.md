@@ -2,6 +2,17 @@
 
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.14.12] - 2026-10-16
+
+### Changed
+- **"Recently added to Plex" (the large posters) is now its own dashboard section and sits at the very top**, above the poster ticker. Move or hide it with **Customize**, like the other sections.
+- **It shows more.** Everything added in the last 7 days, or the newest 10 if fewer than that were added (never more than 40). Jellyfin's list follows the same rule.
+
+## [0.14.11] - 2026-10-16
+
+### Changed
+- **The poster ticker at the top of the dashboard is bigger.** Posters are about 45% larger, and the series and movie counts are larger too.
+
 ## [0.14.10] - 2026-10-16
 
 ### Added

@@ -32,3 +32,17 @@ test('Plex profiles see only their own viewing on Plex, Jellyfin and Tautulli', 
     assert.deepEqual(sm.users.map(x => x.title), ['Alex']);
   } finally { await s.stop(); srv.close(); }
 });
+
+test('"recently added" on Plex: everything from the last 7 days, or at least 10 items', async () => {
+  const fake = fakes.create(), srv = http.createServer((req, res) => fake.handle(req, res, req.url)).listen(0);
+  await new Promise(r => srv.once('listening', r));
+  const fb = `http://127.0.0.1:${srv.address().port}`, s = await boot({}), a = client(s.base); await setup(a);
+  try {
+    const plex = (await a.post('/api/services', { type: 'plex', name: 'Plex', url: fb + '/plex', apiKey: 'k' })).data.id;
+    assert.equal((await a.get(`/api/plex/${plex}/now`)).data.recent.length, 10, 'only 3 are this week, so the newest 10');
+    fake.state.fresh = 15;
+    assert.equal((await a.get(`/api/plex/${plex}/now`)).data.recent.length, 15, 'more than 10 this week: all of them');
+    fake.state.fresh = 24;
+    assert.equal((await a.get(`/api/plex/${plex}/now`)).data.recent.length, 24);
+  } finally { await s.stop(); srv.close(); }
+});

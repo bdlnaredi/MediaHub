@@ -266,6 +266,8 @@ const mineOnly = (u, l) => { const n = ownNames(u); return n ? (Array.isArray(l)
 const LIBAPPS = ['sonarr', 'radarr', 'lidarr', 'readarr', 'qbittorrent', 'sabnzbd', 'bazarr', 'prowlarr', 'jackett'];
 const libLimited = u => !!ownNames(u) && !(u.plexLibs && u.plexLibs.all && u.plexLibs.all.length && u.plexLibs.all.every(k => (u.plexLibs.mine || []).includes(k)));
 const svcOk = (u, s) => u.role === 'admin' || ((u.access || []).includes(s.id) && !(libLimited(u) && LIBAPPS.includes(s.type)));
+// "Recently added": everything from the last 7 days, or the newest 10 when there is less than that (never more than 40).
+const pickRecent = (l, at) => { const t = x => +at(x) || 0, srt = [...l].sort((a, b) => t(b) - t(a)), wk = srt.filter(x => t(x) >= Date.now() - 7 * 864e5); return wk.length >= 10 ? wk.slice(0, 40) : srt.slice(0, 10); };
 // Pictures a Plex profile may load: only those belonging to things it was shown.
 const imgOk = new Map();
 const grant = (u, svc, paths) => { if (!ownNames(u)) return; const k = u.id + '|' + svc; let e = imgOk.get(k); if (!e) { if (imgOk.size > 400) imgOk.delete(imgOk.keys().next().value); e = new Set(); imgOk.set(k, e); }
@@ -1290,11 +1292,12 @@ http.createServer(async (req, res) => {
     if ((r = p.match(/^\/api\/plex\/(\w+)\/now$/))) {
       const s = svcOf(r[1], 'plex'); if (!s) return send(res, 404, { error: 'Not found' });
       const lim = libLimited(me), recentRaw = async () => lim
-        ? (await Promise.all(((me.plexLibs || {}).mine || []).map(k => plex(s, `/library/sections/${k}/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=30`).then(x => x.json()).then(j => (j.MediaContainer || {}).Metadata || []).catch(() => [])))).flat().sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0)).slice(0, 14)
-        : ((await plex(s, '/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=' + (ownNames(me) ? 30 : 14)).then(x => x.json())).MediaContainer || {}).Metadata || [];
+        ? (await Promise.all(((me.plexLibs || {}).mine || []).map(k => plex(s, `/library/sections/${k}/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=60`).then(x => x.json()).then(j => (j.MediaContainer || {}).Metadata || []).catch(() => [])))).flat()
+        : ((await plex(s, '/library/recentlyAdded?X-Plex-Container-Start=0&X-Plex-Container-Size=60').then(x => x.json())).MediaContainer || {}).Metadata || [];
       const [sessions, raw0] = await Promise.all([plexSessions(s), recentRaw()]);
       let raw = raw0;
-      if (ownNames(me)) { const keep = await Promise.all(raw0.map(async x => { try { return !isHidden(me, await plexTags(s, String(x.type === 'episode' ? x.grandparentRatingKey : x.type === 'season' ? x.parentRatingKey : x.ratingKey || ''))); } catch { return false; } })); raw = raw0.filter((_, i) => keep[i]).slice(0, 14); }
+      if (ownNames(me)) { const keep = await Promise.all(raw0.map(async x => { try { return !isHidden(me, await plexTags(s, String(x.type === 'episode' ? x.grandparentRatingKey : x.type === 'season' ? x.parentRatingKey : x.ratingKey || ''))); } catch { return false; } })); raw = raw0.filter((_, i) => keep[i]); }
+      raw = pickRecent(raw, x => (x.addedAt || 0) * 1000);
       const th2 = x => x.grandparentThumb || x.parentThumb || x.thumb || '';
       const nm = x => x.type === 'episode' ? { title: x.grandparentTitle, sub: `S${pad2(x.parentIndex)}E${pad2(x.index)} ${x.title}` } : { title: x.title, sub: String(x.year || '') };
       const mineS = mineOnly(me, sessions), recent = raw.map(x => ({ ...nm(x), thumb: th2(x) }));
@@ -1311,8 +1314,8 @@ http.createServer(async (req, res) => {
     }
     if ((r = p.match(/^\/api\/jellyfin\/(\w+)\/now$/))) {
       const s = svcOf(r[1], 'jellyfin'); if (!s) return send(res, 404, { error: 'Not found' });
-      const [sessions, b] = await Promise.all([jfSessions(s), jfGet(s, '/Items?SortBy=DateCreated&SortOrder=Descending&Recursive=true&IncludeItemTypes=Movie,Series&Limit=14').then(x => x.json())]);
-      const mineJ = mineOnly(me, sessions); grant(me, s.id, mineJ.map(x => x.thumb)); return send(res, 200, { sessions: mineJ, recent: ownNames(me) ? [] : (b.Items || []).map(x => ({ title: cut(x.Name, 120), sub: String(x.ProductionYear || ''), thumb: x.Id })) });
+      const [sessions, b] = await Promise.all([jfSessions(s), jfGet(s, '/Items?SortBy=DateCreated&SortOrder=Descending&Recursive=true&IncludeItemTypes=Movie,Series&Fields=DateCreated&Limit=60').then(x => x.json())]);
+      const mineJ = mineOnly(me, sessions); grant(me, s.id, mineJ.map(x => x.thumb)); return send(res, 200, { sessions: mineJ, recent: ownNames(me) ? [] : pickRecent(b.Items || [], x => Date.parse(x.DateCreated)).map(x => ({ title: cut(x.Name, 120), sub: String(x.ProductionYear || ''), thumb: x.Id })) });
     }
     if ((r = p.match(/^\/api\/jellyfin\/(\w+)\/img$/))) {
       const s = svcOf(r[1], 'jellyfin'), id = new URL(req.url, 'http://x').searchParams.get('p') || '';
