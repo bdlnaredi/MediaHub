@@ -1,0 +1,44 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.bdlnaredi.mediahub'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.bdlnaredi.mediahub'
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName '1.0.0'
+    }
+
+    // A fixed key, so a newer mediahub.apk installs over an older one. It is in the repository on purpose
+    // (see docs/ANDROID.md): this is for sideloading your own copy, not for the Play Store.
+    signingConfigs {
+        release {
+            storeFile file('mediahub.keystore')
+            storePassword 'mediahub'
+            keyAlias 'mediahub'
+            keyPassword 'mediahub'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}

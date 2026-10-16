@@ -218,6 +218,10 @@ DATA_DIR=./data PORT=5080 node server.js
 npm test
 ```
 
+## Android app
+
+There is an Android app named **MediaHub** that opens your server full screen. Build it from GitHub with one button, or in Android Studio. See [docs/ANDROID.md](docs/ANDROID.md).
+
 ## License
 
 MediaHub is free software, released under the [GNU General Public License, version 3 or (at your option) any later version](LICENSE).

@@ -2,6 +2,12 @@
 
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.14.14] - 2026-10-16
+
+### Added
+- **An Android app named MediaHub.** It lives in the `android` folder. It asks once for your server's address, then opens MediaHub full screen with its own icon. A new GitHub workflow, **Android app**, builds `mediahub.apk` for you (press **Run workflow**, or push a tag that starts with `app-v`). You can also build it in Android Studio. See `docs/ANDROID.md`.
+- The server image itself is unchanged by this.
+
 ## [0.14.13] - 2026-10-16
 
 ### Changed
