@@ -94,3 +94,31 @@ test('jackett with an admin password: adding works once the password is saved in
     assert.equal((await a.del(`/api/jackett/${yes}/indexers/club-tracker`)).status, 200);
   } finally { await s.stop(); srv.close(); }
 });
+
+test('prowlarr: turn indexers on and off and set priority; jackett: feed address for Sonarr', async () => {
+  const fake = fakes.create(), srv = http.createServer((req, res) => fake.handle(req, res, req.url)).listen(0);
+  await new Promise(r => srv.once('listening', r));
+  const fb = `http://127.0.0.1:${srv.address().port}`, s = await boot({}), a = client(s.base); await setup(a);
+  try {
+    const jid = (await a.post('/api/services', { type: 'jackett', name: 'Jackett', url: fb + '/jackett/', apiKey: 'jkey-123' })).data.id;
+    const pid = (await a.post('/api/services', { type: 'prowlarr', name: 'Prowlarr', url: fb + '/prowlarr', apiKey: 'k' })).data.id;
+    const one = (await a.get(`/api/prowlarr/${pid}/indexers`)).data.indexers.find(x => x.enabled);
+    const off = await a.put(`/api/prowlarr/${pid}/indexers/${one.id}`, { enable: false }); assert.equal(off.status, 200); assert.equal(off.data.enabled, false);
+    assert.ok(fake.state.calls.some(c => c === `prowlarr put ${one.id} enable=false priority=${one.priority}`), 'priority kept when only toggling');
+    assert.equal((await a.get(`/api/prowlarr/${pid}/indexers`)).data.indexers.find(x => x.id === one.id).status, 'disabled');
+    assert.equal((await a.put(`/api/prowlarr/${pid}/indexers/${one.id}`, { enable: true })).data.enabled, true);
+    const pr = await a.put(`/api/prowlarr/${pid}/indexers/${one.id}`, { priority: 10 }); assert.equal(pr.data.priority, 10);
+    assert.equal((await a.get(`/api/prowlarr/${pid}/indexers`)).data.indexers.find(x => x.id === one.id).priority, 10);
+    for (const bad of [0, 51, 'abc', null]) assert.equal((await a.put(`/api/prowlarr/${pid}/indexers/${one.id}`, { priority: bad })).status, 400, String(bad));
+    assert.equal((await a.put(`/api/prowlarr/${pid}/indexers/9999`, { enable: false })).status >= 400, true);
+
+    const f = (await a.get(`/api/jackett/${jid}/feed/open-tracker`)).data; assert.equal(f.url, fb + '/jackett/api/v2.0/indexers/open-tracker/results/torznab/'); assert.equal(f.apiKey, 'jkey-123');
+    assert.equal((await a.get(`/api/jackett/${jid}/feed/all`)).data.url, fb + '/jackett/api/v2.0/indexers/all/results/torznab/');
+
+    // the key is the admin's: others cannot read it or change Prowlarr
+    await a.post('/api/users', { name: 'kid', password: 'kid-password-1', role: 'user' });
+    const kid = (await a.get('/api/users')).data.find(u => u.name === 'kid'); await a.put(`/api/users/${kid.id}/access`, { access: [jid, pid] });
+    const k = client(s.base); await k.post('/api/login', { name: 'kid', password: 'kid-password-1' });
+    assert.equal((await k.get(`/api/jackett/${jid}/feed/all`)).status, 403); assert.equal((await k.put(`/api/prowlarr/${pid}/indexers/${one.id}`, { enable: false })).status, 403);
+  } finally { await s.stop(); srv.close(); }
+});

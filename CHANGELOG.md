@@ -2,6 +2,15 @@
 
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.14.20] - 2026-10-18
+
+### Added
+- **Update notice.** Admins see a small note when a newer MediaHub version is tagged on GitHub (Settings, About). Set `UPDATE_CHECK=off` to turn it off; `UPDATE_URL` points it at another tags address.
+- **Seerr as a Discover source.** If Seerr is connected, Discover shows its Trending, Popular and Upcoming lists with no key needed, and marks titles already in the library or requested.
+- **Season picker.** Requesting a show from Discover lets you choose which seasons.
+- **Indexer controls.** Prowlarr indexers can be turned on or off and given a priority. Jackett indexers have a Feed button that shows the Torznab address and API key to copy.
+- **Calendar link.** Settings, Account can make a private calendar address (.ics) for upcoming episodes and movie releases. Subscribe to it in Google Calendar, Apple Calendar or Outlook. The link can be replaced or turned off at any time.
+
 ## [0.14.19] - 2026-10-17
 
 ### Added

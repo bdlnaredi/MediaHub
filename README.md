@@ -117,6 +117,8 @@ If the port can be reached by anyone besides you, set `SETUP_TOKEN` first (see b
 | `TRUST_PROXY` | off | Set to `true` **only** if MediaHub is behind a reverse proxy or tunnel you control. It makes MediaHub believe the proxy's client address and HTTPS headers. Leave it off otherwise. |
 | `DEMO` | off | Set to `1` to run the demo described above instead of your real data. |
 | `PUBLIC_URL` | learned from the admin | The address people open from password emails, for example `https://media.example.com`. If unset, MediaHub remembers the address the first admin used, and it can be changed in Settings, then Account. |
+| `UPDATE_CHECK` | on | Set to `off` so MediaHub never asks GitHub whether a newer version exists. |
+| `UPDATE_URL` | the project's GitHub tags | Where to look for version tags, if you keep your own fork. |
 | `ICON_BASE` | the public dashboard-icons set | Where app logos are loaded from, by your browser, not the server. Set it empty to use only the drawn icons (nothing is requested from the internet), or to a folder of your own that holds `sonarr.svg`, `radarr.svg` and so on. |
 | `ALLOWED_ORIGINS` | empty | Comma-separated extra web addresses allowed to sign in, if a proxy changes the `Host` header, for example `https://media.example.com`. |
 

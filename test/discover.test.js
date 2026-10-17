@@ -16,9 +16,9 @@ test('discover lists from the three sites', async () => {
     // keys are checked for shape, and never sent back whole
     assert.equal((await a.put('/api/listsettings', { trakt: 'no no' })).status, 400);
     const sv = await a.put('/api/listsettings', { trakt: 'trakt-client-id-1234', tmdb: 'tmdb-api-key-5678', tvdb: 'tvdb-api-key-9012' });
-    assert.deepEqual(sv.data, { trakt: true, tmdb: true, tvdb: true });
+    assert.deepEqual(sv.data, { seerr: false, trakt: true, tmdb: true, tvdb: true });
     const ls = (await a.get('/api/listsettings')).data; assert.equal(ls.trakt.hint, '••••1234'); assert.ok(!JSON.stringify(ls).includes('trakt-client'));
-    assert.deepEqual((await a.get('/api/me')).data.user.lists, { trakt: true, tmdb: true, tvdb: true });
+    assert.deepEqual((await a.get('/api/me')).data.user.lists, { seerr: false, trakt: true, tmdb: true, tvdb: true });
 
     // Trakt: the three list shapes (wrapped, plain), ids kept, pictures found through TMDB
     for (const l of ['trending', 'popular', 'anticipated']) {
@@ -55,5 +55,23 @@ test('discover lists from the three sites', async () => {
     assert.equal((await k.get('/api/listsettings')).status, 403);
     assert.equal((await k.get('/api/discover?src=trakt&list=popular&kind=tv')).status, 200);
     assert.equal((await client(s.base).get('/api/discover?src=trakt&list=popular&kind=tv')).status, 401);
+  } finally { await s.stop(); srv.close(); }
+});
+
+test('discover from Seerr: no key, trending/popular/upcoming, library status, other kinds filtered out', async () => {
+  const fake = fakes.create(), srv = http.createServer((req, res) => fake.handle(req, res, req.url)).listen(0);
+  await new Promise(r => srv.once('listening', r));
+  const fb = `http://127.0.0.1:${srv.address().port}`, s = await boot({}), a = client(s.base); await setup(a);
+  try {
+    assert.equal((await a.get('/api/discover?src=seerr&list=popular&kind=movie')).status, 404, 'no Seerr yet');
+    assert.equal((await a.get('/api/me')).data.user.lists.seerr, false);
+    await a.post('/api/services', { type: 'seerr', name: 'Seerr', url: fb + '/seerr', apiKey: 'seerr-key' });
+    assert.equal((await a.get('/api/me')).data.user.lists.seerr, true);
+    for (const kind of ['movie', 'tv']) for (const l of ['trending', 'popular', 'anticipated']) {
+      const r = await a.get(`/api/discover?src=seerr&list=${l}&kind=${kind}`); assert.equal(r.status, 200, kind + l);
+      assert.equal(r.data.length, 12, 'people and the other kind are left out of trending'); assert.ok(r.data.every(x => x.mediaType === kind && x.tmdb >= 9000 && x.title));
+      assert.equal(r.data[0].status, 5); assert.equal(r.data[1].status, 3); assert.equal(r.data[2].status, 0);
+    }
+    assert.ok(fake.state.calls.includes('seerr discover trending key=seerr-key') && fake.state.calls.includes('seerr discover movies/upcoming key=seerr-key') && fake.state.calls.includes('seerr discover tv key=seerr-key'));
   } finally { await s.stop(); srv.close(); }
 });

@@ -104,9 +104,25 @@ const ipOf = req => TRUST ? String(req.headers['cf-connecting-ip'] || String(req
 const mkUser = (name, pw, role) => { const salt = uid(); return { id: uid(), name, role, salt, hash: hash(pw, salt), access: [] }; };
 // Trending / popular / anticipated lists. The keys are the admin's own, kept in settings; the sites can be moved with TRAKT_URL, TMDB_URL and TVDB_URL.
 const listKeys = () => { const l = (db.settings || {}).lists || {}; return { trakt: String((l.trakt || {}).id || ''), tmdb: String((l.tmdb || {}).key || ''), tvdb: String((l.tvdb || {}).key || '') }; };
-const lists = listsLib.create({ keys: listKeys,
+const lists = listsLib.create({ keys: listKeys, seerr: () => db.services.find(x => x.type === 'seerr') || null,
   urls: new Proxy({}, { get: (_, k) => String(process.env[k.toUpperCase() + '_URL'] || (DEMO ? `http://127.0.0.1:${PORT}/__demo/${k}` : { trakt: 'https://api.trakt.tv', tmdb: 'https://api.themoviedb.org/3', tvdb: 'https://api4.thetvdb.com/v4' }[k])).replace(/\/+$/, '') }),
   seerrPoster: async (kind, id) => { const s = db.services.find(x => x.type === 'seerr'); if (!s) return ''; const r = await fetch(`${s.url.replace(/\/+$/, '')}/api/v1/${kind === 'tv' ? 'tv' : 'movie'}/${id}`, { signal: AbortSignal.timeout(8000), headers: { 'X-Api-Key': s.apiKey } }); return r.ok ? ((await r.json()).posterPath || '') : ''; } });
+// "Is there a newer MediaHub?" Looks at the version tags of the project on GitHub, at most every six hours. UPDATE_CHECK=off turns it off.
+const REPO_URL = 'https://github.com/bdlnaredi/mediahub';
+const verParts = v => String(v).replace(/^v/, '').split('.').map(n => parseInt(n, 10) || 0);
+const verNewer = (a, b) => { const x = verParts(a), y = verParts(b); for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false; };
+let updCache = { at: 0, v: undefined };
+async function latestTag() {
+  if (DEMO || /^(0|false|off|no)$/i.test(process.env.UPDATE_CHECK || '')) return null;
+  if (updCache.v !== undefined && Date.now() - updCache.at < (updCache.v ? 6 * 3600e3 : 3600e3)) return updCache.v;
+  let v = null;
+  try {
+    const r = await fetch(process.env.UPDATE_URL || 'https://api.github.com/repos/bdlnaredi/mediahub/tags?per_page=60', { signal: AbortSignal.timeout(8000), headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'MediaHub' } });
+    const l = r.ok ? await r.json() : [];
+    v = (Array.isArray(l) ? l : []).map(x => String(x && x.name || '')).filter(n => /^v\d{1,4}\.\d{1,4}\.\d{1,4}$/.test(n)).reduce((a, n) => !a || verNewer(n, a) ? n : a, null);
+  } catch {}
+  updCache = { at: Date.now(), v }; return v;
+}
 const pubUser = u => ({ email: u.email || '', twofa: !!(u.totp && u.totp.on), id: u.id, name: u.name, role: u.role, access: u.access, perms: u.perms || null, notify: u.notify || '', dash: u.dash || null, reqLimit: u.reqLimit || null, autoApprove: !!u.autoApprove, plex: u.plex ? { name: u.plex.name } : null, hide: cleanHide(u.hide), restr: u.plexRules ? Object.fromEntries(['contentRating', 'contentRating!', 'label', 'label!'].filter(k => (u.plexRules[k] || []).length).map(k => [k, u.plexRules[k]])) : null, libs: u.plex ? { n: ((u.plexLibs || {}).mine || []).length, of: ((u.plexLibs || {}).all || []).length, limited: libLimited(u) } : null, plexName: u.plexName || '', lists: lists.enabled() });
 const pubSvc = s => ({ id: s.id, type: s.type, name: s.name, url: s.url });
 
@@ -178,7 +194,7 @@ const login = (res, user) => {
       throw new Error('qBittorrent refused the request');
     };
 
-const tickets = new Map(), pending2fa = new Map(), fails2 = {}, failsPub = {}, pubCache = {}, qbListCache = {}, grabCache = new Map(), vpnCache = {}, mon = { idle: {}, up: {}, done: {}, seeded: {}, disk: {}, vpn: {}, share: {}, reqT: 0, n: 0, busy: false };
+const tickets = new Map(), pending2fa = new Map(), fails2 = {}, failsPub = {}, pubCache = {}, calCache = {}, qbListCache = {}, grabCache = new Map(), vpnCache = {}, mon = { idle: {}, up: {}, done: {}, seeded: {}, disk: {}, vpn: {}, share: {}, reqT: 0, n: 0, busy: false };
 let homeIp = { v: '', t: 0 };
 const cut = (v, n = 200) => String(v == null ? '' : v).slice(0, n);
 
@@ -406,6 +422,38 @@ async function ext(s, path, opt = {}) {
   const d = await r.json().catch(() => null);
   if (!r.ok) throw new Error((Array.isArray(d) && d[0] && d[0].errorMessage) || (d && d.message) || 'Request failed (' + r.status + ')');
   return d;
+}
+// ---- Calendar feed: a private .ics address a phone or Google Calendar can subscribe to.
+const icsEsc = v => String(v == null ? '' : v).replace(/\\/g, '\\\\').replace(/\r?\n/g, '\\n').replace(/([,;])/g, '\\$1');
+const icsFold = l => { if (Buffer.byteLength(l) <= 74) return l; const parts = []; let cur = ''; for (const ch of l) { if (Buffer.byteLength(cur + ch) > (parts.length ? 73 : 74)) { parts.push(cur); cur = ch; } else cur += ch; } parts.push(cur); return parts.join('\r\n '); };
+async function calendarIcs(u) {
+  const z = n => String(n).padStart(2, '0'), day = d => d.toISOString().slice(0, 10), stamp = d => d.toISOString().replace(/[-:]|\.\d{3}/g, '');
+  const from = new Date(Date.now() - 7 * 864e5), to = new Date(Date.now() + 60 * 864e5), ev = [], now = new Date();
+  await Promise.all(db.services.filter(s => svcOk(u, s) && (s.type === 'sonarr' || s.type === 'radarr')).map(async s => {
+    const tv = s.type === 'sonarr';
+    try {
+      const c = await ext(s, `/api/v3/calendar?start=${day(from)}&end=${day(to)}${tv ? '&includeSeries=true' : ''}`);
+      (Array.isArray(c) ? c : []).forEach(x => {
+        const o = tv ? x.series || {} : x;
+        if (tv) {
+          const st = new Date(x.airDateUtc); if (!x.airDateUtc || isNaN(st)) return;
+          const mins = Math.min(Math.max(+o.runtime || 45, 10), 600);
+          ev.push({ uid: `${s.id}-e${x.id}@mediahub`, start: ':' + stamp(st), end: ':' + stamp(new Date(+st + mins * 60000)),
+            sum: `${o.title || 'Show'} S${z(x.seasonNumber)}E${z(x.episodeNumber)}`, desc: [x.title, x.overview].filter(Boolean).join('\n\n') });
+        } else {
+          const d = [x.digitalRelease, x.physicalRelease, x.inCinemas].filter(v => v && v.slice(0, 10) >= day(from)).sort()[0]; if (!d) return;
+          const a = new Date(d.slice(0, 10) + 'T00:00:00Z'); if (isNaN(a)) return;
+          ev.push({ uid: `${s.id}-m${x.id}@mediahub`, start: ';VALUE=DATE:' + day(a).replace(/-/g, ''), end: ';VALUE=DATE:' + day(new Date(+a + 864e5)).replace(/-/g, ''),
+            sum: `${x.title || 'Movie'} (movie release)`, desc: x.overview || '' });
+        }
+      });
+    } catch { /* one app being down should not empty the whole calendar */ }
+  }));
+  ev.sort((a, b) => a.start.localeCompare(b.start));
+  const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//MediaHub//Upcoming//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:MediaHub upcoming', 'REFRESH-INTERVAL;VALUE=DURATION:PT6H', 'X-PUBLISHED-TTL:PT6H'];
+  ev.forEach(e => L.push('BEGIN:VEVENT', 'UID:' + e.uid, 'DTSTAMP:' + stamp(now), 'DTSTART' + e.start, 'DTEND' + e.end, 'SUMMARY:' + icsEsc(e.sum), ...(e.desc ? ['DESCRIPTION:' + icsEsc(e.desc.slice(0, 800))] : []), 'END:VEVENT'));
+  L.push('END:VCALENDAR');
+  return L.map(icsFold).join('\r\n') + '\r\n';
 }
 const plexGet = async (s, pth) => {
   const x = await fetch(s.url.replace(/\/+$/, '') + pth, { signal: AbortSignal.timeout(8000), headers: { 'X-Plex-Token': s.apiKey, Accept: 'application/json' } });
@@ -781,6 +829,19 @@ http.createServer(async (req, res) => {
     res.writeHead(200, { 'Content-Type': WPM[n.split('.').pop().toLowerCase()], 'Cache-Control': 'public, max-age=86400', 'X-Content-Type-Options': 'nosniff' });
     return fs.createReadStream(path.join(WPD, n)).pipe(res);
   }
+  const calm = p.match(/^\/cal\/([\w-]{20,64})\.ics$/);
+  if (calm && (m === 'GET' || m === 'HEAD')) {
+    const ip = ipOf(req), fl = failsPub[ip] || { n: 0, t: 0 };
+    if (Date.now() - fl.t > 600000) fl.n = 0;
+    if (fl.n >= 30) return send(res, 429, { error: 'Too many attempts' });
+    const hh = th(calm[1]), u = db.users.find(x => x.cal && same(x.cal.hash, hh));
+    if (!u) { fl.n++; fl.t = Date.now(); failsPub[ip] = fl; return send(res, 404, { error: 'This link is not valid' }); }
+    const c = calCache[hh]; let body;
+    if (c && Date.now() - c.t < 300000) body = c.d; else { body = await calendarIcs(u); calCache[hh] = { t: Date.now(), d: body }; }
+    u.cal.lastUsed = Date.now();
+    res.writeHead(200, { 'Content-Type': 'text/calendar; charset=utf-8', 'Cache-Control': 'private, max-age=300', 'Content-Disposition': 'inline; filename="mediahub.ics"' });
+    return res.end(m === 'HEAD' ? '' : body);
+  }
   if (!p.startsWith('/api/')) {
     if (/^\/s\/[\w-]{20,64}$/.test(p)) { res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' }); return res.end(fs.readFileSync(path.join(PUB, 'status.html'))); }
     const fp = path.join(PUB, p), mime = { '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.json': 'application/json', '.js': 'text/javascript', '.css': 'text/css' }[path.extname(fp)];
@@ -906,7 +967,7 @@ http.createServer(async (req, res) => {
     }
     if (p === '/api/logout') { sessions.delete(th(token)); saveSess(); return send(res, 200, {}, { 'Set-Cookie': 'sid=; Path=/; Max-Age=0' }); }
     if (!me) return send(res, 401, { error: 'Sign in first' });
-    if (DEMO && m !== 'GET' && /^\/api\/(users|password|2fa|backups?|restore|alerts|statuslinks|signin|services|weekly|throttle|me\/notify|me\/email|plexsettings|listsettings)/.test(p)) return send(res, 403, { error: 'This is turned off in the demo' });
+    if (DEMO && m !== 'GET' && /^\/api\/(users|password|2fa|backups?|restore|alerts|statuslinks|signin|services|weekly|throttle|me\/notify|me\/email|me\/calendar|plexsettings|listsettings)/.test(p)) return send(res, 403, { error: 'This is turned off in the demo' });
 
     if (p === '/api/2fa/start' && m === 'POST') {
       if (me.totp && me.totp.on) return send(res, 400, { error: 'Two-step sign-in is already on' });
@@ -1547,6 +1608,13 @@ http.createServer(async (req, res) => {
       if (v && !/^https?:\/\//i.test(v)) return send(res, 400, { error: 'Enter a web address starting with https://' });
       me.notify = v.slice(0, 500); save(); return send(res, 200, {});
     }
+    if (p === '/api/me/calendar' && m === 'GET') return send(res, 200, { on: !!me.cal, at: me.cal ? me.cal.at : 0, lastUsed: me.cal ? me.cal.lastUsed || 0 : 0, base: baseUrl() });
+    if (p === '/api/me/calendar' && m === 'POST') {
+      if (me.cal) delete calCache[me.cal.hash];
+      const token = crypto.randomBytes(24).toString('hex'); me.cal = { hash: th(token), at: Date.now() }; save(); audit(me.name, 'Made a calendar link', '');
+      return send(res, 200, { token, path: `/cal/${token}.ics`, base: baseUrl() });
+    }
+    if (p === '/api/me/calendar' && m === 'DELETE') { if (me.cal) delete calCache[me.cal.hash]; delete me.cal; save(); audit(me.name, 'Removed the calendar link', ''); return send(res, 200, {}); }
     if (p === '/api/me/notify/test' && m === 'POST') {
       try { if (!(await pushTo(me.notify, 'MediaHub test', 'Phone messages are working.'))) return send(res, 400, { error: 'Save an address first' }); }
       catch (e) { return send(res, 400, { error: e.message }); }
@@ -1797,6 +1865,18 @@ http.createServer(async (req, res) => {
       let out; try { out = await ext(sv, '/api/v1/indexer' + (b.force === true ? '?forceSave=true' : ''), { method: 'POST', body: JSON.stringify(it), signal: AbortSignal.timeout(90000) }); } catch (e) { return send(res, 502, { error: e.message }); }
       audit(me.name, 'Added indexer to Prowlarr', it.name); return send(res, 200, { id: out && out.id });
     }
+    if ((r = p.match(/^\/api\/prowlarr\/(\w+)\/indexers\/(\d+)$/)) && m === 'PUT') {
+      const sv = svcOf(r[1], 'prowlarr'); if (!sv) return send(res, 404, { error: 'Not found' });
+      const b = await readBody(req), it = await ext(sv, '/api/v1/indexer/' + r[2]);
+      if ('enable' in b) it.enable = b.enable === true;
+      if ('priority' in b) { const n = Math.round(+b.priority); if (!(n >= 1 && n <= 50)) return send(res, 400, { error: 'Priority is a number from 1 to 50. A lower number is asked first.' }); it.priority = n; }
+      try { await ext(sv, '/api/v1/indexer/' + r[2], { method: 'PUT', body: JSON.stringify(it), signal: AbortSignal.timeout(60000) }); } catch (e) { return send(res, 502, { error: e.message }); }
+      audit(me.name, 'Changed a Prowlarr indexer', `${it.name}: ${'enable' in b ? (it.enable ? 'turned on' : 'turned off') : 'priority ' + it.priority}`); return send(res, 200, { enabled: !!it.enable, priority: it.priority });
+    }
+    if ((r = p.match(/^\/api\/jackett\/(\w+)\/feed\/([\w.-]+)$/)) && m === 'GET') {
+      const s = svcOf(r[1], 'jackett'); if (!s) return send(res, 404, { error: 'Not found' });
+      return send(res, 200, { url: `${s.url.replace(/\/+$/, '')}/api/v2.0/indexers/${encodeURIComponent(r[2])}/results/torznab/`, apiKey: s.apiKey || '' });
+    }
     if ((r = p.match(/^\/api\/prowlarr\/(\w+)\/indexers\/(\d+)$/)) && m === 'DELETE') {
       const sv = svcOf(r[1], 'prowlarr'); if (!sv) return send(res, 404, { error: 'Not found' });
       await ext(sv, '/api/v1/indexer/' + r[2], { method: 'DELETE' }); audit(me.name, 'Removed indexer from Prowlarr', 'number ' + r[2]); return send(res, 200, {});
@@ -2005,6 +2085,10 @@ http.createServer(async (req, res) => {
       if (!lines) return send(res, 502, { error: 'Unraid would not give the log' + (why ? ': ' + cut(why, 200) : '. This Unraid version may not offer container logs through its API.') });
       const text = lines.map(l => (l.timestamp ? String(l.timestamp).replace('T', ' ').replace(/\.\d+Z?$/, '') + '  ' : '') + String(l.message == null ? '' : l.message).replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')).join('\n');
       return send(res, 200, { text, empty: !text.trim() });
+    }
+    if (p === '/api/update' && m === 'GET') {
+      const off = DEMO || /^(0|false|off|no)$/i.test(process.env.UPDATE_CHECK || ''), latest = off ? null : await latestTag();
+      return send(res, 200, { current: VERSION, latest: latest || '', newer: !!latest && verNewer(latest, VERSION), off, url: REPO_URL + '/releases' });
     }
     if (p === '/api/audit' && m === 'GET') return send(res, 200, db.log.slice(-200).reverse());
     if (p === '/api/services/test' && m === 'POST') {

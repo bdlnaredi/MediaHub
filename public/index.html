@@ -511,7 +511,7 @@ async function api(url,method='GET',body){
 }
 let DEMO=false;
 let REC=false,PLEXLOGIN=false;
-let VER='';const APPMODE=/MediaHubApp\//.test(navigator.userAgent);
+let VER='',UPD=null;const APPMODE=/MediaHubApp\//.test(navigator.userAgent);
 async function start(){
   await loadLang();
   const s=await api('/api/me');
@@ -519,7 +519,7 @@ async function start(){
   const rt=(location.hash.match(/^#reset=([\w-]{20,80})$/)||[])[1];
   if(rt)return resetView(rt);
   if(!s.user)return authView(s.setup,s.setupCode);
-  DEMO=!!s.demo;me=s.user;await load();render();
+  DEMO=!!s.demo;me=s.user;await load();render();if(me.role==='admin')api('/api/update').then(u=>{UPD=u;verNote();if(tab==='set'&&stSub==='about')stAbout()}).catch(()=>{});
 }
 async function load(){
   services=await api('/api/services');
@@ -673,6 +673,7 @@ const visibleTabs=()=>TABS.filter(([k])=>!TYPE_TABS[k]||TYPE_TABS[k].some(t=>ofT
 let stSub='acct';
 function goto(k){if(String(k).includes(':')){const [t,s]=k.split(':');tab=t==='st'?'set':t;stSub=s}else tab=k;render()}
 function render(){
+  queueMicrotask(verNote);
   hideStage();Cinema.ambient();Cinema.tilt();
   const tabs=visibleTabs();if(!tabs.some(t=>t[0]===tab))tab='dash';
   const pg=PAGES[tab]||['',''];
@@ -893,10 +894,14 @@ function setView(){
   ({acct:stAcct,look:stLook,apps:svcView,lists:stLists,users:usrView,alerts:alView,links:linksView,rules:stRules,backup:stBackup,audit:stAudit,about:stAbout})[stSub]();
 }
 function stLook(){$('#m').innerHTML=`<div class="panel" style="max-width:560px">${appearHtml()}</div>`;bindAppear($('#m'))}
+function verNote(){
+  const t=UPD&&UPD.newer?` <a href="${esc(UPD.url)}" target="_blank" rel="noopener noreferrer" title="Open the release page">${esc(UPD.latest)} is available</a>`:'';
+  document.querySelectorAll('.ver').forEach(e=>{const o=e.querySelector('.upd');if(o)o.remove();if(t)e.insertAdjacentHTML('beforeend',`<span class="upd"> · ${t}</span>`)});
+}
 function stAbout(){
   const row=(k,v)=>`<div class="box row"><span class="grow mute">${k}</span><b>${v}</b></div>`;
   $('#m').innerHTML=`<div class="panel" style="max-width:560px"><h3 style="margin-top:0">MediaHub ${esc(VER)}</h3><p class="mute">This is the version of the MediaHub server you are connected to. The Android app shows the same page, so it always matches the server.</p>
-    ${row('Server version',esc(VER||'unknown'))}${row('Server address',esc(location.origin))}${row('Opened in',APPMODE?'The Android app':'A web browser')}${row('Signed in as',esc(me.name)+' ('+(me.role==='admin'?'admin':'user')+')')}
+    ${row('Server version',esc(VER||'unknown'))}${row('Server address',esc(location.origin))}${row('Opened in',APPMODE?'The Android app':'A web browser')}${row('Signed in as',esc(me.name)+' ('+(me.role==='admin'?'admin':'user')+')')}${me.role==='admin'&&UPD?row('Updates',UPD.off?'Update check is off':UPD.newer?`<a href="${esc(UPD.url)}" target="_blank" rel="noopener noreferrer">${esc(UPD.latest)} is available</a>`:UPD.latest?'You are up to date':'Could not check right now'):''}
     <p class="mute" style="margin-top:14px">Release notes and newer versions are on <a href="https://github.com/bdlnaredi/mediahub/releases" target="_blank" rel="noopener noreferrer">GitHub</a>.</p></div>`;
 }
 async function stAcct(){
@@ -906,6 +911,7 @@ async function stAcct(){
     <div class="panel" style="max-width:560px;margin-top:16px"><h3 style="margin-top:0">Phone messages for you</h3>
       <p class="mute">MediaHub can message you when a request of yours is approved or ready to watch. Use an ntfy topic address (like https://ntfy.sh/my-topic) or a Discord webhook address.</p>
       <form id="nf2" style="margin:0"><input name="url" value="${esc(me.notify||'')}" placeholder="https://ntfy.sh/my-topic"><div class="row"><button class="primary">Save</button><button type="button" id="nt">Send a test message</button></div></form></div>
+    <div class="panel" style="max-width:560px;margin-top:16px" id="cq"></div>
     <div class="panel" style="max-width:560px;margin-top:16px"><h3 style="margin-top:0">Recovery email</h3>
       <p class="mute">Your own email address. If you ever forget your password, the reset link is sent here. Type your current password to save a change.</p>
       <form id="ef" style="margin:0"><input name="email" type="email" value="${esc(me.email||'')}" placeholder="you@example.com" autocomplete="email"><input name="password" type="password" placeholder="Current password" autocomplete="current-password" required>
@@ -919,6 +925,14 @@ async function stAcct(){
     try{await api('/api/password','POST',{old:f.old,new:f.new});e.target.reset();toast('Password changed','ok')}catch(x){m.textContent=x.message}};
   $('#nf2').onsubmit=async e=>{e.preventDefault();try{await api('/api/me/notify','PUT',{url:e.target.url.value.trim()});me.notify=e.target.url.value.trim();toast('Saved','ok')}catch(x){toast(x.message,'bad')}};
   $('#nt').onclick=async()=>{try{await api('/api/me/notify/test','POST');toast('Test message sent','ok')}catch(x){toast(x.message,'bad')}};
+  const calView=async(fresh)=>{const box=$('#cq');if(!box)return;let st;try{st=await api('/api/me/calendar')}catch(x){box.innerHTML='<span class="err">'+esc(x.message)+'</span>';return}
+    const head='<h3 style="margin-top:0">Calendar link</h3><p class="mute">Subscribe in Google Calendar, Apple Calendar or Outlook to see upcoming episodes and movie releases from your Sonarr and Radarr. Anyone with the link can see the list, so keep it private.</p>';
+    if(fresh){const u=(fresh.base||location.origin)+fresh.path;box.innerHTML=head+`<input readonly id="cu" value="${esc(u)}" aria-label="Calendar link" onfocus="this.select()"><div class="row"><button class="primary" id="cc">Copy link</button><button id="cr">Make a new link</button><button id="cx">Turn off</button></div><p class="mute">This is the only time the full link is shown. If you lose it, make a new one.</p>`;
+      $('#cc').onclick=async()=>{await copyText(u);toast('Copied','ok')}}
+    else box.innerHTML=head+(st.on?`<p>On since ${esc(new Date(st.at).toLocaleDateString())}${st.lastUsed?', last used '+esc(new Date(st.lastUsed).toLocaleString()):''}.</p><div class="row"><button id="cr">Make a new link</button><button id="cx">Turn off</button></div>`:'<div class="row"><button class="primary" id="cr">Make a link</button></div>');
+    $('#cr').onclick=async()=>{if(st.on&&!confirm('The old link will stop working. Make a new one?'))return;try{calView(await api('/api/me/calendar','POST'))}catch(x){toast(x.message,'bad')}};
+    const cx=$('#cx');if(cx)cx.onclick=async()=>{if(!confirm('Turn off the calendar link? Calendars using it will stop updating.'))return;try{await api('/api/me/calendar','DELETE');calView()}catch(x){toast(x.message,'bad')}}};
+  calView();
   $('#ef').onsubmit=async e=>{e.preventDefault();const f=e.target.elements;$('#ee').textContent='';
     try{const r=await api('/api/me/email','PUT',{email:f.email.value.trim(),password:f.password.value});me.email=r.email;f.password.value='';toast(r.email?'Recovery email saved':'Recovery email removed','ok')}catch(x){$('#ee').textContent=x.message}};
   if(me.role==='admin')signinPanel();
@@ -1736,12 +1750,16 @@ async function idxHealth(s){
   $('#ib').innerHTML=`<div class="row" style="margin-bottom:10px"><span class="mute grow">${d.indexers.length} indexers${bad?`, <b>${bad} failing</b>`:', all working'}</span><button id="ta">Check all</button><button class="primary" id="ad">Add indexer</button></div>
     ${d.health.map(h=>`<div class="box" style="border-color:var(--bad)">${esc(h)}</div>`).join('')}
     ${d.indexers.map(x=>`<div class="box row" data-i="${x.id}"><div class="grow" style="min-width:0"><b>${esc(x.name)}</b> <span class="chip">${esc(x.protocol)}</span><div class="mute" data-r>${x.status==='failing'?'Paused after failures until '+esc(fdt(x.until)):x.status==='disabled'?'Turned off in Prowlarr':'Working'}</div></div>
-      <span class="pill ${x.status==='ok'?'ok':x.status==='failing'?'bad':''}" data-s>${x.status==='ok'?'OK':x.status==='failing'?'Failing':'Off'}</span><button data-t ${x.enabled?'':'disabled'}>Check</button><button class="danger" data-x>Remove</button></div>`).join('')}`;
+      <span class="pill ${x.status==='ok'?'ok':x.status==='failing'?'bad':''}" data-s>${x.status==='ok'?'OK':x.status==='failing'?'Failing':'Off'}</span><label class="mute" title="A lower number is asked first">Priority <input type="number" min="1" max="50" value="${x.priority||25}" data-p style="width:64px" aria-label="Priority of ${esc(x.name)}"></label><button data-o="${x.enabled?'0':'1'}">${x.enabled?'Turn off':'Turn on'}</button><button data-t ${x.enabled?'':'disabled'}>Check</button><button class="danger" data-x>Remove</button></div>`).join('')}`;
+  $('#ib').onchange=async e=>{const pi=e.target.closest('[data-p]');if(!pi)return;const row=pi.closest('[data-i]');pi.disabled=true;
+    try{const r=await api(`/api/prowlarr/${s.id}/indexers/${row.dataset.i}`,'PUT',{priority:+pi.value});pi.value=r.priority;toast('Priority saved','ok')}catch(x){toast(x.message,'bad');idxHealth(s)}pi.disabled=false};
   const mark=(row,ok,msg)=>{const p=row.querySelector('[data-s]');p.className='pill '+(ok?'ok':'bad');p.textContent=ok?'OK':'Failing';row.querySelector('[data-r]').textContent=ok?'Check passed':msg||'Check failed'};
   $('#ib').onclick=async e=>{
     const t=e.target.closest('[data-t]');
     if(t){const row=t.closest('[data-i]');t.disabled=true;t.textContent='Checking…';
       try{const r=await api(`/api/prowlarr/${s.id}/indexers/${row.dataset.i}/test`,'POST');mark(row,r.ok,r.error)}catch(x){mark(row,false,x.message)}t.disabled=false;t.textContent='Check'}
+    const sw=e.target.closest('[data-o]');
+    if(sw){sw.disabled=true;try{await api(`/api/prowlarr/${s.id}/indexers/${sw.closest('[data-i]').dataset.i}`,'PUT',{enable:sw.dataset.o==='1'});idxHealth(s)}catch(x){sw.disabled=false;toast(x.message,'bad')}}
     const rm=e.target.closest('[data-x]');
     if(rm){const row=rm.closest('[data-i]'),nm=row.querySelector('b').textContent;
       if(confirm(`Remove ${nm} from Prowlarr? Apps that Prowlarr syncs to will lose it too.`)){rm.disabled=true;try{await api(`/api/prowlarr/${s.id}/indexers/${row.dataset.i}`,'DELETE');toast('Removed '+nm,'ok');idxHealth(s)}catch(x){rm.disabled=false;toast(x.message,'bad')}}}
@@ -1750,14 +1768,28 @@ async function idxHealth(s){
       try{const l=await api(`/api/prowlarr/${s.id}/indexers/all/test`,'POST');l.forEach(r=>{const row=document.querySelector(`[data-i="${r.id}"]`);if(row)mark(row,r.ok,r.error)});toast(`${l.filter(r=>r.ok).length} of ${l.length} passed`,l.every(r=>r.ok)?'ok':'bad')}catch(x){toast(x.message,'bad')}
       b.disabled=false;b.textContent='Check all'}};
 }
+function copyText(t,btn){
+  const ok=()=>{if(btn){const o=btn.textContent;btn.textContent='Copied';setTimeout(()=>btn.textContent=o,1500)}};
+  const old=()=>{const a=document.createElement('textarea');a.value=t;a.style.cssText='position:fixed;opacity:0';document.body.append(a);a.select();let g=false;try{g=document.execCommand('copy')}catch{}a.remove();g?ok():toast('Could not copy. Select it and copy by hand.','bad')};
+  if(navigator.clipboard&&window.isSecureContext)navigator.clipboard.writeText(t).then(ok,old);else old();
+}
+function idxFeed(d,name){
+  const o=modal(`<div class="row" style="width:100%"><h2 style="margin:0;flex:1">Feed for ${esc(name)}</h2><button data-x>Close</button></div>
+    <p class="mute">In Sonarr or Radarr, add an indexer of type <b>Torznab</b>, then paste these two. If Sonarr cannot open this address, use the address that Sonarr uses to reach Jackett.</p>
+    <label class="mute" style="display:block;margin-top:8px"><span style="display:block;margin-bottom:4px">URL</span><input readonly value="${esc(d.url)}" style="width:100%" data-sel></label><div class="row" style="margin-top:6px"><button data-c="url">Copy URL</button></div>
+    <label class="mute" style="display:block;margin-top:12px"><span style="display:block;margin-bottom:4px">API key</span><input readonly value="${esc(d.apiKey)}" style="width:100%" data-sel></label><div class="row" style="margin-top:6px"><button data-c="key">Copy API key</button></div>`);
+  o.querySelector('[data-x]').onclick=o.close;
+  o.querySelectorAll('[data-sel]').forEach(i=>i.onfocus=()=>i.select());
+  o.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>copyText(b.dataset.c==='url'?d.url:d.apiKey,b));
+}
 async function idxJackett(s){
   const admin=me.role==='admin';$('#ib').innerHTML=skel(4);
   let l;try{l=await api(`/api/jackett/${s.id}/indexers`)}catch(x){$('#ib').innerHTML=`<div class="err">${esc(x.message)}</div>`;return}
   if(tab!=='idx')return;
   const bad=l.filter(x=>x.error).length;
-  $('#ib').innerHTML=`<div class="row" style="margin-bottom:10px;flex-wrap:wrap"><span class="mute grow">${l.length} indexer${l.length===1?'':'s'}${bad?`, <b>${bad} with a problem</b>`:''}</span><button id="ta">Check all</button>${admin?'<button class="primary" id="ad">Add indexer</button>':''}</div>
+  $('#ib').innerHTML=`<div class="row" style="margin-bottom:10px;flex-wrap:wrap"><span class="mute grow">${l.length} indexer${l.length===1?'':'s'}${bad?`, <b>${bad} with a problem</b>`:''}</span><button id="ta">Check all</button>${admin?'<button id="fa" title="One address for every indexer, for Sonarr or Radarr">Feed for all</button><button class="primary" id="ad">Add indexer</button>':''}</div>
     ${l.map(x=>`<div class="box row" data-i="${esc(x.id)}"><div class="grow" style="min-width:0"><b>${esc(x.name)}</b> ${x.type?`<span class="chip">${esc(x.type)}</span>`:''}${x.language?` <span class="chip">${esc(x.language)}</span>`:''}<div class="mute" data-r>${x.error?esc(x.error):'Not checked yet'}</div></div>
-      <span class="pill ${x.error?'bad':''}" data-s>${x.error?'Problem':'Not checked'}</span><button data-t>Check</button>${admin?'<button class="danger" data-x>Remove</button>':''}</div>`).join('')||(admin?'<p class="mute">Nothing is added to Jackett yet. Press Add indexer.</p>':'<p class="mute">Nothing is added to Jackett yet.</p>')}`;
+      <span class="pill ${x.error?'bad':''}" data-s>${x.error?'Problem':'Not checked'}</span><button data-t>Check</button>${admin?'<button data-f title="The address and key that Sonarr or Radarr needs">Feed</button><button class="danger" data-x>Remove</button>':''}</div>`).join('')||(admin?'<p class="mute">Nothing is added to Jackett yet. Press Add indexer.</p>':'<p class="mute">Nothing is added to Jackett yet.</p>')}`;
   const rowOf=id=>[...document.querySelectorAll('#ib [data-i]')].find(r=>r.dataset.i===id);
   const mark=(row,ok,msg)=>{if(!row)return;const p=row.querySelector('[data-s]');p.className='pill '+(ok?'ok':'bad');p.textContent=ok?'Working':'Failing';row.querySelector('[data-r]').textContent=ok?'Check passed':msg||'Check failed'};
   $('#ib').onclick=async e=>{
@@ -1768,6 +1800,8 @@ async function idxJackett(s){
     if(rm){const row=rm.closest('[data-i]'),nm=row.querySelector('b').textContent;
       if(confirm(`Remove ${nm} from Jackett? You can add it again later.`)){rm.disabled=true;try{await api(`/api/jackett/${s.id}/indexers/${encodeURIComponent(row.dataset.i)}`,'DELETE');toast('Removed '+nm,'ok');idxJackett(s)}catch(x){rm.disabled=false;toast(x.message,'bad')}}}
     if(e.target.closest('#ad'))idxAdd('jackett',s,()=>idxJackett(s));
+    const fd=e.target.closest('[data-f],#fa');
+    if(fd){const id=fd.id==='fa'?'all':fd.closest('[data-i]').dataset.i;try{idxFeed(await api(`/api/jackett/${s.id}/feed/${encodeURIComponent(id)}`),id==='all'?'every indexer':fd.closest('[data-i]').querySelector('b').textContent)}catch(x){toast(x.message,'bad')}}
     const ta=e.target.closest('#ta');
     if(ta){ta.disabled=true;ta.textContent='Checking…';
       try{const r=await api(`/api/jackett/${s.id}/indexers/all/test`,'POST');r.forEach(x=>mark(rowOf(x.id),x.ok,x.error));toast(`${r.filter(x=>x.ok).length} of ${r.length} working`,r.every(x=>x.ok)?'ok':'bad')}catch(x){toast(x.message,'bad')}
@@ -1920,7 +1954,7 @@ async function loadPlex(s){
   }catch{}
 }
 const DS={src:'',kind:'movie',list:'trending'};let dsTok=0;
-const DSRC={trakt:'Trakt',tmdb:'TMDB',tvdb:'TheTVDB'},DLIST={trending:'Trending',popular:'Popular',anticipated:'Anticipated'},DAVAIL={trakt:['trending','popular','anticipated'],tmdb:['trending','popular','anticipated'],tvdb:['popular','anticipated']};
+const DSRC={seerr:'Seerr',trakt:'Trakt',tmdb:'TMDB',tvdb:'TheTVDB'},DLIST={trending:'Trending',popular:'Popular',anticipated:'Anticipated'},DAVAIL={seerr:['trending','popular','anticipated'],trakt:['trending','popular','anticipated'],tmdb:['trending','popular','anticipated'],tvdb:['popular','anticipated']};
 function discView(){
   const on=Object.keys(DSRC).filter(k=>(me.lists||{})[k]);
   if(!on.length){$('#m').innerHTML='<div class="panel">No list is set up yet.'+(me.role==='admin'?' Add a free key under Settings, then Discover lists.':' Ask the admin to add one.')+'</div>';return}
@@ -1933,7 +1967,7 @@ function discView(){
   const my=++dsTok;
   api(`/api/discover?src=${DS.src}&list=${DS.list}&kind=${DS.kind}`).then(l=>{
     if(my!==dsTok||tab!=='disc')return;
-    $('#dg').innerHTML=l.length?`<div class="grid">${l.map((x,i)=>`<div class="card" data-v="${i}" tabindex="0" role="button" aria-label="${esc(x.title)}" style="cursor:pointer">${x.rating?`<span class="cn-star">★ ${x.rating.toFixed(1)}</span>`:''}${x.poster?`<img src="${esc(x.poster)}" alt="" loading="lazy" style="width:100%;border-radius:8px;aspect-ratio:2/3;object-fit:cover">`:`<div class="mute" style="aspect-ratio:2/3;display:grid;place-items:center;text-align:center;background:var(--s2);border-radius:8px;padding:10px">${esc(x.title)}</div>`}<h3>${esc(x.title)} <span class="mute">${esc(x.year)}</span></h3></div>`).join('')}</div>`:'<p class="mute">Nothing on this list right now.</p>';
+    $('#dg').innerHTML=l.length?`<div class="grid">${l.map((x,i)=>`<div class="card" data-v="${i}" tabindex="0" role="button" aria-label="${esc(x.title)}" style="cursor:pointer">${x.rating?`<span class="cn-star">★ ${x.rating.toFixed(1)}</span>`:''}${x.poster?`<img src="${esc(x.poster)}" alt="" loading="lazy" style="width:100%;border-radius:8px;aspect-ratio:2/3;object-fit:cover">`:`<div class="mute" style="aspect-ratio:2/3;display:grid;place-items:center;text-align:center;background:var(--s2);border-radius:8px;padding:10px">${esc(x.title)}</div>`}<h3>${esc(x.title)} <span class="mute">${esc(x.year)}</span></h3>${x.status===5?'<span class="pill ok">In library</span>':x.status>=2?'<span class="pill">Requested</span>':''}</div>`).join('')}</div>`:'<p class="mute">Nothing on this list right now.</p>';
     document.querySelectorAll('#dg .card').forEach(c=>{const go=()=>discOpen(l[c.dataset.v]);c.onclick=go;c.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}}});
   }).catch(e=>{if(my===dsTok&&$('#dg')){$('#dg').innerHTML='';$('#e').textContent=e.message}});
 }
@@ -1944,10 +1978,24 @@ function discOpen(x){
   const box=o.querySelector('#rqs');
   if(!sk){box.innerHTML='<span class="mute">Connect Seerr to request things from here.</span>';return}
   if(!can('request')){box.innerHTML='<span class="mute">Requests are off for your profile.</span>';return}
-  const ask=m=>{box.innerHTML='<button class="primary" id="rq1">Request</button><div class="err" id="re"></div>';
-    box.querySelector('#rq1').onclick=async e=>{const b=e.target;b.disabled=true;b.textContent='Sending…';
-      try{const r=await api('/api/requests','POST',{sid:sk.id,mediaType:x.mediaType,mediaId:m.id,title:m.title,year:m.year,poster:m.poster||x.poster,seasons:[]});box.innerHTML=`<span class="pill ok">${r.status==='approved'?'Requested':'Sent for approval'}</span>${tv?' <span class="mute">All seasons</span>':''}`}
-      catch(er){b.disabled=false;b.textContent='Request';box.querySelector('#re').textContent=er.message}}};
+  const ask=m=>{
+    const err=t=>{const e=box.querySelector('#re');if(e)e.textContent=t};
+    const send=async(seasons,b)=>{b.disabled=true;b.textContent='Sending…';
+      try{const r=await api('/api/requests','POST',{sid:sk.id,mediaType:x.mediaType,mediaId:m.id,title:m.title,year:m.year,poster:m.poster||x.poster,seasons});
+        box.innerHTML=`<span class="pill ok">${r.status==='approved'?'Requested':'Sent for approval'}</span>${tv?` <span class="mute">${seasons.length?'Season'+(seasons.length>1?'s ':' ')+seasons.join(', '):'All seasons'}</span>`:''}`}
+      catch(er){b.disabled=false;b.textContent='Request';err(er.message)}};
+    box.innerHTML='<button class="primary" id="rq1">Request</button><div class="err" id="re"></div>';
+    box.querySelector('#rq1').onclick=async e=>{const b=e.target;
+      if(!tv)return send([],b);
+      b.disabled=true;b.textContent='Loading seasons…';let d;
+      try{d=await api(`/api/seerr/tv?sid=${sk.id}&id=${m.id}`)}catch(er){return send([],b)}
+      const ss=d.seasons||[];
+      if(ss.length<2)return send(ss.map(z=>z.n),b);
+      box.innerHTML=`<form id="sf5" style="margin:0"><div class="mute" style="margin-bottom:4px">Which seasons?</div><label class="chk" style="display:flex;margin:6px 0"><input type="checkbox" id="sa5" checked><b>All seasons</b></label><div style="max-height:200px;overflow:auto">${ss.map(z=>`<label class="chk" style="display:flex;margin:6px 0"><input type="checkbox" name="s" value="${z.n}" checked>Season ${z.n} <span class="mute">${z.episodes} episodes</span></label>`).join('')}</div><div class="err" id="re"></div><div class="row"><button class="primary" id="rq2">Request</button></div></form>`;
+      const all=box.querySelector('#sa5'),bx=[...box.querySelectorAll('[name=s]')];
+      all.onchange=()=>bx.forEach(c=>c.checked=all.checked);bx.forEach(c=>c.onchange=()=>{all.checked=bx.every(z=>z.checked)});
+      box.querySelector('#sf5').onsubmit=ev=>{ev.preventDefault();const ch=bx.filter(c=>c.checked).map(c=>+c.value);if(!ch.length){err('Choose at least one season');return}send(ch,box.querySelector('#rq2'))};
+    }};
   box.innerHTML='<span class="mute">Checking Seerr…</span>';
   api(`/api/seerr/search?sid=${sk.id}&term=${encodeURIComponent(x.title)}`).then(r=>{
     const nt=z=>String(z).toLowerCase().replace(/[^a-z0-9]/g,''),m=r.find(y=>y.mediaType===x.mediaType&&(x.tmdb?y.id===x.tmdb:nt(y.title)===nt(x.title)&&(!x.year||!y.year||Math.abs(+y.year-+x.year)<=1)));
@@ -1961,7 +2009,7 @@ const SL_SRC=[['trakt','Trakt','Client ID','Sign in at trakt.tv, open Settings, 
   ['tvdb','TheTVDB','API key','Make one at thetvdb.com/api-information. TheTVDB may ask for a small subscription for personal use. It has Popular and Anticipated shows, and Popular movies.']];
 async function stLists(){
   let c;try{c=await api('/api/listsettings')}catch(e){$('#m').innerHTML=`<div class="panel err">${esc(e.message)}</div>`;return}
-  $('#m').innerHTML=`<p class="mute" style="max-width:640px">Add a free key from any of these sites and a <b>Discover</b> tab appears with their Trending, Popular and Anticipated lists. Keys stay on your server. Trakt has no pictures of its own, so they come from TMDB (if you add a key) or from Seerr.</p>`+SL_SRC.map(([k,n,lab,help])=>`<div class="panel" style="max-width:640px;margin-top:14px"><div class="row"><h3 style="margin:0" class="grow">${n}</h3>${c[k].on?`<span class="pill ok">Saved ${esc(c[k].hint)}</span>`:'<span class="pill">Not set</span>'}</div>
+  $('#m').innerHTML=`<p class="mute" style="max-width:640px">If Seerr is connected under Apps, a <b>Discover</b> tab appears by itself with Seerr's Trending, Popular and Upcoming lists, and no key is needed. You can add a free key from any of these sites too, for their own lists. Keys stay on your server. Trakt has no pictures of its own, so they come from TMDB (if you add a key) or from Seerr.</p>`+SL_SRC.map(([k,n,lab,help])=>`<div class="panel" style="max-width:640px;margin-top:14px"><div class="row"><h3 style="margin:0" class="grow">${n}</h3>${c[k].on?`<span class="pill ok">Saved ${esc(c[k].hint)}</span>`:'<span class="pill">Not set</span>'}</div>
     <p class="mute">${help}</p><form data-k="${k}" style="margin:0"><input name="v" placeholder="${c[k].on?'Paste a new '+lab+' to replace it':lab}" autocomplete="off" spellcheck="false" aria-label="${n} ${lab}"><div class="row"><button class="primary">Save</button>${c[k].on?'<button type="button" data-rm="'+k+'">Remove</button>':''}</div></form></div>`).join('')+'<div class="err" id="le"></div>';
   const put=async b=>{try{const r=await api('/api/listsettings','PUT',b);me.lists=r;toast('Saved','ok');stLists()}catch(e){$('#le').textContent=e.message}};
   document.querySelectorAll('form[data-k]').forEach(f=>f.onsubmit=e=>{e.preventDefault();const v=f.v.value.trim();if(!v){$('#le').textContent='Paste the key first.';return}put({[f.dataset.k]:v})});
