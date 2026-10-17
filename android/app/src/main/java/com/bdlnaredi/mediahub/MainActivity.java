@@ -5,22 +5,32 @@
 // It is distributed WITHOUT ANY WARRANTY; see the LICENSE file.
 package com.bdlnaredi.mediahub;
 
+import android.Manifest;
 import android.app.Activity;
+import android.app.DownloadManager;
 import android.content.ActivityNotFoundException;
+import android.content.ContentValues;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.net.http.SslError;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Message;
+import android.provider.MediaStore;
+import android.util.Base64;
 import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.webkit.CookieManager;
+import android.webkit.JavascriptInterface;
+import android.webkit.URLUtil;
 import android.webkit.SslErrorHandler;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -37,6 +47,9 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.OutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -45,6 +58,8 @@ import java.util.Locale;
 public class MainActivity extends Activity {
     private static final String ACTION_CHANGE_SERVER = "com.bdlnaredi.mediahub.CHANGE_SERVER";
     private static final int REQ_FILE = 77;
+    private static final int REQ_NOTIFY = 78;
+    private static final int REQ_STORAGE = 79;
     private static final int BG = Color.parseColor("#0e131d");
     private static final int ACCENT = Color.parseColor("#ffb23e");
     private static final int TEXT = Color.parseColor("#f1f0fa");
@@ -65,6 +80,7 @@ public class MainActivity extends Activity {
     private ValueCallback<Uri[]> filePick;
     private String lastExternal = "";
     private long lastExternalAt = 0;
+    private String[] pendingDownload;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -107,13 +123,13 @@ public class MainActivity extends Activity {
         s.setSupportMultipleWindows(true);
         s.setJavaScriptCanOpenWindowsAutomatically(true);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
-        s.setUserAgentString(s.getUserAgentString() + " MediaHubApp/1");
+        s.setUserAgentString(s.getUserAgentString() + " MediaHubApp/2");
         CookieManager cookies = CookieManager.getInstance();
         cookies.setAcceptCookie(true);
         cookies.setAcceptThirdPartyCookies(web, false);
 
-        web.setDownloadListener((url, userAgent, contentDisposition, mime, length) -> Toast.makeText(MainActivity.this,
-                "Downloads are not supported in the app yet. Open MediaHub in your browser to download a file.", Toast.LENGTH_LONG).show());
+        web.addJavascriptInterface(new Bridge(), "MediaHubApp");
+        web.setDownloadListener((url, userAgent, contentDisposition, mime, length) -> startDownload(url, userAgent, contentDisposition, mime));
 
         web.setWebViewClient(new WebViewClient() {
             @Override
@@ -220,6 +236,151 @@ public class MainActivity extends Activity {
         } catch (ActivityNotFoundException e) {
             Toast.makeText(this, "No app can open this link.", Toast.LENGTH_SHORT).show();
         }
+    }
+
+    // ---------------------------------------------------------------- downloads and notifications
+
+    private boolean needsStoragePermission() {
+        return Build.VERSION.SDK_INT < 29 && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED;
+    }
+
+    // Files from your own server go to the phone's Downloads folder, with the sign-in cookie so protected files work.
+    private void startDownload(String url, String userAgent, String disposition, String mime) {
+        Uri uri = Uri.parse(url);
+        if (!sameServer(uri)) {
+            openOutside(uri);
+            return;
+        }
+        if (needsStoragePermission()) {
+            pendingDownload = new String[]{url, userAgent, disposition, mime};
+            requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQ_STORAGE);
+            return;
+        }
+        try {
+            String name = URLUtil.guessFileName(url, disposition, mime);
+            DownloadManager.Request r = new DownloadManager.Request(uri);
+            if (mime != null && !mime.isEmpty()) r.setMimeType(mime);
+            String cookie = CookieManager.getInstance().getCookie(url);
+            if (cookie != null) r.addRequestHeader("Cookie", cookie);
+            if (userAgent != null) r.addRequestHeader("User-Agent", userAgent);
+            r.setTitle(name);
+            r.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+            r.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name);
+            ((DownloadManager) getSystemService(DOWNLOAD_SERVICE)).enqueue(r);
+            Toast.makeText(this, "Downloading " + name, Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Toast.makeText(this, "The download could not start.", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void toastLater(final String text) {
+        runOnUiThread(() -> Toast.makeText(MainActivity.this, text, Toast.LENGTH_LONG).show());
+    }
+
+    private void tellPage() {
+        runOnUiThread(() -> web.evaluateJavascript("window.mhNotifyChanged&&window.mhNotifyChanged()", null));
+    }
+
+    private void enableNotifications() {
+        prefs.edit().putBoolean("notify", true).putLong("inboxLast", 0).apply();
+        InboxJob.ensureChannel(this);
+        InboxJob.schedule(this);
+        // Learn where the inbox is now, so only newer messages become notifications.
+        web.evaluateJavascript("fetch('/api/inbox').then(function(r){return r.json()}).then(function(j){MediaHubApp.setLast(String(j.last))})", null);
+        tellPage();
+    }
+
+    // What the MediaHub page can ask of the app (only the page of your own server can reach this).
+    private class Bridge {
+        @JavascriptInterface
+        public void saveFile(String name, String mime, String base64) {
+            try {
+                byte[] data = Base64.decode(base64, Base64.DEFAULT);
+                String safe = name == null ? "mediahub-file" : name.replaceAll("[^A-Za-z0-9._-]", "_");
+                if (safe.isEmpty()) safe = "mediahub-file";
+                if (Build.VERSION.SDK_INT >= 29) {
+                    ContentValues v = new ContentValues();
+                    v.put(MediaStore.Downloads.DISPLAY_NAME, safe);
+                    v.put(MediaStore.Downloads.MIME_TYPE, mime == null || mime.isEmpty() ? "application/octet-stream" : mime);
+                    v.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
+                    Uri item = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+                    if (item == null) throw new Exception("no file");
+                    try (OutputStream o = getContentResolver().openOutputStream(item)) {
+                        o.write(data);
+                    }
+                } else {
+                    if (needsStoragePermission()) {
+                        runOnUiThread(() -> requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQ_STORAGE));
+                        toastLater("Allow storage access, then save the file again.");
+                        return;
+                    }
+                    File dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                    dir.mkdirs();
+                    try (FileOutputStream o = new FileOutputStream(new File(dir, safe))) {
+                        o.write(data);
+                    }
+                }
+                toastLater("Saved " + safe + " in Downloads");
+            } catch (Exception e) {
+                toastLater("The file could not be saved.");
+            }
+        }
+
+        @JavascriptInterface
+        public String notifyState() {
+            if (!prefs.getBoolean("notify", false)) return "off";
+            if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return "denied";
+            return "on";
+        }
+
+        @JavascriptInterface
+        public void setNotify(final boolean on) {
+            runOnUiThread(() -> {
+                if (!on) {
+                    prefs.edit().putBoolean("notify", false).apply();
+                    InboxJob.cancel(MainActivity.this);
+                    tellPage();
+                } else if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                    requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQ_NOTIFY);
+                } else {
+                    enableNotifications();
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void setLast(String value) {
+            try {
+                prefs.edit().putLong("inboxLast", Long.parseLong(value)).apply();
+            } catch (NumberFormatException ignored) {
+            }
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int request, String[] permissions, int[] results) {
+        boolean granted = results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED;
+        if (request == REQ_NOTIFY) {
+            if (granted) enableNotifications();
+            else tellPage();
+        } else if (request == REQ_STORAGE) {
+            if (granted && pendingDownload != null) startDownload(pendingDownload[0], pendingDownload[1], pendingDownload[2], pendingDownload[3]);
+            pendingDownload = null;
+        } else {
+            super.onRequestPermissionsResult(request, permissions, results);
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        CookieManager.getInstance().flush(); // so the background check can use the sign-in
+        super.onPause();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        InboxJob.keep(this, prefs.getBoolean("notify", false));
     }
 
     @Override

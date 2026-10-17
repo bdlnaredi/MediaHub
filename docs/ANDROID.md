@@ -31,7 +31,8 @@ The app asks for the address of your MediaHub server, for example `192.168.1.10:
 - Links that leave your server (IMDb, TMDB, Trakt, torrent pages) open in your phone's browser.
 - **Sign in with Plex** opens Plex in your browser. After signing in there, go back to the app and it finishes by itself.
 - File pickers work (for example adding an NZB file).
-- **Downloads do not work in the app yet**, for example saving a backup file. Do that from a browser.
+- **Downloads work.** Files from your server, and backups, are saved in the phone's Downloads folder. On Android 9 and older the app asks for storage access the first time.
+- **Notifications.** In the app, open Settings, then Account, and turn on **Notifications on this phone**. You get a notification when a request of yours is approved, declined or ready to watch. The app checks your server about every 15 minutes, even when closed, so it can be a little late. It needs to be signed in, and Android may ask you to allow notifications. If your phone stops background work for the app to save battery, turn that off for MediaHub.
 - There are no push messages from the app itself. Phone messages through ntfy or Discord keep working as before.
 
 ## About the signing key

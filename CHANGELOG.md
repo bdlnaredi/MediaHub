@@ -2,6 +2,13 @@
 
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.14.21] - 2026-10-18
+
+### Added
+- **Android app 1.1.0: downloads.** Backups and other files are saved to the phone's Downloads folder instead of showing a message. Build the app again to get this (tag `app-v1.1.0`).
+- **Android app 1.1.0: phone notifications.** Settings, Account has **Notifications on this phone** inside the app. Messages about your requests become notifications, checked about every 15 minutes. The server keeps your latest messages for this (`/api/inbox`, sign-in needed, yours only).
+- These Android changes were written without a real phone or the Android build tools to try them on. Please report anything odd.
+
 ## [0.14.20] - 2026-10-18
 
 ### Added

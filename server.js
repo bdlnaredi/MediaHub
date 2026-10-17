@@ -93,7 +93,10 @@ async function pushTo(url, title, body) {
   else await go(url, { headers: { Title: title }, body });
   return true;
 }
-const notifyUser = (u, title, body) => u && u.notify ? pushTo(u.notify, title, body) : Promise.resolve(false);
+// Every message meant for one person is also kept briefly in their inbox, which the Android app reads to show phone notifications.
+const inbox = new Map(); let inboxSeq = Date.now();
+const inboxAdd = (u, title, body) => { if (!u) return; const l = inbox.get(u.id) || []; l.push({ id: ++inboxSeq, at: Date.now(), title: String(title).slice(0, 120), body: String(body || '').slice(0, 300) }); inbox.set(u.id, l.slice(-30)); };
+const notifyUser = (u, title, body) => { inboxAdd(u, title, body); return u && u.notify ? pushTo(u.notify, title, body) : Promise.resolve(false); };
 const KINDS = ['sonarr', 'radarr', 'prowlarr', 'jackett', 'qbittorrent', 'seerr', 'unraid', 'plex', 'jellyfin', 'tautulli', 'sabnzbd', 'bazarr', 'lidarr', 'readarr'];
 const SESSF = path.join(DATA, 'sessions.json'), th = t => crypto.createHash('sha256').update(String(t || '')).digest('hex');
 let sessions; try { sessions = new Map(Object.entries(JSON.parse(fs.readFileSync(SESSF))).map(([k, v]) => [k, typeof v === 'string' ? { uid: v, at: 0, seen: 0, ua: '', ip: '' } : v])); } catch { sessions = new Map(); }
@@ -1607,6 +1610,10 @@ http.createServer(async (req, res) => {
       const v = String((await readBody(req)).url || '').trim();
       if (v && !/^https?:\/\//i.test(v)) return send(res, 400, { error: 'Enter a web address starting with https://' });
       me.notify = v.slice(0, 500); save(); return send(res, 200, {});
+    }
+    if (p === '/api/inbox' && m === 'GET') {
+      const after = +new URL(req.url, 'http://x').searchParams.get('after'), l = inbox.get(me.id) || [];
+      return send(res, 200, { last: inboxSeq, items: after > 0 ? l.filter(x => x.id > after) : [] });
     }
     if (p === '/api/me/calendar' && m === 'GET') return send(res, 200, { on: !!me.cal, at: me.cal ? me.cal.at : 0, lastUsed: me.cal ? me.cal.lastUsed || 0 : 0, base: baseUrl() });
     if (p === '/api/me/calendar' && m === 'POST') {

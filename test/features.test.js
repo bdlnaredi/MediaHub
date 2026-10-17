@@ -79,6 +79,12 @@ test('requests: choose seasons, per-person limits, trusted auto-approve, and rep
     // The admin approves: the chosen seasons, not "all", go to Seerr
     assert.equal((await a.post(`/api/requests/${r1.id}/approve`)).status, 200);
     assert.deepEqual(JSON.parse(lastCalls(st, /seerr request/)[0].replace('seerr request ', '')).seasons, [2, 3]);
+    // The person's inbox (read by the Android app for phone notifications) now holds the approval, for them only
+    const ib = (await k.get('/api/inbox')).data; assert.ok(ib.last > 0); assert.deepEqual(ib.items, [], 'no "after" means just the latest number');
+    const ib2 = (await k.get('/api/inbox?after=1')).data; assert.equal(ib2.items.length, 1); assert.equal(ib2.items[0].title, 'Request approved'); assert.equal(ib2.items[0].body, 'Hidden Valley');
+    assert.deepEqual((await k.get('/api/inbox?after=' + ib2.items[0].id)).data.items, [], 'nothing newer');
+    assert.deepEqual((await a.get('/api/inbox?after=1')).data.items, [], 'the admin does not see it');
+    assert.equal((await client(w.s.base).get('/api/inbox')).status, 401);
 
     // Limit: 2 requests every 7 days
     await a.put(`/api/users/${sam.id}`, { reqLimit: { n: 2, days: 7 } });
