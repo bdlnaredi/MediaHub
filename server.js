@@ -418,11 +418,27 @@ const bz = async (s, pth, opt = {}) => {
   if (!x.ok) throw new Error((d && (d.message || d.error)) || 'Bazarr returned ' + x.status); return d;
 };
 // Jackett's own settings API. It answers to the same API key that the searches use.
-const jk = async (s, path, opt = {}) => {
-  const r = await fetch(s.url.replace(/\/+$/, '') + '/api/v2.0/indexers' + path + (path.includes('?') ? '&' : '?') + 'apikey=' + encodeURIComponent(s.apiKey || ''),
-    { method: opt.method || 'GET', headers: { 'Content-Type': 'application/json' }, body: opt.body, signal: AbortSignal.timeout(opt.timeout || 30000) });
+const jkCookies = new Map();
+// Jackett's settings door wants either no password at all, or a login. With an admin password saved for the app, MediaHub signs in like the browser does.
+async function jkSession(s, force) {
+  if (!s.pass) return '';
+  const c = jkCookies.get(s.id);
+  if (!force && c && c.pw === s.pass && Date.now() - c.at < 20 * 60e3) return c.v;
+  const r = await fetch(s.url.replace(/\/+$/, '') + '/UI/Dashboard', { method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(15000), headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ password: s.pass }) });
+  const ck = (r.headers.getSetCookie ? r.headers.getSetCookie() : []).map(x => x.split(';')[0]).find(x => /^Jackett=./i.test(x));
+  if (!ck) throw Object.assign(new Error('Jackett did not accept the admin password saved in Settings, Apps.'), { plain: true });
+  jkCookies.set(s.id, { v: ck, pw: s.pass, at: Date.now() }); return ck;
+}
+const jk = async (s, path, opt = {}, retry = true) => {
+  const cookie = await jkSession(s, !retry), url = s.url.replace(/\/+$/, '') + '/api/v2.0/indexers' + path;
+  const r = await fetch(cookie || opt.noKey ? url : url + (path.includes('?') ? '&' : '?') + 'apikey=' + encodeURIComponent(s.apiKey || ''),
+    { method: opt.method || 'GET', headers: { 'Content-Type': 'application/json', ...(cookie ? { Cookie: cookie } : {}) }, body: opt.body, signal: AbortSignal.timeout(opt.timeout || 30000) });
   const t = await r.text(); let d = null; try { d = JSON.parse(t); } catch {}
-  if (!r.ok) throw Object.assign(new Error((d && (d.error || d.message)) || 'Jackett returned ' + r.status), { plain: true });
+  if (!r.ok) {
+    if (retry && cookie && (r.status === 401 || r.status === 403 || r.status === 302)) return jk(s, path, opt, false);
+    if (!cookie && !opt.noKey && [400, 401, 403].includes(r.status)) { try { return await jk(s, path, { ...opt, noKey: true }, false); } catch {} }   // a Jackett with no admin password lets its settings door open without the key
+    throw Object.assign(new Error((d && (d.error || d.message)) || 'Jackett returned ' + r.status), { plain: true, code: r.status });
+  }
   return d;
 };
 // Jackett only has two doors that answer to the API key alone: the torznab address (list of indexers, searches) and,
@@ -1740,7 +1756,8 @@ http.createServer(async (req, res) => {
     if ((r = p.match(/^\/api\/jackett\/(\w+)\/indexers\/([\w.-]+)\/config$/))) {
       const s = svcOf(r[1], 'jackett'); if (!s) return send(res, 404, { error: 'Not found' });
       const path = '/' + encodeURIComponent(r[2]) + '/config'; let cur;
-      try { cur = await jk(s, path); } catch (e) { return send(res, 502, { error: /^Jackett returned 40[0134]$/.test(e.message) ? 'Jackett would not open this indexer\'s settings for MediaHub (' + e.message.slice(-3) + '). Add it in Jackett\'s own page for now.' : e.message }); }
+      try { cur = await jk(s, path); } catch (e) { return send(res, 502, { error: [400, 401, 403, 404].includes(e.code) ? (s.pass ? 'Jackett would not open this indexer\'s settings (' + e.code + '). Check the admin password saved in Settings, Apps, Jackett.'
+        : 'Jackett would not open this indexer\'s settings for MediaHub (' + e.code + '). If Jackett has an admin password, add it in Settings, Apps, Jackett, then try again. Otherwise add this one in Jackett\'s own page.') : e.message }); }
       if (m === 'GET') return send(res, 200, (Array.isArray(cur) ? cur : []).map(jkField).filter(Boolean));
       if (m === 'POST') {
         const b = await readBody(req), vals = b.values && typeof b.values === 'object' ? b.values : {};

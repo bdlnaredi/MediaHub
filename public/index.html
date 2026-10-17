@@ -981,7 +981,7 @@ function tfaPanel(){
 }
 function copyText(t){(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast('Copied','ok')).catch(()=>{const a=document.createElement('textarea');a.value=t;document.body.append(a);a.select();try{document.execCommand('copy');toast('Copied','ok')}catch{toast('Copy failed. Select the text and copy it.','bad')}a.remove()})}
 const APPS={sonarr:{port:8989,key:'In Sonarr: Settings, then General, then API Key.'},radarr:{port:7878,key:'In Radarr: Settings, then General, then API Key.'},prowlarr:{port:9696,key:'In Prowlarr: Settings, then General, then API Key.'},
- jackett:{port:9117,key:'The API key is at the top right of the Jackett page.'},qbittorrent:{port:8080,user:true,key:'Use the same username and password as the qBittorrent web page.'},
+ jackett:{port:9117,admin:true,key:'The API key is at the top right of the Jackett page. The admin password is only needed to add indexers from MediaHub, and only if Jackett has one.'},qbittorrent:{port:8080,user:true,key:'Use the same username and password as the qBittorrent web page.'},
  seerr:{port:5055,key:'In Seerr: Settings, then General, then API Key.'},unraid:{port:80,key:'In Unraid: Settings, then Management Access, then API Keys. Allow viewing the system and controlling Docker.'},
  jellyfin:{port:8096,key:'In Jellyfin open Dashboard, then API Keys, and create a key named MediaHub. Emby works the same way.'},plex:{port:32400,key:'Needs your Plex token. In Plex Web open any item, choose Get Info, then View XML. The token is at the end of the address.'},tautulli:{port:8181,key:'In Tautulli: Settings, then Web Interface, then API Key.'},
  sabnzbd:{port:8080,key:'In SABnzbd: Config, then General, then API Key.'},bazarr:{port:6767,key:'In Bazarr: Settings, then General, then API Key.'},lidarr:{port:8686,key:'In Lidarr: Settings, then General, then API Key.'},readarr:{port:8787,key:'In Readarr: Settings, then General, then API Key.'}};
@@ -996,7 +996,7 @@ function appDialog(existing,done){
   const f=o.querySelector('#af3').elements;
   const sync=()=>{const t=f.type.value,a=APPS[t]||{};
     o.querySelector('#fk').innerHTML=a.user?`<input name="user" placeholder="Username" value="${esc(e0.user||'')}" autocomplete="off"><input name="pass" type="password" placeholder="${existing?'Password (leave empty to keep)':'Password'}" autocomplete="new-password">`
-      :`<input name="apiKey" type="password" placeholder="${existing?'API key or token (leave empty to keep)':'API key or token'}" autocomplete="off">`;
+      :`<input name="apiKey" type="password" placeholder="${existing?'API key or token (leave empty to keep)':'API key or token'}" autocomplete="off">${a.admin?`<input name="pass" type="password" placeholder="${existing?'Admin password (optional, leave empty to keep)':'Admin password (optional)'}" autocomplete="new-password">`:''}`;
     o.querySelector('#fh').textContent=a.key||'';
     if(!existing){f.url.placeholder='Address, for example http://192.168.1.10:'+(a.port||80);if(!f.name.value||f.name.value===f.name.dataset.t){f.name.value=TYPES[t];f.name.dataset.t=TYPES[t]}}};
   const body=()=>({type:f.type.value,name:f.name.value.trim(),url:f.url.value.trim(),apiKey:f.apiKey?f.apiKey.value:'',user:f.user?f.user.value:'',pass:f.pass?f.pass.value:''});

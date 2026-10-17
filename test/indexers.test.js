@@ -73,3 +73,24 @@ test('jackett whose settings door answers 400: list and checks still work, addin
     const w = await a.get(`/api/jackett/${bad}/indexers`); assert.equal(w.status, 502); assert.match(w.data.error, /API key|list of indexers/);
   } finally { await s.stop(); srv.close(); }
 });
+
+test('jackett with an admin password: adding works once the password is saved in the app', async () => {
+  const fake = fakes.create(), srv = http.createServer((req, res) => fake.handle(req, res, req.url)).listen(0);
+  await new Promise(r => srv.once('listening', r));
+  fake.state.jackettAdminPass = 'hunter22';
+  const fb = `http://127.0.0.1:${srv.address().port}`, s = await boot({}), a = client(s.base); await setup(a);
+  try {
+    const no = (await a.post('/api/services', { type: 'jackett', name: 'NoPw', url: fb + '/jackett', apiKey: 'k' })).data.id;
+    const wrong = (await a.post('/api/services', { type: 'jackett', name: 'Wrong', url: fb + '/jackett', apiKey: 'k', pass: 'nope' })).data.id;
+    const yes = (await a.post('/api/services', { type: 'jackett', name: 'Yes', url: fb + '/jackett', apiKey: 'k', pass: 'hunter22' })).data.id;
+    // list and checks do not need the password
+    assert.equal((await a.get(`/api/jackett/${no}/indexers`)).data.length, 2);
+    // adding says what to do
+    const n = await a.get(`/api/jackett/${no}/indexers/club-tracker/config`); assert.equal(n.status, 502); assert.match(n.data.error, /admin password/);
+    const w = await a.get(`/api/jackett/${wrong}/indexers/club-tracker/config`); assert.equal(w.status, 502); assert.match(w.data.error, /did not accept the admin password/);
+    const f = await a.get(`/api/jackett/${yes}/indexers/club-tracker/config`); assert.equal(f.status, 200); assert.ok(f.data.some(x => x.id === 'password'));
+    assert.equal((await a.post(`/api/jackett/${yes}/indexers/club-tracker/config`, { values: { username: 'me', password: 'pw' } })).status, 200);
+    assert.equal((await a.get(`/api/jackett/${yes}/catalog`)).data.map(x => x.id).join(), 'night-index');
+    assert.equal((await a.del(`/api/jackett/${yes}/indexers/club-tracker`)).status, 200);
+  } finally { await s.stop(); srv.close(); }
+});

@@ -2,6 +2,11 @@
 
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.14.18] - 2026-10-17
+
+### Added
+- **Add indexers to Jackett from MediaHub, when Jackett has an admin password.** In Settings, Apps, Jackett, there is a new optional **Admin password** box. With it saved, MediaHub signs in to Jackett the way your browser does, so adding and removing indexers works. Without it, MediaHub tries Jackett's settings with no key, and otherwise tells you what to do.
+
 ## [0.14.17] - 2026-10-17
 
 ### Fixed
