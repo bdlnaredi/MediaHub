@@ -72,7 +72,7 @@ if (DEMO) {
   const base = 'http://127.0.0.1:' + PORT + '/__demo/', mk = (n, k) => ({ id: crypto.randomBytes(6).toString('hex'), type: k, name: n, url: base + k, apiKey: 'demo', user: 'demo', pass: 'demo' });
   const salt = a => crypto.randomBytes(6).toString('hex'), mkU = (name, pw, role, extra = {}) => { const sl = salt(); return { id: crypto.randomBytes(6).toString('hex'), name, role, salt: sl, hash: crypto.scryptSync(pw, sl, 32).toString('hex'), access: [], ...extra }; };
   db = defaults({ users: [mkU('demo', 'demo-mediahub', 'admin'), mkU('guest', 'guest-mediahub', 'user')], alerts: { channels: [], reports: true }, requests: [],
-    services: [['Sonarr', 'sonarr'], ['Radarr', 'radarr'], ['qBittorrent', 'qbittorrent'], ['Plex', 'plex'], ['Jellyfin', 'jellyfin'], ['Seerr', 'seerr'], ['Prowlarr', 'prowlarr'], ['Lidarr', 'lidarr'], ['Readarr', 'readarr'], ['Bazarr', 'bazarr'], ['SABnzbd', 'sabnzbd'], ['Tautulli', 'tautulli'], ['Unraid', 'unraid']].map(x => mk(x[0], x[1])) });
+    services: [['Sonarr', 'sonarr'], ['Radarr', 'radarr'], ['qBittorrent', 'qbittorrent'], ['Plex', 'plex'], ['Jellyfin', 'jellyfin'], ['Seerr', 'seerr'], ['Jackett', 'jackett'], ['Prowlarr', 'prowlarr'], ['Lidarr', 'lidarr'], ['Readarr', 'readarr'], ['Bazarr', 'bazarr'], ['SABnzbd', 'sabnzbd'], ['Tautulli', 'tautulli'], ['Unraid', 'unraid']].map(x => mk(x[0], x[1])) });
   db.users[1].access = db.services.map(x => x.id);
   db.settings.plexLogin = { on: true, sid: db.services.find(x => x.type === 'plex').id, auto: true };
   db.settings.lists = { trakt: { id: 'demo' }, tmdb: { key: 'demo' }, tvdb: { key: 'demo' } };
@@ -417,6 +417,24 @@ const bz = async (s, pth, opt = {}) => {
   const t = await x.text(); let d = null; try { d = JSON.parse(t); } catch {}
   if (!x.ok) throw new Error((d && (d.message || d.error)) || 'Bazarr returned ' + x.status); return d;
 };
+// Jackett's own settings API. It answers to the same API key that the searches use.
+const jk = async (s, path, opt = {}) => {
+  const r = await fetch(s.url.replace(/\/+$/, '') + '/api/v2.0/indexers' + path + (path.includes('?') ? '&' : '?') + 'apikey=' + encodeURIComponent(s.apiKey || ''),
+    { method: opt.method || 'GET', headers: { 'Content-Type': 'application/json' }, body: opt.body, signal: AbortSignal.timeout(opt.timeout || 30000) });
+  const t = await r.text(); let d = null; try { d = JSON.parse(t); } catch {}
+  if (!r.ok) throw Object.assign(new Error((d && (d.error || d.message)) || 'Jackett returned ' + r.status), { plain: true });
+  return d;
+};
+const JK_EDIT = ['inputstring', 'inputtext', 'inputbool', 'inputcheckbox', 'inputselect', 'inputtags'], JK_BOOL = ['inputbool', 'inputcheckbox'];
+const jkField = f => {
+  const t = String(f.type || ''), base = { id: String(f.id), type: t, name: String(f.name || f.id).slice(0, 200) };
+  if (t === 'displayinfo') return { ...base, text: String(f.value || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 600) };
+  if (!JK_EDIT.includes(t)) return null;
+  if (JK_BOOL.includes(t)) return { ...base, value: !!f.value };
+  if (t === 'inputselect') return { ...base, value: String(f.value == null ? '' : f.value), options: Object.entries(f.options || {}).map(([k, v]) => [String(k), String(v)]) };
+  return { ...base, value: Array.isArray(f.value) ? f.value.join(', ') : String(f.value == null ? '' : f.value).slice(0, 2000) };
+};
+const jkCoerce = (f, v) => JK_BOOL.includes(f.type) ? v === true : f.type === 'inputtags' ? String(v).split(',').map(x => x.trim()).filter(Boolean).slice(0, 50) : String(v == null ? '' : v).slice(0, 2000);
 const GB = n => (n / 1073741824).toFixed(n > 1e11 ? 0 : 1) + ' GB';
 const hx = t => String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 // Gathers everything the weekly newsletter talks about. Each part is optional: an app that is down just leaves its part out.
@@ -1088,6 +1106,20 @@ http.createServer(async (req, res) => {
       }
       return send(res, 400, { error: 'Bad request' });
     }
+    if ((r = p.match(/^\/api\/jackett\/(\w+)\/indexers$/)) && m === 'GET') {
+      const s = svcOf(r[1], 'jackett'); if (!s) return send(res, 404, { error: 'Not found' });
+      const l = await jk(s, '?configured=true');
+      return send(res, 200, (Array.isArray(l) ? l : []).map(x => ({ id: String(x.id), name: String(x.name || x.id), type: String(x.type || ''), language: String(x.language || ''),
+        site: /^https?:\/\//.test(x.site_link || '') ? x.site_link : '', error: String(x.last_error || '').slice(0, 300) })));
+    }
+    if ((r = p.match(/^\/api\/jackett\/(\w+)\/indexers\/([\w.-]+|all)\/test$/)) && m === 'POST') {
+      const s = svcOf(r[1], 'jackett'); if (!s) return send(res, 404, { error: 'Not found' });
+      const one = async id => { try { await jk(s, '/' + encodeURIComponent(id) + '/test', { method: 'POST', timeout: 45000 }); return { id, ok: true, error: '' }; } catch (e) { return { id, ok: false, error: e.message }; } };
+      if (r[2] !== 'all') return send(res, 200, await one(r[2]));
+      const ids = ((await jk(s, '?configured=true')) || []).map(x => String(x.id)), out = [];
+      for (let i = 0; i < ids.length; i += 4) out.push(...await Promise.all(ids.slice(i, i + 4).map(one)));
+      return send(res, 200, out);
+    }
     if ((r = p.match(/^\/api\/jackett\/(\w+)$/))) {
       const s = svcOf(r[1], 'jackett'); if (!s) return send(res, 404, { error: 'Not found' });
       const term = new URL(req.url, 'http://x').searchParams.get('term') || '';
@@ -1681,6 +1713,58 @@ http.createServer(async (req, res) => {
       }));
       return send(res, 200, out);
     }
+    if ((r = p.match(/^\/api\/jackett\/(\w+)\/catalog$/)) && m === 'GET') {
+      const s = svcOf(r[1], 'jackett'); if (!s) return send(res, 404, { error: 'Not found' });
+      const l = await jk(s, '');
+      return send(res, 200, (Array.isArray(l) ? l : []).filter(x => !x.configured).map(x => ({ id: String(x.id), name: String(x.name || x.id), type: String(x.type || ''), language: String(x.language || ''), desc: String(x.description || '').slice(0, 200) }))
+        .sort((a, b) => a.name.localeCompare(b.name)));
+    }
+    if ((r = p.match(/^\/api\/jackett\/(\w+)\/indexers\/([\w.-]+)\/config$/))) {
+      const s = svcOf(r[1], 'jackett'); if (!s) return send(res, 404, { error: 'Not found' });
+      const path = '/' + encodeURIComponent(r[2]) + '/config', cur = await jk(s, path);
+      if (m === 'GET') return send(res, 200, (Array.isArray(cur) ? cur : []).map(jkField).filter(Boolean));
+      if (m === 'POST') {
+        const b = await readBody(req), vals = b.values && typeof b.values === 'object' ? b.values : {};
+        const merged = (Array.isArray(cur) ? cur : []).map(f => JK_EDIT.includes(f.type) && Object.prototype.hasOwnProperty.call(vals, f.id) ? { ...f, value: jkCoerce(f, vals[f.id]) } : f);
+        await jk(s, path, { method: 'POST', body: JSON.stringify(merged), timeout: 60000 });
+        audit(me.name, 'Added indexer to Jackett', r[2]); return send(res, 200, { ok: true });
+      }
+    }
+    if ((r = p.match(/^\/api\/jackett\/(\w+)\/indexers\/([\w.-]+)$/)) && m === 'DELETE') {
+      const s = svcOf(r[1], 'jackett'); if (!s) return send(res, 404, { error: 'Not found' });
+      await jk(s, '/' + encodeURIComponent(r[2]), { method: 'DELETE' }); audit(me.name, 'Removed indexer from Jackett', r[2]); return send(res, 200, {});
+    }
+    const prowSchema = async sv => { const l = await ext(sv, '/api/v1/indexer/schema'); return Array.isArray(l) ? l : []; };
+    const prowKey = x => String(x.definitionName || x.name || '');
+    if ((r = p.match(/^\/api\/prowlarr\/(\w+)\/catalog$/)) && m === 'GET') {
+      const sv = svcOf(r[1], 'prowlarr'); if (!sv) return send(res, 404, { error: 'Not found' });
+      return send(res, 200, (await prowSchema(sv)).map(x => ({ id: prowKey(x), name: String(x.name || x.definitionName || ''), type: String(x.privacy || ''), protocol: String(x.protocol || ''), language: String(x.language || ''), desc: String(x.description || '').slice(0, 200) }))
+        .filter(x => x.id).sort((a, b) => a.name.localeCompare(b.name)));
+    }
+    if ((r = p.match(/^\/api\/prowlarr\/(\w+)\/catalog\/([^/]+)\/fields$/)) && m === 'GET') {
+      const sv = svcOf(r[1], 'prowlarr'); if (!sv) return send(res, 404, { error: 'Not found' });
+      const it = (await prowSchema(sv)).find(x => prowKey(x) === decodeURIComponent(r[2])); if (!it) return send(res, 404, { error: 'That indexer is not in Prowlarr\'s list' });
+      return send(res, 200, { name: String(it.name || ''), fields: (it.fields || []).filter(f => !f.advanced && f.hidden !== 'hidden' && f.type !== 'info' && f.name && f.name !== 'definitionFile')
+        .map(f => ({ id: String(f.name), type: ['password', 'checkbox', 'select', 'number'].includes(f.type) ? f.type : 'textbox', name: String(f.label || f.name).slice(0, 200), help: String(f.helpText || '').replace(/<[^>]*>/g, ' ').slice(0, 300),
+          value: f.type === 'checkbox' ? !!f.value : Array.isArray(f.value) ? f.value.join(', ') : String(f.value == null ? '' : f.value).slice(0, 2000),
+          options: f.type === 'select' ? (f.selectOptions || []).map(o => [String(o.value), String(o.name)]) : undefined })) });
+    }
+    if ((r = p.match(/^\/api\/prowlarr\/(\w+)\/indexers$/)) && m === 'POST') {
+      const sv = svcOf(r[1], 'prowlarr'); if (!sv) return send(res, 404, { error: 'Not found' });
+      const b = await readBody(req), it = (await prowSchema(sv)).find(x => prowKey(x) === String(b.def));
+      if (!it) return send(res, 404, { error: 'That indexer is not in Prowlarr\'s list' });
+      const vals = b.values && typeof b.values === 'object' ? b.values : {}, prof = await ext(sv, '/api/v1/appprofile').catch(() => []);
+      it.name = String(b.name || it.name || '').trim().slice(0, 100) || it.name; it.enable = true; it.priority = 25; it.tags = [];
+      it.appProfileId = Array.isArray(prof) && prof[0] ? prof[0].id : 1;
+      it.fields = (it.fields || []).map(f => !Object.prototype.hasOwnProperty.call(vals, f.name) || f.hidden === 'hidden' ? f
+        : { ...f, value: f.type === 'checkbox' ? vals[f.name] === true : f.type === 'number' ? (+vals[f.name] || 0) : String(vals[f.name] == null ? '' : vals[f.name]).slice(0, 2000) });
+      let out; try { out = await ext(sv, '/api/v1/indexer' + (b.force === true ? '?forceSave=true' : ''), { method: 'POST', body: JSON.stringify(it), signal: AbortSignal.timeout(90000) }); } catch (e) { return send(res, 502, { error: e.message }); }
+      audit(me.name, 'Added indexer to Prowlarr', it.name); return send(res, 200, { id: out && out.id });
+    }
+    if ((r = p.match(/^\/api\/prowlarr\/(\w+)\/indexers\/(\d+)$/)) && m === 'DELETE') {
+      const sv = svcOf(r[1], 'prowlarr'); if (!sv) return send(res, 404, { error: 'Not found' });
+      await ext(sv, '/api/v1/indexer/' + r[2], { method: 'DELETE' }); audit(me.name, 'Removed indexer from Prowlarr', 'number ' + r[2]); return send(res, 200, {});
+    }
     if ((r = p.match(/^\/api\/prowlarr\/(\w+)\/indexers$/)) && m === 'GET') {
       const sv = svcOf(r[1], 'prowlarr'); if (!sv) return send(res, 404, { error: 'Not found' });
       const [ix, stt, h] = await Promise.all([ext(sv, '/api/v1/indexer'), ext(sv, '/api/v1/indexerstatus').catch(() => []), ext(sv, '/api/v1/health').catch(() => [])]), bad = {}; (Array.isArray(stt) ? stt : []).forEach(x => { bad[x.indexerId] = x; });
@@ -1973,7 +2057,7 @@ http.createServer(async (req, res) => {
       saveSess(); save(); if (gone) audit(me.name, 'Deleted a profile', gone.name); return send(res, 200, {});
     }
     send(res, 404, { error: 'Not found' });
-  } catch (e) { console.error(req.method, p, e); send(res, 500, { error: 'Server error: ' + e.message }); }
+  } catch (e) { if (e && e.plain) return send(res, 502, { error: e.message }); console.error(req.method, p, e); send(res, 500, { error: 'Server error: ' + e.message }); }
 }).listen(PORT, () => console.log('MediaHub running' + (DEMO ? ' in demo mode' : '') + ' on port ' + PORT));
 const MON_MS = Math.max(500, +process.env.MONITOR_MS || 30000);
 setInterval(() => monitor().catch(() => {}), MON_MS);

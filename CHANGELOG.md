@@ -2,6 +2,14 @@
 
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.14.16] - 2026-10-17
+
+### Added
+- **Indexers tab: everything you have added, with Check buttons.** New **Jackett indexers** view lists every indexer added in Jackett, with its type and language, the last error Jackett remembers, a **Check** button for each and **Check all**. The **Prowlarr indexers** view (before: Indexer health) keeps its list and checks, with the same button names.
+- **Add and remove indexers from MediaHub.** Admins get **Add indexer** in both views. Search the app's own list, then fill in what it asks for (a private tracker asks for sign-in details). In Prowlarr, if its check fails you can choose **Add anyway**. Each indexer also has **Remove**.
+- Anyone with access to Jackett can see and check its indexers. Adding and removing, and everything in the Prowlarr view, is for admins only.
+- Tested against pretend Jackett and Prowlarr only. The real apps have not been tried yet.
+
 ## [0.14.15] - 2026-10-16
 
 ### Added

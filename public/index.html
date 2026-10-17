@@ -662,7 +662,7 @@ const ic=k=>`<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICONS[k]}<
 const LOGO='<img src="/icon-192.png" alt="" width="38" height="38">';
 const PAGES={dash:['',''],find:['Search','Find a show or movie and add it to Sonarr or Radarr.'],disc:['Discover','What is trending, popular and anticipated on Trakt, TMDB and TheTVDB.'],rq:['Requests','Ask for something new, or approve what others asked for.'],lib:['Library','Everything in Sonarr and Radarr, and what is still missing.'],
  wt:['Wanted','Episodes and movies you are still missing, or that could be a better quality.'],dl:['Downloads','What qBittorrent is fetching right now.'],rss:['RSS','Feeds and auto-download rules from qBittorrent.'],up:['Upcoming','Releases coming soon, and what is downloading.'],
- idx:['Indexers','Search your Jackett indexers and check how Prowlarr is doing.'],mb:['Music and books','Artists and authors from Lidarr and Readarr.'],sub:['Subtitles','Episodes and movies that are missing subtitles in Bazarr.'],nzb:['Usenet','What SABnzbd is fetching, what finished, and adding NZB files.'],hl:['Health','Problems, disk space and stuck downloads across your apps.'],ur:['Unraid','Server health, disks and containers.'],stats:['Watch stats','Who watches what on Plex.'],set:['Settings','Apps, profiles, alerts, backups and how MediaHub looks.']};
+ idx:['Indexers','Search, check, add and remove the indexers in Jackett and Prowlarr.'],mb:['Music and books','Artists and authors from Lidarr and Readarr.'],sub:['Subtitles','Episodes and movies that are missing subtitles in Bazarr.'],nzb:['Usenet','What SABnzbd is fetching, what finished, and adding NZB files.'],hl:['Health','Problems, disk space and stuck downloads across your apps.'],ur:['Unraid','Server health, disks and containers.'],stats:['Watch stats','Who watches what on Plex.'],set:['Settings','Apps, profiles, alerts, backups and how MediaHub looks.']};
 const TABS=[['dash','Dashboard'],['find','Search'],['disc','Discover'],['rq','Requests'],['lib','Library'],['wt','Wanted'],['dl','Downloads'],['rss','RSS'],['up','Upcoming'],['idx','Indexers'],['mb','Music & books'],['sub','Subtitles'],['nzb','Usenet'],['hl','Health'],['ur','Unraid'],['stats','Stats'],['set','Settings']];
 const TYPE_TABS={find:['sonarr','radarr'],rq:['seerr'],lib:['sonarr','radarr'],wt:['sonarr','radarr'],dl:['qbittorrent'],rss:['qbittorrent'],up:['sonarr','radarr'],idx:['jackett','prowlarr'],mb:['lidarr','readarr'],sub:['bazarr'],nzb:['sabnzbd'],ur:['unraid'],stats:['tautulli']};
 const PICK={sub:'bazarr',nzb:'sabnzbd',dl:'qbittorrent',rss:'qbittorrent',idx:'jackett',ur:'unraid',rq:'seerr',stats:'tautulli'};
@@ -1713,30 +1713,104 @@ async function calView(){
 }
 let idxMode='';
 function idxView(){
-  const j=first('jackett'),pr=first('prowlarr'),admin=me.role==='admin',modes=[j&&['search','Search'],pr&&admin&&['health','Indexer health']].filter(Boolean);
+  const j=first('jackett'),pr=first('prowlarr'),admin=me.role==='admin',modes=[j&&['search','Search'],j&&['jackett','Jackett indexers'],pr&&admin&&['prowlarr','Prowlarr indexers']].filter(Boolean);
   if(!modes.length)return noSvc('Jackett (or Prowlarr, for admins)');
   if(!modes.some(x=>x[0]===idxMode))idxMode=modes[0][0];
   $('#m').innerHTML=(modes.length>1?`<div class="seg" id="im" role="group" aria-label="View" style="margin-bottom:12px">${modes.map(([k,n])=>`<button data-k="${k}" class="${k===idxMode?'on':''}">${n}</button>`).join('')}</div>`:'')+'<div id="ib"></div>';
   if($('#im'))$('#im').onclick=e=>{const b=e.target.closest('[data-k]');if(b){idxMode=b.dataset.k;idxView()}};
-  idxMode==='search'?idxSearch(j):idxHealth(pr);
+  idxMode==='search'?idxSearch(j):idxMode==='jackett'?idxJackett(j):idxHealth(pr);
 }
 async function idxHealth(s){
   $('#ib').innerHTML=skel(4);
   let d;try{d=await api(`/api/prowlarr/${s.id}/indexers`)}catch(x){$('#ib').innerHTML=`<div class="err">${esc(x.message)}</div>`;return}
   if(tab!=='idx')return;
   const bad=d.indexers.filter(x=>x.status==='failing').length;
-  $('#ib').innerHTML=`<div class="row" style="margin-bottom:10px"><span class="mute grow">${d.indexers.length} indexers${bad?`, <b>${bad} failing</b>`:', all working'}</span><button id="ta">Test all enabled</button></div>
+  $('#ib').innerHTML=`<div class="row" style="margin-bottom:10px"><span class="mute grow">${d.indexers.length} indexers${bad?`, <b>${bad} failing</b>`:', all working'}</span><button id="ta">Check all</button><button class="primary" id="ad">Add indexer</button></div>
     ${d.health.map(h=>`<div class="box" style="border-color:var(--bad)">${esc(h)}</div>`).join('')}
     ${d.indexers.map(x=>`<div class="box row" data-i="${x.id}"><div class="grow" style="min-width:0"><b>${esc(x.name)}</b> <span class="chip">${esc(x.protocol)}</span><div class="mute" data-r>${x.status==='failing'?'Paused after failures until '+esc(fdt(x.until)):x.status==='disabled'?'Turned off in Prowlarr':'Working'}</div></div>
-      <span class="pill ${x.status==='ok'?'ok':x.status==='failing'?'bad':''}" data-s>${x.status==='ok'?'OK':x.status==='failing'?'Failing':'Off'}</span><button data-t ${x.enabled?'':'disabled'}>Test</button></div>`).join('')}`;
-  const mark=(row,ok,msg)=>{const p=row.querySelector('[data-s]');p.className='pill '+(ok?'ok':'bad');p.textContent=ok?'OK':'Failing';row.querySelector('[data-r]').textContent=ok?'Test passed':msg||'Test failed'};
+      <span class="pill ${x.status==='ok'?'ok':x.status==='failing'?'bad':''}" data-s>${x.status==='ok'?'OK':x.status==='failing'?'Failing':'Off'}</span><button data-t ${x.enabled?'':'disabled'}>Check</button><button class="danger" data-x>Remove</button></div>`).join('')}`;
+  const mark=(row,ok,msg)=>{const p=row.querySelector('[data-s]');p.className='pill '+(ok?'ok':'bad');p.textContent=ok?'OK':'Failing';row.querySelector('[data-r]').textContent=ok?'Check passed':msg||'Check failed'};
   $('#ib').onclick=async e=>{
     const t=e.target.closest('[data-t]');
-    if(t){const row=t.closest('[data-i]');t.disabled=true;t.textContent='Testing…';
-      try{const r=await api(`/api/prowlarr/${s.id}/indexers/${row.dataset.i}/test`,'POST');mark(row,r.ok,r.error)}catch(x){mark(row,false,x.message)}t.disabled=false;t.textContent='Test'}
-    if(e.target.closest('#ta')){const b=e.target.closest('#ta');b.disabled=true;b.textContent='Testing…';
+    if(t){const row=t.closest('[data-i]');t.disabled=true;t.textContent='Checking…';
+      try{const r=await api(`/api/prowlarr/${s.id}/indexers/${row.dataset.i}/test`,'POST');mark(row,r.ok,r.error)}catch(x){mark(row,false,x.message)}t.disabled=false;t.textContent='Check'}
+    const rm=e.target.closest('[data-x]');
+    if(rm){const row=rm.closest('[data-i]'),nm=row.querySelector('b').textContent;
+      if(confirm(`Remove ${nm} from Prowlarr? Apps that Prowlarr syncs to will lose it too.`)){rm.disabled=true;try{await api(`/api/prowlarr/${s.id}/indexers/${row.dataset.i}`,'DELETE');toast('Removed '+nm,'ok');idxHealth(s)}catch(x){rm.disabled=false;toast(x.message,'bad')}}}
+    if(e.target.closest('#ad'))idxAdd('prowlarr',s,()=>idxHealth(s));
+    if(e.target.closest('#ta')){const b=e.target.closest('#ta');b.disabled=true;b.textContent='Checking…';
       try{const l=await api(`/api/prowlarr/${s.id}/indexers/all/test`,'POST');l.forEach(r=>{const row=document.querySelector(`[data-i="${r.id}"]`);if(row)mark(row,r.ok,r.error)});toast(`${l.filter(r=>r.ok).length} of ${l.length} passed`,l.every(r=>r.ok)?'ok':'bad')}catch(x){toast(x.message,'bad')}
-      b.disabled=false;b.textContent='Test all enabled'}};
+      b.disabled=false;b.textContent='Check all'}};
+}
+async function idxJackett(s){
+  const admin=me.role==='admin';$('#ib').innerHTML=skel(4);
+  let l;try{l=await api(`/api/jackett/${s.id}/indexers`)}catch(x){$('#ib').innerHTML=`<div class="err">${esc(x.message)}</div>`;return}
+  if(tab!=='idx')return;
+  const bad=l.filter(x=>x.error).length;
+  $('#ib').innerHTML=`<div class="row" style="margin-bottom:10px;flex-wrap:wrap"><span class="mute grow">${l.length} indexer${l.length===1?'':'s'}${bad?`, <b>${bad} with a problem</b>`:''}</span><button id="ta">Check all</button>${admin?'<button class="primary" id="ad">Add indexer</button>':''}</div>
+    ${l.map(x=>`<div class="box row" data-i="${esc(x.id)}"><div class="grow" style="min-width:0"><b>${esc(x.name)}</b> ${x.type?`<span class="chip">${esc(x.type)}</span>`:''}${x.language?` <span class="chip">${esc(x.language)}</span>`:''}<div class="mute" data-r>${x.error?esc(x.error):'Not checked yet'}</div></div>
+      <span class="pill ${x.error?'bad':''}" data-s>${x.error?'Problem':'Not checked'}</span><button data-t>Check</button>${admin?'<button class="danger" data-x>Remove</button>':''}</div>`).join('')||(admin?'<p class="mute">Nothing is added to Jackett yet. Press Add indexer.</p>':'<p class="mute">Nothing is added to Jackett yet.</p>')}`;
+  const rowOf=id=>[...document.querySelectorAll('#ib [data-i]')].find(r=>r.dataset.i===id);
+  const mark=(row,ok,msg)=>{if(!row)return;const p=row.querySelector('[data-s]');p.className='pill '+(ok?'ok':'bad');p.textContent=ok?'Working':'Failing';row.querySelector('[data-r]').textContent=ok?'Check passed':msg||'Check failed'};
+  $('#ib').onclick=async e=>{
+    const t=e.target.closest('[data-t]');
+    if(t){const row=t.closest('[data-i]');t.disabled=true;t.textContent='Checking…';
+      try{const r=await api(`/api/jackett/${s.id}/indexers/${encodeURIComponent(row.dataset.i)}/test`,'POST');mark(row,r.ok,r.error)}catch(x){mark(row,false,x.message)}t.disabled=false;t.textContent='Check'}
+    const rm=e.target.closest('[data-x]');
+    if(rm){const row=rm.closest('[data-i]'),nm=row.querySelector('b').textContent;
+      if(confirm(`Remove ${nm} from Jackett? You can add it again later.`)){rm.disabled=true;try{await api(`/api/jackett/${s.id}/indexers/${encodeURIComponent(row.dataset.i)}`,'DELETE');toast('Removed '+nm,'ok');idxJackett(s)}catch(x){rm.disabled=false;toast(x.message,'bad')}}}
+    if(e.target.closest('#ad'))idxAdd('jackett',s,()=>idxJackett(s));
+    const ta=e.target.closest('#ta');
+    if(ta){ta.disabled=true;ta.textContent='Checking…';
+      try{const r=await api(`/api/jackett/${s.id}/indexers/all/test`,'POST');r.forEach(x=>mark(rowOf(x.id),x.ok,x.error));toast(`${r.filter(x=>x.ok).length} of ${r.length} working`,r.every(x=>x.ok)?'ok':'bad')}catch(x){toast(x.message,'bad')}
+      ta.disabled=false;ta.textContent='Check all'}};
+}
+// One dialog for adding an indexer to Jackett or Prowlarr: pick from the app's own list, then fill in what it asks for.
+async function idxAdd(kind,s,done){
+  const jk=kind==='jackett',base=`/api/${kind}/${s.id}`,app=jk?'Jackett':'Prowlarr';
+  const o=modal(`<div class="row" style="width:100%"><h2 style="margin:0;flex:1">Add an indexer to ${app}</h2><button data-x>Close</button></div><div id="ad1"><p class="mute">Loading the list from ${app}…</p></div>`);
+  o.querySelector('[data-x]').onclick=o.close;
+  const box=o.querySelector('#ad1');let cat;
+  try{cat=await api(base+'/catalog')}catch(x){box.innerHTML=`<div class="err">${esc(x.message)}</div>`;return}
+  const chips=x=>`${x.type?`<span class="chip">${esc(x.type)}</span>`:''}${x.language?` <span class="chip">${esc(x.language)}</span>`:''}`;
+  const pickView=()=>{
+    box.innerHTML=`<input id="aq" placeholder="Search ${cat.length} indexers" aria-label="Search indexers" style="margin:10px 0"><div id="al" style="max-height:52vh;overflow:auto"></div>`;
+    const draw=q=>{const t=q.trim().toLowerCase(),f=cat.filter(x=>!t||(x.name+' '+x.desc+' '+x.type+' '+x.language).toLowerCase().includes(t));
+      box.querySelector('#al').innerHTML=f.slice(0,60).map(x=>`<div class="box row"><div class="grow" style="min-width:0"><b>${esc(x.name)}</b> ${chips(x)}${x.desc?`<div class="mute">${esc(x.desc)}</div>`:''}</div><button data-a="${esc(x.id)}">Add</button></div>`).join('')||'<p class="mute">Nothing matches that. Everything is already added, or try other words.</p>';
+      if(f.length>60)box.querySelector('#al').insertAdjacentHTML('beforeend',`<p class="mute">Showing the first 60 of ${f.length}. Type to narrow the list.</p>`)};
+    draw('');box.querySelector('#aq').oninput=e=>draw(e.target.value);box.querySelector('#aq').focus();
+    box.querySelector('#al').onclick=e=>{const b=e.target.closest('[data-a]');if(b)formView(cat.find(x=>x.id===b.dataset.a),b)};
+  };
+  const norm=f=>jk?(f.type==='displayinfo'?{kind:'info',text:f.text,name:f.name}
+      :f.type==='inputbool'||f.type==='inputcheckbox'?{id:f.id,kind:'bool',name:f.name,value:!!f.value}
+      :f.type==='inputselect'?{id:f.id,kind:'select',name:f.name,value:f.value,options:f.options}
+      :{id:f.id,kind:/pass/i.test(f.id+' '+f.name)?'password':'text',name:f.name,value:f.value})
+    :{id:f.id,kind:f.type==='checkbox'?'bool':f.type==='password'?'password':f.type==='select'?'select':'text',name:f.name,value:f.value,options:f.options,help:f.help};
+  const formView=async(x,btn)=>{
+    if(btn){btn.disabled=true;btn.textContent='Loading…'}
+    let fields;try{fields=jk?await api(`${base}/indexers/${encodeURIComponent(x.id)}/config`):(await api(`${base}/catalog/${encodeURIComponent(x.id)}/fields`)).fields}
+    catch(er){if(btn){btn.disabled=false;btn.textContent='Add'}toast(er.message,'bad');return}
+    fields=fields.map(norm);
+    const priv=/private/i.test(x.type);
+    box.innerHTML=`<h3 style="margin:10px 0 4px">${esc(x.name)} ${chips(x)}</h3>${priv?'<p class="mute">This is a private tracker. You need an account there, and the sign-in details go below.</p>':''}
+      <form id="af" style="margin:0">${jk?'':`<label class="mute" style="display:block;margin-top:8px"><span style="display:block;margin-bottom:4px">Name in Prowlarr</span><input name="nm" style="width:100%" value="${esc(x.name)}" maxlength="100"></label>`}
+      ${fields.map((f,i)=>f.kind==='info'?`<p class="mute">${esc(f.text)}</p>`
+        :f.kind==='bool'?`<label class="chk" style="display:flex;margin:10px 0 2px"><input type="checkbox" data-f="${i}" ${f.value?'checked':''}>${esc(f.name)}</label>${f.help?`<div class="mute">${esc(f.help)}</div>`:''}`
+        :f.kind==='select'?`<label class="mute" style="display:block;margin-top:8px"><span style="display:block;margin-bottom:4px">${esc(f.name)}</span><select data-f="${i}" style="width:100%">${(f.options||[]).map(([v,n])=>`<option value="${esc(v)}" ${v===f.value?'selected':''}>${esc(n)}</option>`).join('')}</select></label>`
+        :`<label class="mute" style="display:block;margin-top:8px"><span style="display:block;margin-bottom:4px">${esc(f.name)}</span><input style="width:100%" data-f="${i}" type="${f.kind==='password'?'password':'text'}" value="${esc(f.value)}" autocomplete="off" spellcheck="false"></label>${f.help?`<div class="mute">${esc(f.help)}</div>`:''}`).join('')}
+      <div class="err" id="ae"></div><div class="row" style="margin-top:12px"><button class="primary" id="as">Add ${esc(x.name)}</button><button type="button" id="ab">Back</button></div><div id="af2"></div></form>`;
+    box.querySelector('#ab').onclick=pickView;
+    const go=async force=>{
+      const values={};box.querySelectorAll('[data-f]').forEach(el=>{const f=fields[el.dataset.f],v=f.kind==='bool'?el.checked:el.value;if(v!==f.value)values[f.id]=v});
+      const b=box.querySelector('#as');b.disabled=true;b.textContent='Adding… this can take a moment';box.querySelector('#ae').textContent='';box.querySelector('#af2').innerHTML='';
+      try{if(jk)await api(`${base}/indexers/${encodeURIComponent(x.id)}/config`,'POST',{values});else await api(`${base}/indexers`,'POST',{def:x.id,name:box.querySelector('[name=nm]').value,values,force});
+        o.close();toast(`Added ${x.name}`,'ok');done()}
+      catch(er){b.disabled=false;b.textContent='Add '+x.name;box.querySelector('#ae').textContent=er.message;
+        if(!jk&&!force){box.querySelector('#af2').innerHTML='<p class="mute">Prowlarr could not check it. You can still add it now and fix the details later.</p><button type="button" id="af3">Add anyway</button>';box.querySelector('#af3').onclick=()=>go(true)}}};
+    box.querySelector('#af').onsubmit=e=>{e.preventDefault();go(false)};
+    const fi=box.querySelector('[data-f]');if(fi)fi.focus();
+  };
+  pickView();
 }
 function idxSearch(s){
   const qb=first('qbittorrent');

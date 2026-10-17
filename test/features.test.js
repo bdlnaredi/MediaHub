@@ -218,7 +218,7 @@ test('demo mode: ready-made sign-in, pretend apps, nothing saved, risky settings
     const c = client(s.base), me = (await c.get('/api/me')).data; assert.equal(me.demo, true); assert.equal(me.setup, false);
     assert.equal((await c.post('/api/login', { name: 'demo', password: 'wrong-password' })).status, 401);
     assert.equal((await c.post('/api/login', { name: 'demo', password: 'demo-mediahub' })).status, 200);
-    const sv = (await c.get('/api/services')).data; assert.equal(sv.length, 13);
+    const sv = (await c.get('/api/services')).data; assert.equal(sv.length, 14);
     const lib = (await c.get(`/api/library?sid=${sv.find(x => x.type === 'sonarr').id}`)).data; assert.equal(lib.length, 6); assert.match(lib[0].poster, /^data:image\/svg/);
     assert.equal((await c.get(`/api/status/${sv.find(x => x.type === 'qbittorrent').id}`)).data.ok, true);
     assert.equal((await c.get(`/api/qb/${sv.find(x => x.type === 'qbittorrent').id}/list`)).data.torrents.length, 4);
