@@ -2,6 +2,11 @@
 
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.14.19] - 2026-10-17
+
+### Added
+- **The server version is easy to find now.** It is shown under your name at the bottom of the menu, at the bottom of the phone menu (More), and on a new **Settings, About** page, which also shows the server address and whether you are in the Android app or a browser.
+
 ## [0.14.18] - 2026-10-17
 
 ### Added

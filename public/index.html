@@ -30,6 +30,8 @@ html[data-rail=min]{--rail:70px}
 button .ic{width:17px;height:17px}
 .who{display:flex;align-items:center;gap:8px;padding:12px 4px 0;border-top:1px solid var(--line);margin-top:8px}
 .who .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.ver{font-size:12px;color:var(--mute);padding:6px 4px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+:root[data-rail=min] .ver{display:none}
 .av{width:30px;height:30px;border-radius:50%;background:var(--s2);display:grid;place-items:center;font-weight:700;flex:none}
 html[data-rail=min] .nv span,html[data-rail=min] .brand .t,html[data-rail=min] .who .nm{display:none}
 html[data-rail=min] .nv{justify-content:center;padding:10px}
@@ -509,10 +511,11 @@ async function api(url,method='GET',body){
 }
 let DEMO=false;
 let REC=false,PLEXLOGIN=false;
+let VER='';const APPMODE=/MediaHubApp\//.test(navigator.userAgent);
 async function start(){
   await loadLang();
   const s=await api('/api/me');
-  DEMO=!!s.demo;REC=!!s.recovery;PLEXLOGIN=!!s.plexLogin;ICONB=s.iconBase?s.iconBase.replace(/\/*$/,'/'):'';
+  VER=s.version||'';DEMO=!!s.demo;REC=!!s.recovery;PLEXLOGIN=!!s.plexLogin;ICONB=s.iconBase?s.iconBase.replace(/\/*$/,'/'):'';
   const rt=(location.hash.match(/^#reset=([\w-]{20,80})$/)||[])[1];
   if(rt)return resetView(rt);
   if(!s.user)return authView(s.setup,s.setupCode);
@@ -677,12 +680,12 @@ function render(){
   $('#app').innerHTML=`<a class="skip" href="#m">Skip to content</a><div class="shell"><nav class="side" aria-label="Main"><div class="brand"><span class="logo">${LOGO}</span><span class="t">MediaHub</span><span class="mtools"><button class="ghost" id="qs2" aria-label="Quick search">${ic('find')}</button><button class="ghost" id="ap3" aria-label="Appearance">${ic('pal')}</button></span><button class="ghost" id="rl" aria-label="Shrink or expand the menu" title="Shrink or expand the menu">${ic('chev')}</button></div>
     <button class="qs" id="qs" aria-label="Quick search">${ic('find')}<span>Quick search</span><kbd>Ctrl K</kbd></button>
     <div class="nav">${tabs.map(([k,n])=>`<button class="nv ${tab===k?'on':''}" data-t="${k}" title="${n}"${tab===k?' aria-current="page"':''}>${ic(k)}<span>${n}</span></button>`).join('')}</div>
-    <div class="who"><span class="av">${esc((me.name[0]||'?').toUpperCase())}</span><span class="nm">${esc(me.name)}</span><button class="ghost" id="ap" aria-label="Appearance" title="Appearance">${ic('pal')}</button><button id="out" class="ghost" aria-label="Sign out" title="Sign out">${ic('out')}</button></div></nav>
+    <div class="who"><span class="av">${esc((me.name[0]||'?').toUpperCase())}</span><span class="nm">${esc(me.name)}</span><button class="ghost" id="ap" aria-label="Appearance" title="Appearance">${ic('pal')}</button><button id="out" class="ghost" aria-label="Sign out" title="Sign out">${ic('out')}</button></div><div class="ver" title="MediaHub version, see Settings, About">MediaHub ${esc(VER)}${APPMODE?' · Android app':''}</div></nav>
     <main>${DEMO?'<div class="demo" role="note">Demo mode: the apps here are pretend and nothing is saved. Risky settings are locked.</div>':''}<div class="ph">${pg[0]?`<h1>${pg[0]}</h1><p class="mute">${pg[1]}</p>`:''}</div><div id="m" tabindex="-1"></div></main>${dockHtml}</div>`;
   document.querySelectorAll('.nv[data-t],.dock [data-t]').forEach(b=>b.onclick=()=>{tab=b.dataset.t;render()});
   const so=async()=>{liveStop();await api('/api/logout','POST');me=null;start()};$('#out').onclick=so;
   $('#ap').onclick=appearance;$('#ap3').onclick=appearance;$('#qs2').onclick=quick;
-  $('#dm').onclick=()=>{const o=modal(`<div class="row" style="width:100%"><h2 style="margin:0;flex:1">Menu</h2><button data-x>Close</button></div><div class="more">${tabs.filter(x=>!dockIds.includes(x[0])).map(([k,n])=>`<button data-t="${k}" class="${tab===k?'on':''}">${ic(k)}<span>${n}</span></button>`).join('')}<button id="mp">${ic('pal')}<span>Appearance</span></button><button id="mo">${ic('out')}<span>Sign out</span></button></div>`);
+  $('#dm').onclick=()=>{const o=modal(`<div class="row" style="width:100%"><h2 style="margin:0;flex:1">Menu</h2><button data-x>Close</button></div><div class="more">${tabs.filter(x=>!dockIds.includes(x[0])).map(([k,n])=>`<button data-t="${k}" class="${tab===k?'on':''}">${ic(k)}<span>${n}</span></button>`).join('')}<button id="mp">${ic('pal')}<span>Appearance</span></button><button id="mo">${ic('out')}<span>Sign out</span></button></div><p class="mute" style="margin:12px 0 0">MediaHub ${esc(VER)}${APPMODE?' · Android app':''}</p>`);
     o.querySelector('[data-x]').onclick=o.close;o.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{o.close();tab=b.dataset.t;render()});o.querySelector('#mp').onclick=()=>{o.close();appearance()};o.querySelector('#mo').onclick=()=>{o.close();so()}};
 $('#rl').onclick=()=>{UI.rail=!UI.rail;saveUI()};$('#qs').onclick=quick;
   const pt=PICK[tab];
@@ -875,7 +878,7 @@ function dashView(){
   checks();upt();slow();attn();rq();
   timer=[tick(fallback,4000),setInterval(glide,1000),tick(slow,60000),tick(attn,60000),tick(rq,60000),tick(upt,300000),tick(()=>{if(!LIVE.ok)checks()},30000)];
 }
-const ST_SECTIONS=[['acct','Account',false,'Your password, sign-in and devices','usr','You'],['look','Appearance',false,'Theme, colours and layout','pal','You'],['apps','Apps',true,'The apps MediaHub connects to','svc','Server'],['lists','Discover lists',true,'Keys for the Trakt, TMDB and TheTVDB lists','find','Server'],['users','Users',true,'Profiles and what each can do','usr','Server'],['links','Status pages',true,'Public pages that show if your server is up','eye','Server'],['alerts','Alerts',true,'Email, phone messages and reports','al','Care'],['rules','Download rules',true,'Speed schedule and stream throttling','dl','Care'],['backup','Backup',true,'Save and restore your setup','pw','Care'],['audit','Activity',true,'Who did what, and when','hl','Care']];
+const ST_SECTIONS=[['acct','Account',false,'Your password, sign-in and devices','usr','You'],['look','Appearance',false,'Theme, colours and layout','pal','You'],['apps','Apps',true,'The apps MediaHub connects to','svc','Server'],['lists','Discover lists',true,'Keys for the Trakt, TMDB and TheTVDB lists','find','Server'],['users','Users',true,'Profiles and what each can do','usr','Server'],['links','Status pages',true,'Public pages that show if your server is up','eye','Server'],['alerts','Alerts',true,'Email, phone messages and reports','al','Care'],['rules','Download rules',true,'Speed schedule and stream throttling','dl','Care'],['backup','Backup',true,'Save and restore your setup','pw','Care'],['audit','Activity',true,'Who did what, and when','hl','Care'],['about','About',false,'Version and where you are connected','eye','You']];
 function setView(){
   const admin=me.role==='admin',secs=ST_SECTIONS.filter(s=>admin||!s[2]);
   if(!secs.some(s=>s[0]===stSub))stSub='acct';
@@ -887,9 +890,15 @@ function setView(){
   mm.insertAdjacentHTML('beforebegin',`<div class="sxt"><h2>${cur[1]}</h2><p class="mute">${cur[3]}</p></div>`);
   $('#sn').onclick=e=>{const b=e.target.closest('[data-k]');if(!b)return;stSub=b.dataset.k;render()};
   const ob=$('#sn .on');if(ob&&ob.scrollIntoView)ob.scrollIntoView({inline:'center',block:'nearest'});
-  ({acct:stAcct,look:stLook,apps:svcView,lists:stLists,users:usrView,alerts:alView,links:linksView,rules:stRules,backup:stBackup,audit:stAudit})[stSub]();
+  ({acct:stAcct,look:stLook,apps:svcView,lists:stLists,users:usrView,alerts:alView,links:linksView,rules:stRules,backup:stBackup,audit:stAudit,about:stAbout})[stSub]();
 }
 function stLook(){$('#m').innerHTML=`<div class="panel" style="max-width:560px">${appearHtml()}</div>`;bindAppear($('#m'))}
+function stAbout(){
+  const row=(k,v)=>`<div class="box row"><span class="grow mute">${k}</span><b>${v}</b></div>`;
+  $('#m').innerHTML=`<div class="panel" style="max-width:560px"><h3 style="margin-top:0">MediaHub ${esc(VER)}</h3><p class="mute">This is the version of the MediaHub server you are connected to. The Android app shows the same page, so it always matches the server.</p>
+    ${row('Server version',esc(VER||'unknown'))}${row('Server address',esc(location.origin))}${row('Opened in',APPMODE?'The Android app':'A web browser')}${row('Signed in as',esc(me.name)+' ('+(me.role==='admin'?'admin':'user')+')')}
+    <p class="mute" style="margin-top:14px">Release notes and newer versions are on <a href="https://github.com/bdlnaredi/mediahub/releases" target="_blank" rel="noopener noreferrer">GitHub</a>.</p></div>`;
+}
 async function stAcct(){
   $('#m').innerHTML=`<div class="panel" style="max-width:560px"><h3 style="margin-top:0">Password</h3><form id="pf" style="max-width:360px;margin:0">
       <input name="old" type="password" placeholder="Current password" autocomplete="current-password" required><input name="new" type="password" placeholder="New password (8+ characters)" autocomplete="new-password" required>
@@ -922,7 +931,6 @@ async function stAcct(){
   $('#so2').onclick=async()=>{try{await api('/api/sessions/revoke','POST',{others:true});toast('Signed out all other devices','ok');loadD()}catch(x){toast(x.message,'bad')}};
   if($('#sall'))$('#sall').onchange=loadD;
   loadD();
-  api('/api/health').then(d=>{if(tab==='set'&&stSub==='acct')$('#m').insertAdjacentHTML('beforeend',`<p class="mute" style="margin-top:20px">MediaHub version ${esc(d.version)}</p>`)}).catch(()=>{});
 }
 
 async function signinPanel(){
