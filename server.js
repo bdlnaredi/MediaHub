@@ -425,6 +425,23 @@ const jk = async (s, path, opt = {}) => {
   if (!r.ok) throw Object.assign(new Error((d && (d.error || d.message)) || 'Jackett returned ' + r.status), { plain: true });
   return d;
 };
+// Jackett only has two doors that answer to the API key alone: the torznab address (list of indexers, searches) and,
+// on some versions, its settings API. The list tries the settings API first and falls back to the torznab list.
+const xmlAttr = (t, n) => (new RegExp('\\b' + n + '="([^"]*)"').exec(t) || [])[1] || '';
+const xmlText = (b, n) => { const m = new RegExp('<' + n + '>([\\s\\S]*?)</' + n + '>').exec(b); return m ? m[1].replace(/<!\[CDATA\[|\]\]>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&').trim() : ''; };
+const jkTorznab = async (s, id, query) => {
+  const r = await fetch(`${s.url.replace(/\/+$/, '')}/api/v2.0/indexers/${encodeURIComponent(id)}/results/torznab/api?apikey=${encodeURIComponent(s.apiKey || '')}&${query}`, { signal: AbortSignal.timeout(45000) });
+  const t = await r.text();
+  if (r.status === 401 || r.status === 403) throw Object.assign(new Error('Jackett did not accept the API key.'), { plain: true });
+  return { ok: r.ok, text: t };
+};
+async function jkList(s, configured) {
+  try { const l = await jk(s, '?configured=true'.replace('true', String(configured))); if (Array.isArray(l)) return configured ? l.filter(x => x.configured !== false) : l.filter(x => !x.configured); } catch {}
+  const x = await jkTorznab(s, 'all', `t=indexers&configured=${configured}`);
+  if (!x.ok || !/<indexers/i.test(x.text)) throw Object.assign(new Error('Jackett did not give its list of indexers. Check the address and API key of Jackett in Settings, Apps.'), { plain: true });
+  return [...x.text.matchAll(/<indexer\b([^>]*)>([\s\S]*?)<\/indexer>/g)].map(m => ({ id: xmlAttr(m[1], 'id'), name: xmlText(m[2], 'title'), description: xmlText(m[2], 'description'), type: xmlText(m[2], 'type'), language: xmlText(m[2], 'language'),
+    site_link: xmlText(m[2], 'link'), configured: xmlAttr(m[1], 'configured') === 'true', last_error: '' })).filter(i => i.id);
+}
 const JK_EDIT = ['inputstring', 'inputtext', 'inputbool', 'inputcheckbox', 'inputselect', 'inputtags'], JK_BOOL = ['inputbool', 'inputcheckbox'];
 const jkField = f => {
   const t = String(f.type || ''), base = { id: String(f.id), type: t, name: String(f.name || f.id).slice(0, 200) };
@@ -1108,15 +1125,16 @@ http.createServer(async (req, res) => {
     }
     if ((r = p.match(/^\/api\/jackett\/(\w+)\/indexers$/)) && m === 'GET') {
       const s = svcOf(r[1], 'jackett'); if (!s) return send(res, 404, { error: 'Not found' });
-      const l = await jk(s, '?configured=true');
+      const l = await jkList(s, true);
       return send(res, 200, (Array.isArray(l) ? l : []).map(x => ({ id: String(x.id), name: String(x.name || x.id), type: String(x.type || ''), language: String(x.language || ''),
         site: /^https?:\/\//.test(x.site_link || '') ? x.site_link : '', error: String(x.last_error || '').slice(0, 300) })));
     }
     if ((r = p.match(/^\/api\/jackett\/(\w+)\/indexers\/([\w.-]+|all)\/test$/)) && m === 'POST') {
       const s = svcOf(r[1], 'jackett'); if (!s) return send(res, 404, { error: 'Not found' });
-      const one = async id => { try { await jk(s, '/' + encodeURIComponent(id) + '/test', { method: 'POST', timeout: 45000 }); return { id, ok: true, error: '' }; } catch (e) { return { id, ok: false, error: e.message }; } };
+      const one = async id => { try { const x = await jkTorznab(s, id, 't=search&q=test&limit=1'); if (x.ok && !/<error\b/i.test(x.text)) return { id, ok: true, error: '' };
+        return { id, ok: false, error: (/<error\b[^>]*description="([^"]*)"/i.exec(x.text) || [])[1] || 'Jackett answered with an error (' + (x.ok ? 'in its reply' : 'not found') + ')' }; } catch (e) { return { id, ok: false, error: e.name === 'TimeoutError' ? 'The indexer took too long to answer' : e.message }; } };
       if (r[2] !== 'all') return send(res, 200, await one(r[2]));
-      const ids = ((await jk(s, '?configured=true')) || []).map(x => String(x.id)), out = [];
+      const ids = (await jkList(s, true)).map(x => String(x.id)), out = [];
       for (let i = 0; i < ids.length; i += 4) out.push(...await Promise.all(ids.slice(i, i + 4).map(one)));
       return send(res, 200, out);
     }
@@ -1715,13 +1733,14 @@ http.createServer(async (req, res) => {
     }
     if ((r = p.match(/^\/api\/jackett\/(\w+)\/catalog$/)) && m === 'GET') {
       const s = svcOf(r[1], 'jackett'); if (!s) return send(res, 404, { error: 'Not found' });
-      const l = await jk(s, '');
-      return send(res, 200, (Array.isArray(l) ? l : []).filter(x => !x.configured).map(x => ({ id: String(x.id), name: String(x.name || x.id), type: String(x.type || ''), language: String(x.language || ''), desc: String(x.description || '').slice(0, 200) }))
+      const l = await jkList(s, false);
+      return send(res, 200, (Array.isArray(l) ? l : []).map(x => ({ id: String(x.id), name: String(x.name || x.id), type: String(x.type || ''), language: String(x.language || ''), desc: String(x.description || '').slice(0, 200) }))
         .sort((a, b) => a.name.localeCompare(b.name)));
     }
     if ((r = p.match(/^\/api\/jackett\/(\w+)\/indexers\/([\w.-]+)\/config$/))) {
       const s = svcOf(r[1], 'jackett'); if (!s) return send(res, 404, { error: 'Not found' });
-      const path = '/' + encodeURIComponent(r[2]) + '/config', cur = await jk(s, path);
+      const path = '/' + encodeURIComponent(r[2]) + '/config'; let cur;
+      try { cur = await jk(s, path); } catch (e) { return send(res, 502, { error: /^Jackett returned 40[0134]$/.test(e.message) ? 'Jackett would not open this indexer\'s settings for MediaHub (' + e.message.slice(-3) + '). Add it in Jackett\'s own page for now.' : e.message }); }
       if (m === 'GET') return send(res, 200, (Array.isArray(cur) ? cur : []).map(jkField).filter(Boolean));
       if (m === 'POST') {
         const b = await readBody(req), vals = b.values && typeof b.values === 'object' ? b.values : {};

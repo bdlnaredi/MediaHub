@@ -2,6 +2,12 @@
 
 All notable changes are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.14.17] - 2026-10-17
+
+### Fixed
+- **Jackett indexers: "Jackett returned 400".** Some Jackett versions refuse their settings address when it is called with only the API key. The list of indexers and the Check buttons now use Jackett's search address instead, which always accepts the API key. Check runs a real test search.
+- If Jackett still refuses to open an indexer's settings when you press Add, MediaHub says so in plain words instead of showing the number.
+
 ## [0.14.16] - 2026-10-17
 
 ### Added

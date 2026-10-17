@@ -53,3 +53,23 @@ test('jackett and prowlarr indexers: list, check, add, remove', async () => {
     assert.equal((await client(s.base).get(`/api/jackett/${jid}/indexers`)).status, 401);
   } finally { await s.stop(); srv.close(); }
 });
+
+test('jackett whose settings door answers 400: list and checks still work, adding explains itself', async () => {
+  const fake = fakes.create(), srv = http.createServer((req, res) => fake.handle(req, res, req.url)).listen(0);
+  await new Promise(r => srv.once('listening', r));
+  fake.state.jackettSettingsBroken = true;
+  const fb = `http://127.0.0.1:${srv.address().port}`, s = await boot({}), a = client(s.base); await setup(a);
+  try {
+    const jid = (await a.post('/api/services', { type: 'jackett', name: 'Jackett', url: fb + '/jackett', apiKey: 'k' })).data.id;
+    const l = (await a.get(`/api/jackett/${jid}/indexers`)).data;
+    assert.deepEqual(l.map(x => [x.id, x.name, x.type, x.language, x.site]), [['open-tracker', 'Open Tracker', 'public', 'en-US', 'https://open.example/'], ['broken-tracker', 'Broken Tracker', 'public', 'en-US', 'https://broken.example/']]);
+    assert.deepEqual((await a.post(`/api/jackett/${jid}/indexers/open-tracker/test`)).data, { id: 'open-tracker', ok: true, error: '' });
+    const bt = (await a.post(`/api/jackett/${jid}/indexers/broken-tracker/test`)).data; assert.equal(bt.ok, false); assert.match(bt.error, /timeout/);
+    assert.equal((await a.post(`/api/jackett/${jid}/indexers/all/test`)).data.filter(x => x.ok).length, 1);
+    assert.deepEqual((await a.get(`/api/jackett/${jid}/catalog`)).data.map(x => x.id), ['club-tracker', 'night-index']);
+    const c = await a.get(`/api/jackett/${jid}/indexers/club-tracker/config`); assert.equal(c.status, 502); assert.match(c.data.error, /Jackett's own page/); assert.ok(!/Server error/.test(c.data.error));
+    // a wrong key says so, plainly
+    const bad = (await a.post('/api/services', { type: 'jackett', name: 'J2', url: fb + '/jackett', apiKey: 'wrong' })).data.id;
+    const w = await a.get(`/api/jackett/${bad}/indexers`); assert.equal(w.status, 502); assert.match(w.data.error, /API key|list of indexers/);
+  } finally { await s.stop(); srv.close(); }
+});
